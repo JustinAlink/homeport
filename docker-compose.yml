@@ -1,0 +1,50 @@
+# Production — pulls the prebuilt image from GHCR (built by GitHub Actions).
+# Local build instead:  docker compose -f docker-compose.build.yml up -d --build
+#
+# Copy .env.example -> .env and fill it in before running.
+
+services:
+  homeport:
+    image: ghcr.io/${GHCR_OWNER}/homeport:${IMAGE_TAG:-latest}
+    container_name: homeport
+    restart: unless-stopped
+    environment:
+      HOMEPORT_ADMIN_PASSWORD: ${HOMEPORT_ADMIN_PASSWORD}
+      HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET}
+      # Talk to Docker via the read-only socket proxy below (never the raw socket).
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      # In-container path where the NPM confs are mounted (see volume below).
+      NPM_CONF_DIR: /npm
+    volumes:
+      # Reverse-proxy domain mapping: mount your NPM proxy-host confs read-only.
+      - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
+    ports:
+      - "3004:3000"
+    networks:
+      - npm-network # reachable by the reverse proxy
+      - internal # reach the socket proxy
+    depends_on:
+      - docker-socket-proxy
+
+  # Read-only Docker API proxy — exposes only what homeport needs, so the app
+  # never gets raw (root-equivalent) access to /var/run/docker.sock.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: homeport-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      INFO: 1
+      EVENTS: 1
+      PING: 1
+      # everything else stays denied (default 0)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal
+
+networks:
+  npm-network:
+    external: true
+  internal:
+    driver: bridge

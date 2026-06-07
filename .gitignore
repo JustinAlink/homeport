@@ -1,0 +1,22 @@
+# Environment
+.env
+*.env.local
+
+# Nuxt
+.nuxt/
+.output/
+node_modules/
+dist/
+
+# Our private working doc — never goes to the public repo
+CONTEXT.md
+
+# Local fixtures / scratch
+fixtures/npm-live/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local editor/tooling config
+.claude/
