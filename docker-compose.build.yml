@@ -1,0 +1,42 @@
+# Local build (no GHCR). Run:  docker compose -f docker-compose.build.yml up -d --build
+
+services:
+  homeport:
+    build:
+      context: .
+    container_name: homeport
+    restart: unless-stopped
+    environment:
+      HOMEPORT_ADMIN_PASSWORD: ${HOMEPORT_ADMIN_PASSWORD}
+      HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET}
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      NPM_CONF_DIR: /npm
+    volumes:
+      - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
+    ports:
+      - "3004:3000"
+    networks:
+      - npm-network
+      - internal
+    depends_on:
+      - docker-socket-proxy
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: homeport-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      INFO: 1
+      EVENTS: 1
+      PING: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal
+
+networks:
+  npm-network:
+    external: true
+  internal:
+    driver: bridge
