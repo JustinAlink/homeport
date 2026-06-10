@@ -73,6 +73,7 @@ export interface ServicesResponse {
   stats: { running: number; total: number; groups: number }
   domainProvider: string | null // e.g. "Nginx Proxy Manager"
   controlEnabled: boolean // start/stop controls available?
+  remoteIcons: boolean // fetch real app logos from the CDN
   hosts: { id: string; name: string; online: boolean; error?: string | null }[]
   generatedAt: number
 }

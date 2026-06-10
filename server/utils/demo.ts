@@ -166,6 +166,7 @@ export function demoServices(): ServicesResponse {
     },
     domainProvider: 'Demo',
     controlEnabled: getConfig().allowControl,
+    remoteIcons: getConfig().remoteIcons,
     hosts: hosts.map((h) => ({ id: h.id, name: h.name, online: true, error: null })),
     generatedAt: Date.now(),
   }

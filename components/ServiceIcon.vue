@@ -17,7 +17,10 @@
 </template>
 
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ name: string; icon?: string | null; size?: number }>(), { size: 30 })
+const props = withDefaults(
+  defineProps<{ name: string; icon?: string | null; size?: number; remote?: boolean }>(),
+  { size: 30, remote: true },
+)
 
 const CDN = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg'
 const isUrl = (s: string) => /^https?:\/\//.test(s)
@@ -32,11 +35,11 @@ const emoji = computed(() => (props.icon && isEmoji(props.icon) ? props.icon : n
 const logoUrl = computed(() => {
   const src = props.icon
   if (src) {
-    if (isUrl(src)) return src
+    if (isUrl(src)) return src // explicit URL — always honored
     if (isEmoji(src)) return null
-    return `${CDN}/${slugify(src)}.svg`
+    return props.remote ? `${CDN}/${slugify(src)}.svg` : null // slug → CDN lookup
   }
-  return `${CDN}/${slugify(props.name)}.svg`
+  return props.remote ? `${CDN}/${slugify(props.name)}.svg` : null // guess from name → CDN
 })
 
 const initial = computed(() => props.name.charAt(0).toUpperCase())
