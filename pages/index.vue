@@ -12,29 +12,23 @@
           via {{ data.domainProvider }}
         </span>
       </div>
-      <!-- Fleet totals — click to toggle the detailed graph -->
-      <button
-        v-if="fleet"
-        class="hidden items-center gap-2 rounded-md border px-2.5 py-1 text-[11px] text-slate-400 hover:border-white/15 lg:flex"
-        :class="showGraph ? 'border-accent/40 bg-accent/5' : 'border-white/5 bg-ink-900'"
-        title="Toggle CPU/RAM graph"
-        @click="toggleGraph"
-      >
-        <span><span class="text-slate-500">CPU</span> {{ fleet.cpuPercent }}%</span>
-        <span class="text-slate-600">·</span>
-        <span><span class="text-slate-500">RAM</span> {{ formatBytes(fleet.memUsed) }} / {{ formatBytes(fleet.memTotal) }}</span>
-        <div class="ml-1 h-4 w-16"><Sparkline :data="fleetHistory.cpu" :max="100" /></div>
-        <span class="text-slate-500">{{ showGraph ? '▴' : '▾' }}</span>
-      </button>
       <div class="ml-auto flex items-center gap-2">
         <SearchBar v-model="q" />
+        <button
+          class="rounded-md border px-2.5 py-1.5 text-xs hover:bg-white/5"
+          :class="showGraph ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+          title="Toggle CPU/RAM graph"
+          @click="toggleGraph"
+        >📈</button>
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
         <NuxtLink to="/settings" class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Settings">⚙</NuxtLink>
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-white/5" @click="logout">Log out</button>
       </div>
     </header>
 
-    <FleetGraph v-if="showGraph && fleet" :cpu="fleetHistory.cpu" :mem="fleetHistory.mem" class="mb-5" />
+    <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-4" />
+
+    <LineGraph v-if="showGraph && fleet" :series="fleetSeries" :shared-max="100" class="mb-5" />
 
     <div v-if="loading && !data" class="py-20 text-center text-slate-500">Loading…</div>
     <div v-else-if="error" class="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
@@ -71,6 +65,10 @@ const { data, error, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
+const fleetSeries = computed(() => [
+  { label: 'CPU', color: '#10b981', data: fleetHistory.value.cpu, unit: '%' },
+  { label: 'RAM', color: '#38bdf8', data: fleetHistory.value.mem, unit: '%' },
+])
 const pings = usePings()
 const q = ref('')
 const showGraph = ref(false)
