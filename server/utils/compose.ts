@@ -28,6 +28,7 @@ function toService(host: HostConfig, c: RawContainer, domains: ServiceDomain[], 
     icon: l['hub.icon'] || null,
     domains,
     hidden: l['hub.hide'] === 'true',
+    noalert: l['hub.noalert'] === 'true',
   }
 }
 
@@ -53,6 +54,7 @@ function systemdToService(u: SystemdUnit): Service {
     icon: null,
     domains: [],
     hidden: false,
+    noalert: false,
   }
 }
 

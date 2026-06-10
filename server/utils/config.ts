@@ -3,6 +3,13 @@
 // container start (env) AND via the in-app settings page (when env doesn't lock it).
 
 import { readSettings, type PersistedSettings } from './settings'
+import type { WebhookChannel } from './notifiers/types'
+
+export interface AlertTransitions {
+  down: boolean
+  unhealthy: boolean
+  recovered: boolean
+}
 
 export interface HomeportConfig {
   /** Password for the single admin login. Empty = login disabled (NOT recommended). */
@@ -37,11 +44,38 @@ export interface HomeportConfig {
   systemdUnits: string[]
   /** Fetch real app logos from the dashboard-icons CDN. On by default. */
   remoteIcons: boolean
+  /** Background collector cadence in seconds (feeds history + alerts). Min 10. */
+  collectorInterval: number
+  /** Persist CPU/mem history so graphs survive refresh/restart. On by default. */
+  historyEnabled: boolean
+  /** Seconds per history point (downsample resolution). Advanced/env-only. */
+  historyResolution: number
+  /** Hours of history to retain per series. Advanced/env-only. */
+  historyRetentionHours: number
+  /** Max number of tracked series (bounds disk). Advanced/env-only. */
+  historyMaxSeries: number
+  /** Per-service alerting on down/unhealthy/recovered transitions. Off by default. */
+  alertsEnabled: boolean
+  /** Which transitions to notify on. */
+  alertTransitions: AlertTransitions
+  /** Consecutive bad samples before an alert fires (anti-flap). */
+  alertDebounceSamples: number
+  /** Min seconds between repeat notifications while a service stays bad (0 = once). */
+  alertCooldownSec: number
+  /** Outbound webhook channels. */
+  alertChannels: WebhookChannel[]
 }
 
 const envStr = (k: string) => {
   const v = process.env[k]
   return v !== undefined && v !== '' ? v : undefined
+}
+
+const envNum = (k: string) => {
+  const v = envStr(k)
+  if (v === undefined) return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
 }
 
 export function getConfig(): HomeportConfig {
@@ -83,6 +117,26 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_REMOTE_ICONS') !== undefined
         ? process.env.HOMEPORT_REMOTE_ICONS === 'true'
         : s.remoteIcons ?? true,
+    collectorInterval: Math.max(10, envNum('HOMEPORT_COLLECTOR_INTERVAL') ?? s.collectorInterval ?? 30),
+    historyEnabled:
+      envStr('HOMEPORT_HISTORY') !== undefined
+        ? process.env.HOMEPORT_HISTORY === 'true'
+        : s.historyEnabled ?? true,
+    historyResolution: Math.max(15, envNum('HOMEPORT_HISTORY_RESOLUTION') ?? 60),
+    historyRetentionHours: Math.max(1, envNum('HOMEPORT_HISTORY_RETENTION_HOURS') ?? 24),
+    historyMaxSeries: Math.max(10, envNum('HOMEPORT_HISTORY_MAX_SERIES') ?? 500),
+    alertsEnabled:
+      envStr('HOMEPORT_ALERTS') !== undefined
+        ? process.env.HOMEPORT_ALERTS === 'true'
+        : s.alertsEnabled ?? false,
+    alertTransitions: {
+      down: s.alertTransitions?.down ?? true,
+      unhealthy: s.alertTransitions?.unhealthy ?? true,
+      recovered: s.alertTransitions?.recovered ?? false,
+    },
+    alertDebounceSamples: Math.max(1, s.alertDebounceSamples ?? 3),
+    alertCooldownSec: Math.max(0, s.alertCooldownSec ?? 3600),
+    alertChannels: s.alertChannels ?? [],
   }
 }
 
@@ -100,6 +154,9 @@ export function getEnvLocks() {
     systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
     remoteIcons: envStr('HOMEPORT_REMOTE_ICONS') !== undefined,
     hosts: !!process.env.HOMEPORT_HOSTS,
+    collectorInterval: envNum('HOMEPORT_COLLECTOR_INTERVAL') !== undefined,
+    historyEnabled: envStr('HOMEPORT_HISTORY') !== undefined,
+    alerts: envStr('HOMEPORT_ALERTS') !== undefined,
   }
 }
 
@@ -119,5 +176,16 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     systemdEnabled: !!s.systemdEnabled,
     remoteIcons: s.remoteIcons ?? true,
     hosts: s.hosts ?? [],
+    collectorInterval: s.collectorInterval ?? 30,
+    historyEnabled: s.historyEnabled ?? true,
+    alertsEnabled: s.alertsEnabled ?? false,
+    alertTransitions: {
+      down: s.alertTransitions?.down ?? true,
+      unhealthy: s.alertTransitions?.unhealthy ?? true,
+      recovered: s.alertTransitions?.recovered ?? false,
+    },
+    alertDebounceSamples: s.alertDebounceSamples ?? 3,
+    alertCooldownSec: s.alertCooldownSec ?? 3600,
+    alertChannels: s.alertChannels ?? [],
   }
 }

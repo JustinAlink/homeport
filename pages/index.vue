@@ -28,7 +28,18 @@
 
     <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-4" />
 
-    <LineGraph v-if="showGraph && fleet" :series="fleetSeries" :shared-max="100" class="mb-5" />
+    <div v-if="showGraph && fleet" class="mb-5">
+      <div class="mb-2 flex items-center gap-1 text-[11px]">
+        <button
+          v-for="r in (['live', '1h', '6h', '24h'] as const)"
+          :key="r"
+          class="rounded-md border px-2 py-0.5"
+          :class="graphRange === r ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
+          @click="graphRange = r"
+        >{{ r }}</button>
+      </div>
+      <LineGraph :series="fleetSeries" :shared-max="100" :interval-sec="graphIntervalSec" />
+    </div>
 
     <div v-if="multiHost" class="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
       <button
@@ -84,10 +95,41 @@ const { data, error, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
-const fleetSeries = computed(() => [
-  { label: 'CPU', color: '#10b981', data: fleetHistory.value.cpu, unit: '%' },
-  { label: 'RAM', color: '#38bdf8', data: fleetHistory.value.mem, unit: '%' },
-])
+
+// Graph time range. 'live' = the in-memory rolling buffer (7s); the others load
+// persisted history from /api/history at the collector resolution.
+type GraphRange = 'live' | '1h' | '6h' | '24h'
+const graphRange = ref<GraphRange>('live')
+const graphIntervalSec = computed(() => (graphRange.value === 'live' ? 7 : 60))
+
+const fleetPast = ref<{ cpu: number[]; mem: number[] } | null>(null)
+
+// forward-fill nulls (gaps) so the line stays continuous
+const fill = (a: (number | null)[]) => {
+  let last = 0
+  return a.map((v) => (v == null ? last : (last = v)))
+}
+
+async function loadFleetHistory() {
+  if (graphRange.value === 'live') return
+  try {
+    const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
+      params: { id: 'host', range: graphRange.value },
+    })
+    fleetPast.value = { cpu: fill(r.cpu), mem: fill(r.mem) }
+  } catch {
+    fleetPast.value = null
+  }
+}
+watch([graphRange, showGraph], () => loadFleetHistory())
+
+const fleetSeries = computed(() => {
+  const src = graphRange.value === 'live' ? fleetHistory.value : fleetPast.value ?? { cpu: [], mem: [] }
+  return [
+    { label: 'CPU', color: '#10b981', data: src.cpu, unit: '%' },
+    { label: 'RAM', color: '#38bdf8', data: src.mem, unit: '%' },
+  ]
+})
 const pings = usePings()
 const q = ref('')
 const showGraph = ref(false)

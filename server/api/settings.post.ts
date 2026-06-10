@@ -1,7 +1,26 @@
 import { writeSettings, settingsWritable, type PersistedSettings, type SettingsHost } from '../utils/settings'
 import { resetDocker } from '../utils/docker'
+import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy']
+const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'custom']
+
+function sanitizeChannels(input: unknown): WebhookChannel[] {
+  if (!Array.isArray(input)) throw createError({ statusCode: 400, statusMessage: 'alertChannels must be an array' })
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  return input
+    .map((c): WebhookChannel => {
+      const o = (c ?? {}) as Record<string, unknown>
+      const url = str(o.url)
+      if (url && !/^https?:\/\//.test(url))
+        throw createError({ statusCode: 400, statusMessage: 'channel url must be http(s)://' })
+      const preset = (str(o.preset) || 'custom') as WebhookPreset
+      if (!PRESETS.includes(preset))
+        throw createError({ statusCode: 400, statusMessage: 'invalid channel preset' })
+      return { name: str(o.name) || preset, url, preset, template: str(o.template) || undefined }
+    })
+    .filter((c) => c.url)
+}
 
 function sanitizeHosts(input: unknown): SettingsHost[] {
   if (!Array.isArray(input)) throw createError({ statusCode: 400, statusMessage: 'hosts must be an array' })
@@ -64,6 +83,32 @@ export default defineEventHandler(async (event) => {
   if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled
   if (body.remoteIcons !== undefined) patch.remoteIcons = !!body.remoteIcons
   if (body.hosts !== undefined) patch.hosts = sanitizeHosts(body.hosts)
+  if (body.collectorInterval !== undefined) {
+    const n = Number(body.collectorInterval)
+    if (!Number.isFinite(n) || n < 10)
+      throw createError({ statusCode: 400, statusMessage: 'collectorInterval must be ≥ 10 seconds' })
+    patch.collectorInterval = Math.round(n)
+  }
+  if (body.historyEnabled !== undefined) patch.historyEnabled = !!body.historyEnabled
+
+  if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
+  if (body.alertTransitions !== undefined) {
+    const t = body.alertTransitions || {}
+    patch.alertTransitions = { down: !!t.down, unhealthy: !!t.unhealthy, recovered: !!t.recovered }
+  }
+  if (body.alertDebounceSamples !== undefined) {
+    const n = Number(body.alertDebounceSamples)
+    if (!Number.isFinite(n) || n < 1)
+      throw createError({ statusCode: 400, statusMessage: 'alertDebounceSamples must be ≥ 1' })
+    patch.alertDebounceSamples = Math.round(n)
+  }
+  if (body.alertCooldownSec !== undefined) {
+    const n = Number(body.alertCooldownSec)
+    if (!Number.isFinite(n) || n < 0)
+      throw createError({ statusCode: 400, statusMessage: 'alertCooldownSec must be ≥ 0' })
+    patch.alertCooldownSec = Math.round(n)
+  }
+  if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
 
   const saved = writeSettings(patch)
   resetDocker() // a connection change should take effect immediately

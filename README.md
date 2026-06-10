@@ -27,7 +27,8 @@ homeport reads it all live:
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
 - **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
 - **systemd** — optionally shows host systemd services alongside containers.
-- **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips.
+- **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
+- **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
@@ -88,6 +89,9 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_PING` | `true` | HTTP-ping mapped domains for an up/down dot. |
 | `HOMEPORT_SYSTEMD` | `false` | Show host systemd services. Needs `systemctl` access (host install, or mount `/run/systemd` + the dbus socket). |
 | `HOMEPORT_SYSTEMD_UNITS` | _(active+failed)_ | Comma list of units to show, e.g. `nginx,postgresql`. |
+| `HOMEPORT_COLLECTOR_INTERVAL` | `30` | Seconds between background fleet snapshots (feeds history + alerts). Min 10. |
+| `HOMEPORT_HISTORY` | `true` | Persist CPU/RAM history so graphs survive refresh/restart (stored under the data dir). |
+| `HOMEPORT_ALERTS` | `false` | Enable per-service down/unhealthy/recovered notifications (configure channels in settings). |
 
 > **Settings page** (the ⚙ in the header): change reverse-proxy provider, Docker connection
 > (local / remote-over-SSH), add/remove **extra hosts**, toggle remote logos, and the controls
@@ -104,6 +108,7 @@ Zero-config by default; add labels to any container to customize its card:
 | `hub.group` | Override the group/stack it's filed under |
 | `hub.icon` | An emoji/character shown before the name |
 | `hub.hide` | `true` to hide it from the dashboard |
+| `hub.noalert` | `true` to exclude it from alerting |
 
 ## Reverse-proxy support
 
@@ -158,6 +163,28 @@ HOMEPORT_HOSTS='[
 Setting `HOMEPORT_HOSTS` locks the in-app Hosts list (env stays authoritative). With
 neither set, homeport just watches the single host from the normal config.
 
+## History & alerts
+
+A small **background collector** snapshots the fleet every `HOMEPORT_COLLECTOR_INTERVAL`
+seconds (default 30) — so history accrues and alerts fire even when nobody's looking at
+the page.
+
+- **History** is kept as tiny per-series JSON ring-buffers under
+  `${HOMEPORT_DATA_DIR}/stats/` (zero-dependency, self-bounding ~24h). The fleet graph
+  gains a 1h/6h/24h range that reads it back, so graphs survive a refresh or restart. Turn
+  off with `HOMEPORT_HISTORY=false`.
+- **Alerts** detect down / unhealthy / recovered transitions, debounced over N samples to
+  avoid flapping, with a re-notify cooldown. Configure on the settings page: pick which
+  transitions to notify on and add **webhook channels** — Discord, Slack, ntfy, or a custom
+  JSON body with `{{name}} {{kind}} {{host}} {{from}} {{to}}` placeholders. A **Send test**
+  button verifies each channel. Alert state + a recent-events log persist under
+  `${HOMEPORT_DATA_DIR}/alerts/` so a homeport restart doesn't re-page every down service.
+  Exclude a container with the `hub.noalert=true` label. Enable with `HOMEPORT_ALERTS=true`
+  (or the settings toggle).
+
+> Single container, single process: one collector runs per deployment. All of this degrades
+> gracefully to in-memory if `HOMEPORT_DATA_DIR` isn't writable.
+
 ## Security
 
 - homeport never touches the raw Docker socket — it talks to a **read-only
@@ -169,9 +196,9 @@ neither set, homeport just watches the single host from the normal config.
 
 ## Roadmap
 
-- Per-service alerting / notifications (down, unhealthy)
-- More reverse-proxy providers (community PRs welcome)
-- Historical stats retention beyond the in-memory window
+- More reverse-proxy providers — plain Nginx, Traefik file provider (community PRs welcome)
+- Email/SMTP alert channel (webhooks land first)
+- Per-container history range in the expandable card graph
 
 ## License
 

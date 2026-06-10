@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, constants } from 'node:fs'
 import { join, dirname } from 'node:path'
+import type { WebhookChannel } from './notifiers/types'
 
 // UI-configurable settings, persisted to a JSON file in HOMEPORT_DATA_DIR.
 // Env vars (read in config.ts) take precedence over these — they "lock" a field.
@@ -17,6 +18,16 @@ export interface PersistedSettings {
   remoteIcons?: boolean
   /** UI-managed multi-host list (empty = use the single connection above). */
   hosts?: SettingsHost[]
+  /** Background collector cadence in seconds (feeds history + alerts). */
+  collectorInterval?: number
+  /** Persist CPU/mem history so graphs survive refresh/restart. */
+  historyEnabled?: boolean
+  /** Per-service alerting. */
+  alertsEnabled?: boolean
+  alertTransitions?: { down?: boolean; unhealthy?: boolean; recovered?: boolean }
+  alertDebounceSamples?: number
+  alertCooldownSec?: number
+  alertChannels?: WebhookChannel[]
 }
 
 export interface SettingsHost {
