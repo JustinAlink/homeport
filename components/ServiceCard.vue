@@ -46,17 +46,38 @@
       </a>
     </div>
 
-    <p class="mt-auto truncate text-[11px] text-slate-500" :title="service.statusText">
-      {{ service.statusText }}
-    </p>
+    <div class="mt-auto space-y-1.5 pt-1">
+      <div v-if="stat && service.state === 'running'" class="flex items-center gap-3 text-[11px] text-slate-400">
+        <span><span class="text-slate-500">CPU</span> {{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
+        <span>
+          <span class="text-slate-500">MEM</span> {{ fmt(stat.memBytes) }}<span
+            v-if="stat.memPercent != null"
+            class="text-slate-600"
+          > · {{ stat.memPercent }}%</span>
+        </span>
+      </div>
+      <p class="truncate text-[11px] text-slate-500" :title="service.statusText">
+        {{ service.statusText }}
+      </p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Service } from '~/types/service'
 
-defineProps<{ service: Service }>()
+const props = defineProps<{ service: Service }>()
 
 // Best-effort host for port links: wherever the dashboard itself is opened.
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
+
+const { stats } = useStats()
+const stat = computed(() => stats.value[props.service.id])
+
+function fmt(b: number): string {
+  if (b >= 1024 ** 3) return (b / 1024 ** 3).toFixed(1) + ' GiB'
+  if (b >= 1024 ** 2) return Math.round(b / 1024 ** 2) + ' MiB'
+  if (b >= 1024) return Math.round(b / 1024) + ' KiB'
+  return b + ' B'
+}
 </script>
