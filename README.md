@@ -71,8 +71,9 @@ All via environment variables (set on the container at runtime):
 |---|---|---|
 | `HOMEPORT_ADMIN_PASSWORD` | — | Password for the single admin login (**required**). |
 | `HOMEPORT_SESSION_SECRET` | dev fallback | Secret used to sign the session cookie. Set a long random value. |
-| `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), or empty to use `DOCKER_SOCKET`. |
+| `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), `ssh://user@host` for a remote host, or empty for `DOCKER_SOCKET`. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
+| `DOCKER_SSH_KEY` | _(agent)_ | Private-key path for `ssh://` (mount it read-only); falls back to the SSH agent. |
 | `NPM_CONF_DIR` | _(none)_ | Path (in-container) to Nginx Proxy Manager proxy-host confs. Omit to disable domain mapping. |
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
@@ -100,6 +101,23 @@ homeport reads your reverse proxy to map domains automatically:
 
 It **auto-detects** (NPM → Caddy → Traefik), or force one with `DOMAIN_PROVIDER=npm|traefik|caddy`.
 The layer is a small `DomainProvider` interface — more proxies are easy to add. PRs welcome.
+
+## Watch a remote host (over SSH)
+
+Run homeport anywhere and point it at a remote Docker host over SSH — no need to expose
+the socket over TCP. Skip the socket-proxy and set:
+
+```yaml
+environment:
+  DOCKER_HOST: ssh://user@your-server
+  DOCKER_SSH_KEY: /ssh/id_ed25519   # in-container path
+volumes:
+  - /path/to/key:/ssh/id_ed25519:ro
+```
+
+The remote user must be able to reach its own `/var/run/docker.sock` (i.e. in the `docker`
+group). Note: in SSH mode homeport does not yet verify the remote host key — use it on
+trusted networks / your own hosts.
 
 ## Security
 

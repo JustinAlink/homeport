@@ -1,16 +1,30 @@
+import { readFileSync } from 'node:fs'
 import Docker from 'dockerode'
 import type { HealthState, ServicePort } from '~/types/service'
 import { getConfig } from './config'
+import { parseDockerHost } from './docker-target'
 
 let _docker: Docker | null = null
 
-/** Lazily build a dockerode client from config (tcp socket-proxy or unix socket). */
+/** Lazily build a dockerode client from config (ssh / tcp socket-proxy / unix socket). */
 export function getDocker(): Docker {
   if (_docker) return _docker
   const cfg = getConfig()
-  if (cfg.dockerHost) {
-    const url = new URL(cfg.dockerHost.replace(/^tcp:\/\//, 'http://'))
-    _docker = new Docker({ host: url.hostname, port: Number(url.port) || 2375, protocol: 'http' })
+  const target = parseDockerHost(cfg.dockerHost)
+
+  if (target.kind === 'ssh') {
+    const sshOptions = cfg.dockerSshKey
+      ? { privateKey: readFileSync(cfg.dockerSshKey), passphrase: cfg.dockerSshPassphrase || undefined }
+      : { agent: process.env.SSH_AUTH_SOCK }
+    _docker = new Docker({
+      protocol: 'ssh',
+      host: target.host,
+      port: target.port,
+      username: target.username,
+      sshOptions,
+    } as Docker.DockerOptions)
+  } else if (target.kind === 'tcp') {
+    _docker = new Docker({ host: target.host, port: target.port, protocol: 'http' })
   } else {
     _docker = new Docker({ socketPath: cfg.dockerSocket })
   }

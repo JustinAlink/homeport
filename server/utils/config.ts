@@ -6,10 +6,14 @@ export interface HomeportConfig {
   adminPassword: string
   /** Secret used to sign the session cookie. */
   sessionSecret: string
-  /** tcp://host:port for a docker-socket-proxy. Empty = use the unix socket. */
+  /** Where Docker lives: ssh://user@host, tcp://host:port, or empty for the unix socket. */
   dockerHost: string
   /** Path to the Docker unix socket (when dockerHost is empty). */
   dockerSocket: string
+  /** Private key path for ssh:// DOCKER_HOST (falls back to the SSH agent if unset). */
+  dockerSshKey: string
+  /** Optional passphrase for the SSH key. */
+  dockerSshPassphrase: string
   /** Explicit reverse-proxy provider: 'npm' | 'traefik' | 'caddy'. Empty = auto-detect. */
   domainProvider: string
   /** Directory of Nginx Proxy Manager generated proxy-host confs. */
@@ -28,6 +32,8 @@ export function getConfig(): HomeportConfig {
     sessionSecret: process.env.HOMEPORT_SESSION_SECRET || 'insecure-dev-secret-change-me',
     dockerHost: process.env.DOCKER_HOST ?? '',
     dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
+    dockerSshKey: process.env.DOCKER_SSH_KEY ?? '',
+    dockerSshPassphrase: process.env.DOCKER_SSH_KEY_PASSPHRASE ?? '',
     domainProvider: (process.env.DOMAIN_PROVIDER || '').toLowerCase(),
     npmConfDir: process.env.NPM_CONF_DIR ?? '',
     caddyfilePath: process.env.CADDYFILE_PATH ?? '',
