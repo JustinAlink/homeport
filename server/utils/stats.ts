@@ -1,6 +1,9 @@
-import type { ContainerStats, HostStats, StatsMap } from '~/types/service'
+import type { ContainerStats, HostStats, StatsMap, StatsResponse } from '~/types/service'
 import type { HostConfig } from './hosts'
-import { getDockerFor } from './docker'
+import { getDockerFor, listContainersFor } from './docker'
+import { getHosts } from './hosts'
+import { getConfig } from './config'
+import { demoStats } from './demo'
 
 // One-shot CPU% using Docker's standard delta formula. With stream:false the
 // daemon includes a ~1s-old precpu sample, so a single read is enough; if it's
@@ -61,6 +64,38 @@ export async function getHostInfo(host: HostConfig): Promise<{ ncpu: number; mem
   } catch {
     return null
   }
+}
+
+/**
+ * Full fleet stats across every host: per-container map (keyed `${hostId}::${cid}`
+ * to match service ids) plus a combined host aggregate. Used by both the /api/stats
+ * endpoint and the background collector.
+ */
+export async function collectStats(): Promise<StatsResponse> {
+  if (getConfig().demo) return demoStats()
+
+  const containers: StatsMap = {}
+  let ncpu = 0
+  let memTotal = 0
+
+  await Promise.all(
+    getHosts().map(async (host) => {
+      try {
+        const running = (await listContainersFor(host)).filter((c) => c.state === 'running').map((c) => c.id)
+        const s = await getStatsFor(host, running)
+        for (const [id, st] of Object.entries(s)) containers[`${host.id}::${id}`] = st
+        const info = await getHostInfo(host)
+        if (info) {
+          ncpu += info.ncpu
+          memTotal += info.memTotal
+        }
+      } catch {
+        // skip unreachable host
+      }
+    }),
+  )
+
+  return { containers, host: aggregateHostStats(containers, ncpu, memTotal) }
 }
 
 /** Aggregate fleet usage vs host capacity across all containers + hosts. */

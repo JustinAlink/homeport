@@ -71,6 +71,7 @@ function toService(s: Seed, i: number): Service {
       ssl: !!d.ssl,
     })),
     hidden: false,
+    noalert: false,
   }
 }
 
@@ -106,6 +107,30 @@ export function demoStats(): StatsResponse {
       memPercent: Math.round((memUsed / memTotal) * 1000) / 10,
     },
   }
+}
+
+/** Synthetic CPU/mem history so the graphs look alive in demo mode (no Docker). */
+export function demoHistory(id: string, fromMs: number, toMs: number, res: number) {
+  const isHost = id === 'host'
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 997
+  const step = res * 1000
+  const start = Math.floor(fromMs / step) * step
+  const end = Math.floor(toMs / step) * step
+  const t: number[] = []
+  const cpu: (number | null)[] = []
+  const mem: (number | null)[] = []
+  for (let slot = start; slot <= end; slot += step) {
+    const x = slot / 60000 // minutes
+    t.push(slot)
+    cpu.push(Math.max(0, Math.round((20 + Math.sin(x / 15 + h) * 12 + Math.sin(x / 3 + h) * 4) * 10) / 10))
+    mem.push(
+      isHost
+        ? Math.max(5, Math.round((45 + Math.sin(x / 40 + h) * 15) * 10) / 10) // percent
+        : Math.max(20, Math.round(120 + (h % 500) + Math.sin(x / 20 + h) * 40)), // MiB
+    )
+  }
+  return { res, t, cpu, mem }
 }
 
 export function demoPings(): PingMap {
@@ -144,6 +169,7 @@ function demoSystemd(): Service[] {
     icon: null,
     domains: [],
     hidden: false,
+    noalert: false,
   }))
 }
 

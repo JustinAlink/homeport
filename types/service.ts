@@ -31,6 +31,7 @@ export interface Service {
   icon: string | null // hub.icon label
   domains: ServiceDomain[]
   hidden: boolean // hub.hide label
+  noalert: boolean // hub.noalert label — exclude from alerting
 }
 
 export interface ContainerStats {
