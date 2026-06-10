@@ -31,6 +31,11 @@ export function getDocker(): Docker {
   return _docker
 }
 
+/** Drop the cached client so the next call reconnects (after a settings change). */
+export function resetDocker(): void {
+  _docker = null
+}
+
 export interface RawContainer {
   id: string
   name: string
