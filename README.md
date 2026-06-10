@@ -131,6 +131,23 @@ The remote user must be able to reach its own `/var/run/docker.sock` (i.e. in th
 group). Note: in SSH mode homeport does not yet verify the remote host key — use it on
 trusted networks / your own hosts.
 
+## Watch multiple hosts
+
+Set `HOMEPORT_HOSTS` to a JSON array and homeport aggregates them all — with a host
+filter, host-tagged services, and per-host error isolation (a down host doesn't break the
+rest). Each host can use any connection (local socket, tcp, or `ssh://`) and its own
+reverse proxy:
+
+```jsonc
+HOMEPORT_HOSTS='[
+  { "name": "this-box" },
+  { "name": "vps", "dockerHost": "ssh://user@vps", "dockerSshKey": "/ssh/id_ed25519",
+    "npmConfDir": "/npm" }
+]'
+```
+
+(With no `HOMEPORT_HOSTS`, homeport just watches the single host from the normal config.)
+
 ## Security
 
 - homeport never touches the raw Docker socket — it talks to a **read-only
@@ -142,8 +159,9 @@ trusted networks / your own hosts.
 
 ## Roadmap
 
-- Multi-host
-- Real service logos (dashboard-icons) + expandable detail view
+- In-app host management (add/remove hosts from the settings page)
+- SSH host-key verification (remote mode)
+- Settings toggle for remote logos
 - SSH host-key verification (remote mode)
 
 ## License

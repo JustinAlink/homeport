@@ -17,6 +17,7 @@ export interface ServiceDomain {
 export interface Service {
   id: string
   kind: 'container' | 'systemd'
+  host?: string // host name (set when watching multiple hosts)
   name: string // docker container name (or systemd unit)
   displayName: string // hub.name label > compose service > container name
   image: string
@@ -72,5 +73,6 @@ export interface ServicesResponse {
   stats: { running: number; total: number; groups: number }
   domainProvider: string | null // e.g. "Nginx Proxy Manager"
   controlEnabled: boolean // start/stop controls available?
+  hosts: { id: string; name: string; online: boolean; error?: string | null }[]
   generatedAt: number
 }
