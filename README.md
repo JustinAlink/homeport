@@ -27,8 +27,9 @@ homeport reads it all live:
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
 - **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
 - **systemd** — optionally shows host systemd services alongside containers.
-- **Resource stats** — live CPU + memory per container with **sparkline graphs**, per-stack totals, and a **fleet total** (CPU% + RAM vs host) up top.
-- **Grouped by stack** (Docker Compose project) — collapsible, searchable, dark by default.
+- **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips.
+- **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
+- **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
 - **In-app settings page** — pick your reverse proxy, Docker connection (local or remote-over-SSH), and toggle controls without editing env. (Env vars still win when set.)
 

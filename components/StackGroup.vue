@@ -1,6 +1,6 @@
 <template>
-  <section class="mb-4 break-inside-avoid">
-    <button class="group mb-2 flex w-full items-center gap-3 text-left" @click="toggle">
+  <section class="mb-4 break-inside-avoid rounded-xl border border-white/5 bg-ink-900/40 p-2.5">
+    <button class="group mb-1 flex w-full items-center gap-3 px-1 text-left" @click="toggle">
       <svg
         class="h-3 w-3 shrink-0 text-slate-500 transition-transform"
         :class="collapsed ? '-rotate-90' : ''"
@@ -20,7 +20,7 @@
       </span>
     </button>
 
-    <div v-show="!collapsed" class="flex flex-col gap-1.5">
+    <div v-show="!collapsed" class="flex flex-col gap-0.5">
       <ServiceCard v-for="s in services" :key="s.id" :service="s" />
     </div>
   </section>

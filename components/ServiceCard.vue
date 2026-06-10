@@ -1,17 +1,18 @@
 <template>
   <div
-    class="group relative flex flex-col gap-1 rounded-md border border-white/5 bg-ink-900 px-2.5 py-2 transition-colors hover:border-white/10"
+    class="group relative flex flex-col gap-1.5 rounded-md px-2.5 py-2 transition-colors hover:bg-white/[0.03]"
     :class="{ 'opacity-60': service.state !== 'running' && service.kind === 'container' }"
   >
-    <!-- top line: icon · name · status (· control on hover) -->
-    <div class="flex items-center gap-2">
-      <span
-        class="grid h-6 w-6 shrink-0 place-items-center rounded text-[11px] font-semibold leading-none"
-        :style="iconStyle"
-      >{{ icon }}</span>
-      <span class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</span>
-
-      <div class="ml-auto flex shrink-0 items-center gap-2">
+    <!-- top: logo · name + subtitle · control · status -->
+    <div class="flex items-center gap-2.5">
+      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" />
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</div>
+        <div class="truncate text-[11px] text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
+          {{ service.image }}
+        </div>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
         <button
           v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
@@ -24,7 +25,7 @@
     </div>
 
     <!-- domains + ports -->
-    <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1 pl-8">
+    <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1 pl-[42px]">
       <a
         v-for="d in service.domains"
         :key="d.domain"
@@ -44,22 +45,27 @@
         target="_blank"
         rel="noopener noreferrer"
         class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-300 hover:bg-white/10"
-        :title="`host ${p.hostPort} → ${p.containerPort}/${p.type}`"
       >:{{ p.hostPort }}</a>
     </div>
 
-    <!-- metrics (running container) -->
-    <div v-if="stat && service.state === 'running'" class="flex items-center gap-2 pl-8 text-[11px] text-slate-500">
+    <!-- metrics (running container) — sparkline toggles the detail graph -->
+    <div v-if="stat && service.state === 'running'" class="flex items-center gap-2 pl-[42px] text-[11px] text-slate-500">
       <span class="text-slate-400">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
-      <div v-if="cpuHistory.length > 1" class="h-3 w-12"><Sparkline :data="cpuHistory" /></div>
+      <button
+        v-if="cpuHistory.length > 1"
+        class="h-4 w-14 rounded hover:bg-white/5"
+        :class="expanded ? 'bg-white/5' : ''"
+        title="Toggle graph"
+        @click="expanded = !expanded"
+      ><Sparkline :data="cpuHistory" /></button>
       <span>{{ formatBytes(stat.memBytes) }}</span>
       <span v-if="stat.memPercent != null" class="text-slate-600">· {{ stat.memPercent }}%</span>
     </div>
+    <!-- non-running / systemd status -->
+    <p v-else class="truncate pl-[42px] text-[11px] text-slate-500">{{ service.statusText }}</p>
 
-    <!-- subtitle for everything else (systemd description / image / stopped status) -->
-    <p v-else class="truncate pl-8 text-[11px] text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
-      {{ service.kind === 'systemd' ? service.statusText : service.image }}
-    </p>
+    <!-- per-card detail graph -->
+    <LineGraph v-if="expanded && cpuHistory.length > 1" :series="cardSeries" :height="96" class="mt-1" />
   </div>
 </template>
 
@@ -68,10 +74,16 @@ import type { Service } from '~/types/service'
 
 const props = defineProps<{ service: Service }>()
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
+const expanded = ref(false)
 
 const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
 const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
+const memHistory = computed(() => history.value[props.service.id]?.mem ?? [])
+const cardSeries = computed(() => [
+  { label: 'CPU', color: '#10b981', data: cpuHistory.value, unit: '%' },
+  { label: 'MEM', color: '#38bdf8', data: memHistory.value, unit: 'MiB' },
+])
 
 const { pings } = usePings()
 function pingClass(url: string) {
@@ -103,13 +115,4 @@ async function control(action: 'start' | 'stop') {
     busy.value = false
   }
 }
-
-// Monogram icon: a custom hub.icon char, else first letter on a name-hashed colour.
-const icon = computed(() => props.service.icon || props.service.displayName.charAt(0).toUpperCase())
-const iconStyle = computed(() => {
-  if (props.service.icon) return { background: 'rgba(255,255,255,0.06)' }
-  let h = 0
-  for (const c of props.service.displayName) h = (h * 31 + c.charCodeAt(0)) % 360
-  return { background: `hsl(${h} 38% 20%)`, color: `hsl(${h} 65% 68%)` }
-})
 </script>
