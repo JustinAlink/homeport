@@ -1,4 +1,4 @@
-import type { Service, ServicesResponse, StatsMap } from '~/types/service'
+import type { PingMap, Service, ServicesResponse, StatsMap } from '~/types/service'
 import { getConfig } from './config'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
@@ -52,6 +52,7 @@ function toService(s: Seed, i: number): Service {
     override === 'running' ? 'Up a few seconds' : override === 'exited' ? 'Exited (0) just now' : s.statusText
   return {
     id,
+    kind: 'container',
     name: s.name,
     displayName: s.name,
     image: s.image,
@@ -88,8 +89,47 @@ export function demoStats(): StatsMap {
   return out
 }
 
+export function demoPings(): PingMap {
+  const out: PingMap = {}
+  seeds.forEach((s, i) => {
+    for (const d of s.domains || []) {
+      const url = `${d.ssl ? 'https' : 'http'}://${d.domain}`
+      out[url] = i === 7 ? { status: 0, ms: 0 } : i % 5 === 0 ? { status: 502, ms: 140 } : { status: 200, ms: 18 + ((i * 17) % 160) }
+    }
+  })
+  return out
+}
+
+const systemdSeeds: { name: string; state: string; statusText: string; desc: string }[] = [
+  { name: 'nginx.service', state: 'running', statusText: 'active · running', desc: 'A high performance web server' },
+  { name: 'postgresql.service', state: 'running', statusText: 'active · running', desc: 'PostgreSQL database server' },
+  { name: 'tailscaled.service', state: 'running', statusText: 'active · running', desc: 'Tailscale node agent' },
+  { name: 'fail2ban.service', state: 'failed', statusText: 'failed · failed', desc: 'Ban hosts that cause multiple auth errors' },
+  { name: 'certbot.service', state: 'exited', statusText: 'inactive · dead', desc: 'Certbot renewal' },
+]
+
+function demoSystemd(): Service[] {
+  return systemdSeeds.map((u) => ({
+    id: `systemd:${u.name}`,
+    kind: 'systemd',
+    name: u.name,
+    displayName: u.name.replace(/\.service$/, ''),
+    image: u.desc,
+    state: u.state,
+    statusText: u.statusText,
+    health: null,
+    createdAt: 0,
+    ports: [],
+    group: 'systemd',
+    project: 'systemd',
+    icon: null,
+    domains: [],
+    hidden: false,
+  }))
+}
+
 export function demoServices(): ServicesResponse {
-  const services = seeds.map(toService)
+  const services = [...seeds.map(toService), ...(getConfig().systemdEnabled ? demoSystemd() : [])]
   return {
     services,
     unmatched: [{ domains: ['old.example.com'], upstream: '172.17.0.1:9000', ssl: true }],

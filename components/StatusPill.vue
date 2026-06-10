@@ -21,6 +21,8 @@ const cls = computed(() => {
     return { label: 'Starting', dot: 'bg-amber-400 animate-pulse', chip: 'bg-amber-500/10 text-amber-300' }
   if (props.state === 'running')
     return { label: 'Running', dot: 'bg-accent', chip: 'bg-accent/10 text-accent-light' }
+  if (props.state === 'failed')
+    return { label: 'Failed', dot: 'bg-red-400', chip: 'bg-red-500/10 text-red-300' }
   if (props.state === 'restarting')
     return { label: 'Restarting', dot: 'bg-amber-400 animate-pulse', chip: 'bg-amber-500/10 text-amber-300' }
   if (props.state === 'paused')

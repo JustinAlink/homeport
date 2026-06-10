@@ -27,6 +27,12 @@ export interface HomeportConfig {
   demo: boolean
   /** Allow start/stop controls. Off by default — homeport is read-only unless opted in. */
   allowControl: boolean
+  /** Actively HTTP-ping mapped domains for an up/down indicator. On by default. */
+  pingEnabled: boolean
+  /** Also show host systemd services (best-effort; needs systemctl access). Off by default. */
+  systemdEnabled: boolean
+  /** Optional allowlist of systemd units to show (empty = active + failed). */
+  systemdUnits: string[]
 }
 
 const envStr = (k: string) => {
@@ -56,6 +62,18 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALLOW_CONTROL') !== undefined
         ? process.env.HOMEPORT_ALLOW_CONTROL === 'true'
         : !!s.allowControl,
+    pingEnabled:
+      envStr('HOMEPORT_PING') !== undefined
+        ? process.env.HOMEPORT_PING === 'true'
+        : s.pingEnabled ?? true,
+    systemdEnabled:
+      envStr('HOMEPORT_SYSTEMD') !== undefined
+        ? process.env.HOMEPORT_SYSTEMD === 'true'
+        : !!s.systemdEnabled,
+    systemdUnits: (envStr('HOMEPORT_SYSTEMD_UNITS') || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
   }
 }
 
@@ -68,6 +86,8 @@ export function getEnvLocks() {
     npmConfDir: envStr('NPM_CONF_DIR') !== undefined,
     caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
     allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
+    pingEnabled: envStr('HOMEPORT_PING') !== undefined,
+    systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
   }
 }
 
@@ -82,5 +102,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     npmConfDir: s.npmConfDir || '',
     caddyfilePath: s.caddyfilePath || '',
     allowControl: !!s.allowControl,
+    pingEnabled: s.pingEnabled ?? true,
+    systemdEnabled: !!s.systemdEnabled,
   }
 }

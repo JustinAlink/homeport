@@ -4,6 +4,7 @@ import { getDomainProvider } from './providers'
 import type { Route } from './providers/types'
 import { getConfig } from './config'
 import { demoServices } from './demo'
+import { listSystemdServices, type SystemdUnit } from './systemd'
 
 const isIp = (h: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(h)
 
@@ -11,6 +12,7 @@ function toService(c: RawContainer, domains: ServiceDomain[]): Service {
   const l = c.labels
   return {
     id: c.id,
+    kind: 'container',
     name: c.name,
     displayName: l['hub.name'] || c.service || c.name,
     image: c.image,
@@ -27,14 +29,44 @@ function toService(c: RawContainer, domains: ServiceDomain[]): Service {
   }
 }
 
+function systemdToService(u: SystemdUnit): Service {
+  const state =
+    u.active === 'failed'
+      ? 'failed'
+      : u.active === 'activating'
+        ? 'restarting'
+        : u.active === 'active' && u.sub === 'running'
+          ? 'running'
+          : 'exited'
+  return {
+    id: `systemd:${u.unit}`,
+    kind: 'systemd',
+    name: u.unit,
+    displayName: u.unit.replace(/\.service$/, ''),
+    image: u.description || u.unit,
+    state,
+    statusText: `${u.active} · ${u.sub}`,
+    health: null,
+    createdAt: 0,
+    ports: [],
+    group: 'systemd',
+    project: 'systemd',
+    icon: null,
+    domains: [],
+    hidden: false,
+  }
+}
+
 /** Compose the full dashboard payload: containers joined with reverse-proxy domains. */
 export async function buildServices(): Promise<ServicesResponse> {
-  if (getConfig().demo) return demoServices()
+  const cfg = getConfig()
+  if (cfg.demo) return demoServices()
 
   const provider = getDomainProvider()
-  const [containers, routes] = await Promise.all([
+  const [containers, routes, systemd] = await Promise.all([
     listContainers(),
     provider ? provider.getRoutes() : Promise.resolve<Route[]>([]),
+    cfg.systemdEnabled ? listSystemdServices(cfg.systemdUnits) : Promise.resolve<SystemdUnit[]>([]),
   ])
 
   const byName = new Map(containers.map((c) => [c.name, c]))
@@ -59,9 +91,10 @@ export async function buildServices(): Promise<ServicesResponse> {
     usedRoutes.add(route)
   }
 
-  const services = containers
-    .map((c) => toService(c, domainsById.get(c.id) || []))
-    .sort((a, b) => a.group.localeCompare(b.group) || a.displayName.localeCompare(b.displayName))
+  const services = [
+    ...containers.map((c) => toService(c, domainsById.get(c.id) || [])),
+    ...systemd.map(systemdToService),
+  ].sort((a, b) => a.group.localeCompare(b.group) || a.displayName.localeCompare(b.displayName))
 
   const unmatched: UnmatchedRoute[] = routes
     .filter((r) => !usedRoutes.has(r))

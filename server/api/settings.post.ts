@@ -33,6 +33,8 @@ export default defineEventHandler(async (event) => {
   if (body.npmConfDir !== undefined) patch.npmConfDir = body.npmConfDir.trim()
   if (body.caddyfilePath !== undefined) patch.caddyfilePath = body.caddyfilePath.trim()
   if (body.allowControl !== undefined) patch.allowControl = !!body.allowControl
+  if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
+  if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled
 
   const saved = writeSettings(patch)
   resetDocker() // a connection change should take effect immediately

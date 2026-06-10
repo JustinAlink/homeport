@@ -74,6 +74,34 @@
         </label>
       </section>
 
+      <!-- Uptime -->
+      <section class="space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Uptime</h2>
+        <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code> — locked.</p>
+        <label
+          class="flex items-center gap-2 text-sm text-slate-200"
+          :class="locked.pingEnabled ? 'pointer-events-none opacity-50' : ''"
+        >
+          <input v-model="form.pingEnabled" type="checkbox" />
+          HTTP-ping mapped domains
+          <span class="text-[11px] text-slate-500">(up/down dot on each domain)</span>
+        </label>
+      </section>
+
+      <!-- Host services -->
+      <section class="space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Host services</h2>
+        <p v-if="locked.systemdEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_SYSTEMD</code> — locked.</p>
+        <label
+          class="flex items-center gap-2 text-sm text-slate-200"
+          :class="locked.systemdEnabled ? 'pointer-events-none opacity-50' : ''"
+        >
+          <input v-model="form.systemdEnabled" type="checkbox" />
+          Show systemd services
+          <span class="text-[11px] text-slate-500">(needs <code>systemctl</code> access — host install or mounted)</span>
+        </label>
+      </section>
+
       <div class="flex items-center gap-3 border-t border-white/5 pt-5">
         <button
           type="submit"
@@ -107,6 +135,8 @@ const form = reactive({
   npmConfDir: '',
   caddyfilePath: '',
   allowControl: false,
+  pingEnabled: true,
+  systemdEnabled: false,
 })
 
 onMounted(async () => {

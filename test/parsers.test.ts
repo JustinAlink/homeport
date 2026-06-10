@@ -7,6 +7,7 @@ import { parseConf } from '../server/utils/providers/npm.ts'
 import { parseTraefikContainer } from '../server/utils/providers/traefik.ts'
 import { parseCaddyfile } from '../server/utils/providers/caddy.ts'
 import { parseDockerHost } from '../server/utils/docker-target.ts'
+import { parseSystemctlJson } from '../server/utils/systemd.ts'
 
 const dir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
 const read = (p: string) => readFileSync(join(dir, p), 'utf8')
@@ -70,6 +71,17 @@ test('docker-host: ssh / tcp / socket', () => {
   })
   assert.equal(parseDockerHost('').kind, 'socket')
   assert.equal(parseDockerHost('/var/run/docker.sock').kind, 'socket')
+})
+
+test('systemd: parse json, keep only .service units', () => {
+  const units = parseSystemctlJson(read('systemctl.json'))
+  assert.equal(units.length, 3) // .mount and .timer filtered out
+  assert.deepEqual(
+    units.map((u) => u.unit),
+    ['nginx.service', 'postgresql.service', 'fail2ban.service'],
+  )
+  assert.equal(units.find((u) => u.unit === 'fail2ban.service')?.active, 'failed')
+  assert.deepEqual(parseSystemctlJson('not json'), [])
 })
 
 test('caddy: simple + multi-domain + http(no tls) + nested to', () => {

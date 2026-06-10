@@ -16,7 +16,8 @@ export interface ServiceDomain {
 
 export interface Service {
   id: string
-  name: string // docker container name
+  kind: 'container' | 'systemd'
+  name: string // docker container name (or systemd unit)
   displayName: string // hub.name label > compose service > container name
   image: string
   state: string // running | exited | restarting | created | paused | dead
@@ -39,6 +40,12 @@ export interface ContainerStats {
 }
 
 export type StatsMap = Record<string, ContainerStats>
+
+export interface PingResult {
+  status: number // HTTP status, or 0 = no response (down)
+  ms: number
+}
+export type PingMap = Record<string, PingResult>
 
 export interface UnmatchedRoute {
   domains: string[]
