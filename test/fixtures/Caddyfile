@@ -1,0 +1,17 @@
+{
+	email admin@example.com
+}
+
+app.example.com {
+	reverse_proxy myapp:8080
+}
+
+blog.example.com, www.blog.example.com {
+	reverse_proxy ghost:2368
+}
+
+http://internal.example.com {
+	reverse_proxy {
+		to backend:3000
+	}
+}

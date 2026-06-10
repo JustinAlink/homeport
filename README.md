@@ -90,9 +90,16 @@ Zero-config by default; add labels to any container to customize its card:
 
 ## Reverse-proxy support
 
-v1 ships with **Nginx Proxy Manager** (parses its generated nginx confs, read-only).
-The domain layer is behind a small `DomainProvider` interface, so **Traefik** and **Caddy**
-can be added without touching the rest. PRs welcome.
+homeport reads your reverse proxy to map domains automatically:
+
+| Provider | How | Config |
+|---|---|---|
+| **Nginx Proxy Manager** | Parses its generated nginx confs (read-only) | `NPM_CONF_DIR=/…/nginx/proxy_host` |
+| **Traefik** | Reads `traefik.*` Docker labels (zero extra config) | nothing — works from the containers it already sees |
+| **Caddy** | Parses your Caddyfile | `CADDYFILE_PATH=/…/Caddyfile` |
+
+It **auto-detects** (NPM → Caddy → Traefik), or force one with `DOMAIN_PROVIDER=npm|traefik|caddy`.
+The layer is a small `DomainProvider` interface — more proxies are easy to add. PRs welcome.
 
 ## Security
 
