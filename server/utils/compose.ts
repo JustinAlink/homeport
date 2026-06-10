@@ -77,6 +77,7 @@ export async function buildServices(): Promise<ServicesResponse> {
       groups: new Set(visible.map((s) => s.group)).size,
     },
     domainProvider: provider?.name ?? null,
+    controlEnabled: getConfig().allowControl,
     generatedAt: Date.now(),
   }
 }

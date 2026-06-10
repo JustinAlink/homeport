@@ -51,5 +51,6 @@ export interface ServicesResponse {
   unmatched: UnmatchedRoute[]
   stats: { running: number; total: number; groups: number }
   domainProvider: string | null // e.g. "Nginx Proxy Manager"
+  controlEnabled: boolean // start/stop controls available?
   generatedAt: number
 }

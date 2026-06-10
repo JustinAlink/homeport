@@ -25,8 +25,9 @@ homeport reads it all live:
 - **Auto-maps domains** from your reverse proxy. It knows `webapp → app.example.com`
   because it reads the proxy config — you don't tell it anything.
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
-- **Resource stats** — live CPU + memory per container.
-- **Grouped by stack** (Docker Compose project), searchable, dark by default.
+- **Resource stats** — live CPU + memory per container, with **per-stack totals**.
+- **Grouped by stack** (Docker Compose project) — collapsible, searchable, dark by default.
+- **Optional start/stop** controls (off by default — read-only unless you opt in).
 
 It's a read-only *status hub*, not a management console — pair it with Portainer/Dockge if
 you want to push buttons.
@@ -74,6 +75,7 @@ All via environment variables (set on the container at runtime):
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
 | `NPM_CONF_DIR` | _(none)_ | Path (in-container) to Nginx Proxy Manager proxy-host confs. Omit to disable domain mapping. |
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
+| `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
 
 ### Per-service overrides (optional Docker labels)
 
@@ -96,6 +98,7 @@ can be added without touching the rest. PRs welcome.
 
 - homeport never touches the raw Docker socket — it talks to a **read-only
   `docker-socket-proxy`** that only exposes container listing, info, events, and ping.
+  (Start/stop controls are off by default; enabling them needs `POST=1` on the proxy.)
 - The reverse-proxy config is mounted **read-only**.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.
