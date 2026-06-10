@@ -31,6 +31,15 @@ export interface Service {
   hidden: boolean // hub.hide label
 }
 
+export interface ContainerStats {
+  cpuPercent: number | null
+  memBytes: number
+  memLimitBytes: number
+  memPercent: number | null
+}
+
+export type StatsMap = Record<string, ContainerStats>
+
 export interface UnmatchedRoute {
   domains: string[]
   upstream: string // host:port

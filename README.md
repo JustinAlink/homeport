@@ -25,6 +25,7 @@ homeport reads it all live:
 - **Auto-maps domains** from your reverse proxy. It knows `webapp → app.example.com`
   because it reads the proxy config — you don't tell it anything.
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
+- **Resource stats** — live CPU + memory per container.
 - **Grouped by stack** (Docker Compose project), searchable, dark by default.
 
 It's a read-only *status hub*, not a management console — pair it with Portainer/Dockge if
@@ -101,7 +102,6 @@ can be added without touching the rest. PRs welcome.
 
 ## Roadmap
 
-- Resource stats (CPU/mem) per container
 - Traefik + Caddy domain providers
 - Uptime/HTTP health pings to domains
 - systemd (non-Docker) services

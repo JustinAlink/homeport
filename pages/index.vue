@@ -49,10 +49,17 @@
 import type { Service } from '~/types/service'
 
 const { data, error, loading, refresh, start, stop } = useServices()
+const stats = useStats()
 const q = ref('')
 
-onMounted(start)
-onBeforeUnmount(stop)
+onMounted(() => {
+  start()
+  stats.start()
+})
+onBeforeUnmount(() => {
+  stop()
+  stats.stop()
+})
 
 const visible = computed<Service[]>(() => (data.value?.services || []).filter((s) => !s.hidden))
 

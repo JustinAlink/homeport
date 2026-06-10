@@ -1,4 +1,4 @@
-import type { Service, ServicesResponse } from '~/types/service'
+import type { Service, ServicesResponse, StatsMap } from '~/types/service'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -58,6 +58,21 @@ function toService(s: Seed, i: number): Service {
     })),
     hidden: false,
   }
+}
+
+export function demoStats(): StatsMap {
+  const out: StatsMap = {}
+  seeds.forEach((s, i) => {
+    if ((s.state || 'running') !== 'running') return
+    const memMiB = 40 + ((i * 53) % 620)
+    out[`demo-${i}`] = {
+      cpuPercent: Math.round((((i * 7) % 38) + 0.6) * 10) / 10,
+      memBytes: memMiB * 1024 * 1024,
+      memLimitBytes: 1024 * 1024 * 1024,
+      memPercent: Math.round((memMiB / 1024) * 1000) / 10,
+    }
+  })
+  return out
 }
 
 export function demoServices(): ServicesResponse {
