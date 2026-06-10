@@ -17,6 +17,8 @@ export interface HomeportConfig {
   dockerSshKey: string
   /** Optional passphrase for the SSH key. */
   dockerSshPassphrase: string
+  /** Optional SHA256:… fingerprint to pin the remote host key for ssh:// DOCKER_HOST. */
+  dockerSshFingerprint: string
   /** Explicit reverse-proxy provider: 'npm' | 'traefik' | 'caddy'. Empty = auto-detect. */
   domainProvider: string
   /** Directory of Nginx Proxy Manager generated proxy-host confs. */
@@ -57,6 +59,7 @@ export function getConfig(): HomeportConfig {
     // env → settings → default
     dockerHost: envStr('DOCKER_HOST') ?? dockerHostFromSettings,
     dockerSshKey: envStr('DOCKER_SSH_KEY') ?? s.dockerSshKey ?? '',
+    dockerSshFingerprint: envStr('DOCKER_SSH_FINGERPRINT') ?? s.dockerSshFingerprint ?? '',
     domainProvider: (envStr('DOMAIN_PROVIDER') ?? s.domainProvider ?? '').toLowerCase(),
     npmConfDir: envStr('NPM_CONF_DIR') ?? s.npmConfDir ?? '',
     caddyfilePath: envStr('CADDYFILE_PATH') ?? s.caddyfilePath ?? '',
@@ -88,6 +91,7 @@ export function getEnvLocks() {
   return {
     docker: envStr('DOCKER_HOST') !== undefined,
     dockerSshKey: envStr('DOCKER_SSH_KEY') !== undefined,
+    dockerSshFingerprint: envStr('DOCKER_SSH_FINGERPRINT') !== undefined,
     domainProvider: envStr('DOMAIN_PROVIDER') !== undefined,
     npmConfDir: envStr('NPM_CONF_DIR') !== undefined,
     caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
@@ -106,6 +110,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     dockerMode: s.dockerMode || 'local',
     dockerHost: s.dockerHost || '',
     dockerSshKey: s.dockerSshKey || '',
+    dockerSshFingerprint: s.dockerSshFingerprint || '',
     domainProvider: s.domainProvider || '',
     npmConfDir: s.npmConfDir || '',
     caddyfilePath: s.caddyfilePath || '',

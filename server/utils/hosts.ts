@@ -54,7 +54,7 @@ export function getHosts(): HostConfig[] {
       name: process.env.HOMEPORT_HOST_NAME || 'local',
       dockerHost: c.dockerHost,
       dockerSshKey: c.dockerSshKey,
-      sshFingerprint: process.env.DOCKER_SSH_FINGERPRINT || '',
+      sshFingerprint: c.dockerSshFingerprint,
       domainProvider: c.domainProvider,
       npmConfDir: c.npmConfDir,
       caddyfilePath: c.caddyfilePath,
