@@ -1,5 +1,6 @@
 import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from '~/types/service'
 import { getConfig } from './config'
+import { getHosts } from './hosts'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -147,7 +148,14 @@ function demoSystemd(): Service[] {
 }
 
 export function demoServices(): ServicesResponse {
-  const services = [...seeds.map(toService), ...(getConfig().systemdEnabled ? demoSystemd() : [])]
+  const hosts = getHosts()
+  const multi = hosts.length > 1
+  const containers = seeds.map((s, i) => {
+    const sv = toService(s, i)
+    if (multi) sv.host = hosts[i % hosts.length].name
+    return sv
+  })
+  const services = [...containers, ...(getConfig().systemdEnabled ? demoSystemd() : [])]
   return {
     services,
     unmatched: [{ domains: ['old.example.com'], upstream: '172.17.0.1:9000', ssl: true }],
@@ -158,6 +166,7 @@ export function demoServices(): ServicesResponse {
     },
     domainProvider: 'Demo',
     controlEnabled: getConfig().allowControl,
+    hosts: hosts.map((h) => ({ id: h.id, name: h.name, online: true, error: null })),
     generatedAt: Date.now(),
   }
 }

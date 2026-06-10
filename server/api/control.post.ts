@@ -1,5 +1,6 @@
 import { getConfig } from '../utils/config'
-import { controlContainer } from '../utils/docker'
+import { controlContainerFor } from '../utils/docker'
+import { getHosts } from '../utils/hosts'
 import { demoControl } from '../utils/demo'
 
 // Start/stop a container. Disabled unless HOMEPORT_ALLOW_CONTROL=true.
@@ -17,8 +18,17 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    if (cfg.demo) demoControl(id, action)
-    else await controlContainer(id, action)
+    if (cfg.demo) {
+      demoControl(id, action)
+      return { ok: true }
+    }
+    // id is `${hostId}::${containerId}`
+    const sep = id.indexOf('::')
+    const hostId = sep >= 0 ? id.slice(0, sep) : 'default'
+    const containerId = sep >= 0 ? id.slice(sep + 2) : id
+    const host = getHosts().find((h) => h.id === hostId)
+    if (!host) throw new Error('unknown host')
+    await controlContainerFor(host, containerId, action)
     return { ok: true }
   } catch (err: any) {
     throw createError({ statusCode: 502, statusMessage: `Could not ${action} container: ${err?.message || err}` })

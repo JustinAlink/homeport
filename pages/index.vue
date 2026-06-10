@@ -30,6 +30,25 @@
 
     <LineGraph v-if="showGraph && fleet" :series="fleetSeries" :shared-max="100" class="mb-5" />
 
+    <div v-if="multiHost" class="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
+      <button
+        class="rounded-md border px-2.5 py-1"
+        :class="hostFilter === '' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
+        @click="hostFilter = ''"
+      >All hosts</button>
+      <button
+        v-for="h in hosts"
+        :key="h.id"
+        class="flex items-center gap-1.5 rounded-md border px-2.5 py-1"
+        :class="hostFilter === h.name ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
+        :title="h.online ? '' : h.error || 'unreachable'"
+        @click="hostFilter = h.name"
+      >
+        <span class="h-1.5 w-1.5 rounded-full" :class="h.online ? 'bg-accent' : 'bg-red-400'" />
+        {{ h.name }}
+      </button>
+    </div>
+
     <div v-if="loading && !data" class="py-20 text-center text-slate-500">Loading…</div>
     <div v-else-if="error" class="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
       {{ error }}
@@ -72,6 +91,10 @@ const fleetSeries = computed(() => [
 const pings = usePings()
 const q = ref('')
 const showGraph = ref(false)
+const hostFilter = ref('')
+
+const hosts = computed(() => data.value?.hosts ?? [])
+const multiHost = computed(() => hosts.value.length > 1)
 
 function toggleGraph() {
   showGraph.value = !showGraph.value
@@ -90,25 +113,31 @@ onBeforeUnmount(() => {
   pings.stop()
 })
 
-const visible = computed<Service[]>(() => (data.value?.services || []).filter((s) => !s.hidden))
+const visible = computed<Service[]>(() =>
+  (data.value?.services || []).filter((s) => !s.hidden && (!hostFilter.value || s.host === hostFilter.value)),
+)
 
 const filtered = computed<Service[]>(() => {
   const term = q.value.trim().toLowerCase()
   if (!term) return visible.value
   return visible.value.filter((s) =>
-    [s.displayName, s.name, s.image, s.group, ...s.domains.map((d) => d.domain)]
+    [s.displayName, s.name, s.image, s.group, s.host, ...s.domains.map((d) => d.domain)]
       .join(' ')
       .toLowerCase()
       .includes(term),
   )
 })
 
+// In the multi-host "All" view, prefix the group with the host so stacks don't merge.
+const groupKey = (s: Service) => (multiHost.value && !hostFilter.value && s.host ? `${s.host} · ${s.group}` : s.group)
+
 const groups = computed(() => {
   const map = new Map<string, Service[]>()
   for (const s of filtered.value) {
-    const arr = map.get(s.group) || []
+    const k = groupKey(s)
+    const arr = map.get(k) || []
     arr.push(s)
-    map.set(s.group, arr)
+    map.set(k, arr)
   }
   return [...map.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
