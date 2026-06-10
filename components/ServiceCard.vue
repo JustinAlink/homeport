@@ -53,11 +53,14 @@
       <span class="text-slate-400">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
       <button
         v-if="cpuHistory.length > 1"
-        class="h-4 w-14 rounded hover:bg-white/5"
+        class="relative h-4 w-14 rounded hover:bg-white/5"
         :class="expanded ? 'bg-white/5' : ''"
-        title="Toggle graph"
+        title="CPU + RAM — click to expand"
         @click="expanded = !expanded"
-      ><Sparkline :data="cpuHistory" /></button>
+      >
+        <span class="absolute inset-0"><Sparkline :data="cpuHistory" color="#10b981" /></span>
+        <span v-if="memHistory.length > 1" class="absolute inset-0"><Sparkline :data="memHistory" color="#38bdf8" /></span>
+      </button>
       <span>{{ formatBytes(stat.memBytes) }}</span>
       <span v-if="stat.memPercent != null" class="text-slate-600">· {{ stat.memPercent }}%</span>
     </div>
