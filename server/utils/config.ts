@@ -10,8 +10,12 @@ export interface HomeportConfig {
   dockerHost: string
   /** Path to the Docker unix socket (when dockerHost is empty). */
   dockerSocket: string
-  /** Directory of Nginx Proxy Manager generated proxy-host confs. Empty = no domain provider. */
+  /** Explicit reverse-proxy provider: 'npm' | 'traefik' | 'caddy'. Empty = auto-detect. */
+  domainProvider: string
+  /** Directory of Nginx Proxy Manager generated proxy-host confs. */
   npmConfDir: string
+  /** Path to a Caddyfile (for the caddy provider). */
+  caddyfilePath: string
   /** Serve a synthetic fleet (no Docker needed) — for trying homeport / screenshots. */
   demo: boolean
   /** Allow start/stop controls. Off by default — homeport is read-only unless opted in. */
@@ -24,7 +28,9 @@ export function getConfig(): HomeportConfig {
     sessionSecret: process.env.HOMEPORT_SESSION_SECRET || 'insecure-dev-secret-change-me',
     dockerHost: process.env.DOCKER_HOST ?? '',
     dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
+    domainProvider: (process.env.DOMAIN_PROVIDER || '').toLowerCase(),
     npmConfDir: process.env.NPM_CONF_DIR ?? '',
+    caddyfilePath: process.env.CADDYFILE_PATH ?? '',
     demo: process.env.HOMEPORT_DEMO === 'true',
     allowControl: process.env.HOMEPORT_ALLOW_CONTROL === 'true',
   }

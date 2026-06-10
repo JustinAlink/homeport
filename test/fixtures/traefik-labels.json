@@ -1,0 +1,29 @@
+[
+  {
+    "name": "blog",
+    "labels": {
+      "traefik.enable": "true",
+      "traefik.http.routers.blog.rule": "Host(`blog.example.com`)",
+      "traefik.http.routers.blog.tls": "true",
+      "traefik.http.services.blog.loadbalancer.server.port": "2368"
+    }
+  },
+  {
+    "name": "api",
+    "labels": {
+      "traefik.http.routers.api.rule": "Host(`api.example.com`) || Host(`api2.example.com`)",
+      "traefik.http.routers.api.entrypoints": "websecure"
+    }
+  },
+  {
+    "name": "disabled",
+    "labels": {
+      "traefik.enable": "false",
+      "traefik.http.routers.x.rule": "Host(`nope.example.com`)"
+    }
+  },
+  {
+    "name": "nolabels",
+    "labels": { "com.docker.compose.project": "misc" }
+  }
+]

@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
