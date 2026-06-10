@@ -1,4 +1,5 @@
 import type { Service, ServicesResponse, StatsMap } from '~/types/service'
+import { getConfig } from './config'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -37,14 +38,25 @@ const seeds: Seed[] = [
   { name: 'restic-backup', image: 'mazzolino/restic:1.6.0', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
 ]
 
+// In-memory overrides so demo start/stop actually toggle a card's state.
+const demoOverrides: Record<string, 'running' | 'exited'> = {}
+export function demoControl(id: string, action: 'start' | 'stop') {
+  demoOverrides[id] = action === 'start' ? 'running' : 'exited'
+}
+
 function toService(s: Seed, i: number): Service {
+  const id = `demo-${i}`
+  const override = demoOverrides[id]
+  const state = override || s.state || 'running'
+  const statusText =
+    override === 'running' ? 'Up a few seconds' : override === 'exited' ? 'Exited (0) just now' : s.statusText
   return {
-    id: `demo-${i}`,
+    id,
     name: s.name,
     displayName: s.name,
     image: s.image,
-    state: s.state || 'running',
-    statusText: s.statusText,
+    state,
+    statusText,
     health: s.health ?? null,
     createdAt: Date.now() - (i + 1) * DAY,
     ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
@@ -63,7 +75,8 @@ function toService(s: Seed, i: number): Service {
 export function demoStats(): StatsMap {
   const out: StatsMap = {}
   seeds.forEach((s, i) => {
-    if ((s.state || 'running') !== 'running') return
+    const state = demoOverrides[`demo-${i}`] || s.state || 'running'
+    if (state !== 'running') return
     const memMiB = 40 + ((i * 53) % 620)
     out[`demo-${i}`] = {
       cpuPercent: Math.round((((i * 7) % 38) + 0.6) * 10) / 10,
@@ -86,6 +99,7 @@ export function demoServices(): ServicesResponse {
       groups: new Set(services.map((s) => s.group)).size,
     },
     domainProvider: 'Demo',
+    controlEnabled: getConfig().allowControl,
     generatedAt: Date.now(),
   }
 }

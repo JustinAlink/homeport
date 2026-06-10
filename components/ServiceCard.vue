@@ -50,15 +50,28 @@
       <div v-if="stat && service.state === 'running'" class="flex items-center gap-3 text-[11px] text-slate-400">
         <span><span class="text-slate-500">CPU</span> {{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
         <span>
-          <span class="text-slate-500">MEM</span> {{ fmt(stat.memBytes) }}<span
+          <span class="text-slate-500">MEM</span> {{ formatBytes(stat.memBytes) }}<span
             v-if="stat.memPercent != null"
             class="text-slate-600"
           > · {{ stat.memPercent }}%</span>
         </span>
       </div>
-      <p class="truncate text-[11px] text-slate-500" :title="service.statusText">
-        {{ service.statusText }}
-      </p>
+      <div class="flex items-center justify-between gap-2">
+        <p class="truncate text-[11px] text-slate-500" :title="service.statusText">
+          {{ service.statusText }}
+        </p>
+        <button
+          v-if="controlEnabled"
+          :disabled="busy"
+          class="shrink-0 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50"
+          :class="isUp
+            ? 'border-red-500/20 text-red-300 hover:bg-red-500/10'
+            : 'border-accent/25 text-accent-light hover:bg-accent/10'"
+          @click="control(isUp ? 'stop' : 'start')"
+        >
+          {{ busy ? '…' : isUp ? 'Stop' : 'Start' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -71,13 +84,25 @@ const props = defineProps<{ service: Service }>()
 // Best-effort host for port links: wherever the dashboard itself is opened.
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 
-const { stats } = useStats()
+const { stats, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
 
-function fmt(b: number): string {
-  if (b >= 1024 ** 3) return (b / 1024 ** 3).toFixed(1) + ' GiB'
-  if (b >= 1024 ** 2) return Math.round(b / 1024 ** 2) + ' MiB'
-  if (b >= 1024) return Math.round(b / 1024) + ' KiB'
-  return b + ' B'
+const { data, refresh: refreshServices } = useServices()
+const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
+const isUp = computed(() => props.service.state === 'running' || props.service.state === 'restarting')
+const busy = ref(false)
+
+async function control(action: 'start' | 'stop') {
+  if (action === 'stop' && !window.confirm(`Stop “${props.service.displayName}”?`)) return
+  busy.value = true
+  try {
+    await $fetch('/api/control', { method: 'POST', body: { id: props.service.id, action } })
+    await refreshServices()
+    refreshStats()
+  } catch (e: any) {
+    window.alert(e?.statusMessage || e?.message || 'Action failed')
+  } finally {
+    busy.value = false
+  }
 }
 </script>

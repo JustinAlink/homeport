@@ -74,6 +74,13 @@ export async function listContainers(): Promise<RawContainer[]> {
   return list.map(mapContainer)
 }
 
+/** Start or stop a container by id (control mode only). */
+export async function controlContainer(id: string, action: 'start' | 'stop'): Promise<void> {
+  const container = getDocker().getContainer(id)
+  if (action === 'start') await container.start()
+  else await container.stop()
+}
+
 /** Returns a readable stream of Docker container events (start/stop/die/health…). */
 export async function getEventStream(): Promise<NodeJS.ReadableStream> {
   return (await getDocker().getEvents({

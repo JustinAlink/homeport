@@ -14,6 +14,8 @@ export interface HomeportConfig {
   npmConfDir: string
   /** Serve a synthetic fleet (no Docker needed) — for trying homeport / screenshots. */
   demo: boolean
+  /** Allow start/stop controls. Off by default — homeport is read-only unless opted in. */
+  allowControl: boolean
 }
 
 export function getConfig(): HomeportConfig {
@@ -24,5 +26,6 @@ export function getConfig(): HomeportConfig {
     dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
     npmConfDir: process.env.NPM_CONF_DIR ?? '',
     demo: process.env.HOMEPORT_DEMO === 'true',
+    allowControl: process.env.HOMEPORT_ALLOW_CONTROL === 'true',
   }
 }
