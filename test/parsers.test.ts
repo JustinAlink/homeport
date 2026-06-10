@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { parseConf } from '../server/utils/providers/npm.ts'
 import { parseTraefikContainer } from '../server/utils/providers/traefik.ts'
 import { parseCaddyfile } from '../server/utils/providers/caddy.ts'
+import { parseDockerHost } from '../server/utils/docker-target.ts'
 
 const dir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
 const read = (p: string) => readFileSync(join(dir, p), 'utf8')
@@ -47,6 +48,28 @@ test('traefik: disabled / no labels → null', () => {
   const fx = JSON.parse(read('traefik-labels.json'))
   assert.equal(parseTraefikContainer('disabled', fx[2].labels), null)
   assert.equal(parseTraefikContainer('nolabels', fx[3].labels), null)
+})
+
+test('docker-host: ssh / tcp / socket', () => {
+  assert.deepEqual(parseDockerHost('ssh://juniper@vps.example.com'), {
+    kind: 'ssh',
+    host: 'vps.example.com',
+    port: 22,
+    username: 'juniper',
+  })
+  assert.deepEqual(parseDockerHost('ssh://core@10.0.0.5:2222'), {
+    kind: 'ssh',
+    host: '10.0.0.5',
+    port: 2222,
+    username: 'core',
+  })
+  assert.deepEqual(parseDockerHost('tcp://docker-socket-proxy:2375'), {
+    kind: 'tcp',
+    host: 'docker-socket-proxy',
+    port: 2375,
+  })
+  assert.equal(parseDockerHost('').kind, 'socket')
+  assert.equal(parseDockerHost('/var/run/docker.sock').kind, 'socket')
 })
 
 test('caddy: simple + multi-domain + http(no tls) + nested to', () => {
