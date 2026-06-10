@@ -7,6 +7,7 @@ export interface PersistedSettings {
   dockerMode?: 'local' | 'ssh'
   dockerHost?: string // ssh://user@host when dockerMode==='ssh'
   dockerSshKey?: string // path to the private key
+  dockerSshFingerprint?: string // SHA256:… of the remote host key (optional)
   domainProvider?: string // '' | 'npm' | 'traefik' | 'caddy'
   npmConfDir?: string
   caddyfilePath?: string

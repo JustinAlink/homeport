@@ -29,9 +29,15 @@
           <div v-if="form.dockerMode === 'ssh'" class="space-y-2 pl-6">
             <input v-model="form.dockerHost" :class="fieldCls" placeholder="ssh://user@host" />
             <input v-model="form.dockerSshKey" :class="fieldCls" placeholder="/ssh/id_ed25519  (key path, mounted read-only)" />
+            <input
+              v-model="form.dockerSshFingerprint"
+              :class="[fieldCls, locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
+              placeholder="SHA256:…  host key fingerprint (optional, recommended)"
+            />
             <p class="text-[11px] text-slate-500">
-              To pin the remote host key, set <code>DOCKER_SSH_FINGERPRINT</code> (<code>SHA256:…</code>),
-              or use the multi-host list below which has a per-host fingerprint field.
+              Pin the host key to reject a changed/spoofed server. Get it with
+              <code>ssh-keyscan host | ssh-keygen -lf -</code>.
+              <span v-if="locked.dockerSshFingerprint">Set by <code>DOCKER_SSH_FINGERPRINT</code> — locked.</span>
             </p>
           </div>
         </div>
@@ -210,6 +216,7 @@ const form = reactive({
   dockerMode: 'local',
   dockerHost: '',
   dockerSshKey: '',
+  dockerSshFingerprint: '',
   domainProvider: '',
   npmConfDir: '',
   caddyfilePath: '',

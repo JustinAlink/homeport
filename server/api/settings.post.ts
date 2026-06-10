@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
     patch.dockerHost = body.dockerHost.trim()
   }
   if (body.dockerSshKey !== undefined) patch.dockerSshKey = body.dockerSshKey.trim()
+  if (body.dockerSshFingerprint !== undefined) patch.dockerSshFingerprint = body.dockerSshFingerprint.trim()
   if (body.domainProvider !== undefined) {
     if (!PROVIDERS.includes(body.domainProvider))
       throw createError({ statusCode: 400, statusMessage: 'invalid domainProvider' })
