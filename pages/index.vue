@@ -12,6 +12,13 @@
           via {{ data.domainProvider }}
         </span>
       </div>
+      <!-- Fleet totals + live graph -->
+      <div v-if="fleet" class="hidden items-center gap-2 rounded-md border border-white/5 bg-ink-900 px-2.5 py-1 text-[11px] text-slate-400 lg:flex">
+        <span><span class="text-slate-500">CPU</span> {{ fleet.cpuPercent }}%</span>
+        <span class="text-slate-600">·</span>
+        <span><span class="text-slate-500">RAM</span> {{ formatBytes(fleet.memUsed) }} / {{ formatBytes(fleet.memTotal) }}</span>
+        <div class="ml-1 h-4 w-16"><Sparkline :data="fleetHistory.cpu" :max="100" /></div>
+      </div>
       <div class="ml-auto flex items-center gap-2">
         <SearchBar v-model="q" />
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
@@ -51,6 +58,8 @@ import type { Service } from '~/types/service'
 
 const { data, error, loading, refresh, start, stop } = useServices()
 const stats = useStats()
+const fleet = stats.host
+const fleetHistory = stats.hostHistory
 const pings = usePings()
 const q = ref('')
 

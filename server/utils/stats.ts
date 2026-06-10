@@ -1,4 +1,4 @@
-import type { ContainerStats, StatsMap } from '~/types/service'
+import type { ContainerStats, HostStats, StatsMap } from '~/types/service'
 import { getDocker } from './docker'
 
 // One-shot CPU% using Docker's standard delta formula. With stream:false the
@@ -50,4 +50,25 @@ export async function getStats(ids: string[]): Promise<StatsMap> {
 
   await Promise.all(Array.from({ length: Math.min(8, ids.length || 1) }, worker))
   return out
+}
+
+/** Fleet aggregate vs host capacity (CPU cores + total RAM from `docker info`). */
+export async function getHostStats(containers: StatsMap): Promise<HostStats | null> {
+  try {
+    const info: any = await getDocker().info()
+    const ncpu = info.NCPU || 1
+    const memTotal = info.MemTotal || 0
+    const vals = Object.values(containers)
+    const cpuSum = vals.reduce((a, s) => a + (s.cpuPercent || 0), 0)
+    const memUsed = vals.reduce((a, s) => a + s.memBytes, 0)
+    return {
+      ncpu,
+      cpuPercent: Math.round((cpuSum / ncpu) * 10) / 10,
+      memUsed,
+      memTotal,
+      memPercent: memTotal ? Math.round((memUsed / memTotal) * 1000) / 10 : 0,
+    }
+  } catch {
+    return null
+  }
 }

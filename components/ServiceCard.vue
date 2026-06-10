@@ -65,6 +65,9 @@
             class="text-slate-600"
           > · {{ stat.memPercent }}%</span>
         </span>
+        <div v-if="cpuHistory.length > 1" class="ml-auto h-4 w-16 opacity-80">
+          <Sparkline :data="cpuHistory" />
+        </div>
       </div>
       <div class="flex items-center justify-between gap-2">
         <p class="truncate text-[11px] text-slate-500" :title="service.statusText">
@@ -94,8 +97,9 @@ const props = defineProps<{ service: Service }>()
 // Best-effort host for port links: wherever the dashboard itself is opened.
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 
-const { stats, refresh: refreshStats } = useStats()
+const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
+const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
 
 const { pings } = usePings()
 function pingClass(url: string): string {

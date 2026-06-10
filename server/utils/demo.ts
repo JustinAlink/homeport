@@ -1,4 +1,4 @@
-import type { PingMap, Service, ServicesResponse, StatsMap } from '~/types/service'
+import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from '~/types/service'
 import { getConfig } from './config'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
@@ -73,20 +73,38 @@ function toService(s: Seed, i: number): Service {
   }
 }
 
-export function demoStats(): StatsMap {
-  const out: StatsMap = {}
+export function demoStats(): StatsResponse {
+  const t = Date.now() / 4000 // gentle oscillation so demo sparklines move
+  const containers: StatsMap = {}
   seeds.forEach((s, i) => {
     const state = demoOverrides[`demo-${i}`] || s.state || 'running'
     if (state !== 'running') return
-    const memMiB = 40 + ((i * 53) % 620)
-    out[`demo-${i}`] = {
-      cpuPercent: Math.round((((i * 7) % 38) + 0.6) * 10) / 10,
+    const base = ((i * 7) % 38) + 4
+    const cpu = Math.max(0, Math.round((base + Math.sin(t + i) * 6) * 10) / 10)
+    const memMiB = Math.max(20, 40 + ((i * 53) % 620) + Math.round(Math.sin(t * 0.7 + i) * 14))
+    containers[`demo-${i}`] = {
+      cpuPercent: cpu,
       memBytes: memMiB * 1024 * 1024,
       memLimitBytes: 1024 * 1024 * 1024,
       memPercent: Math.round((memMiB / 1024) * 1000) / 10,
     }
   })
-  return out
+
+  const vals = Object.values(containers)
+  const ncpu = 4
+  const memTotal = 8 * 1024 ** 3
+  const cpuSum = vals.reduce((a, s) => a + (s.cpuPercent || 0), 0)
+  const memUsed = vals.reduce((a, s) => a + s.memBytes, 0)
+  return {
+    containers,
+    host: {
+      ncpu,
+      cpuPercent: Math.round((cpuSum / ncpu) * 10) / 10,
+      memUsed,
+      memTotal,
+      memPercent: Math.round((memUsed / memTotal) * 1000) / 10,
+    },
+  }
 }
 
 export function demoPings(): PingMap {
