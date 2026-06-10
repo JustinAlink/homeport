@@ -1,5 +1,8 @@
-// Central runtime config — read from process.env at request time so a single
-// prebuilt image is fully configurable when the container starts.
+// Effective runtime config. Resolution order per field: ENV (locks it) → persisted
+// settings file (UI-editable) → default. So a single prebuilt image is configurable at
+// container start (env) AND via the in-app settings page (when env doesn't lock it).
+
+import { readSettings, type PersistedSettings } from './settings'
 
 export interface HomeportConfig {
   /** Password for the single admin login. Empty = login disabled (NOT recommended). */
@@ -26,18 +29,58 @@ export interface HomeportConfig {
   allowControl: boolean
 }
 
+const envStr = (k: string) => {
+  const v = process.env[k]
+  return v !== undefined && v !== '' ? v : undefined
+}
+
 export function getConfig(): HomeportConfig {
+  const s = readSettings()
+  const dockerHostFromSettings = s.dockerMode === 'ssh' ? s.dockerHost || '' : ''
+
   return {
+    // env-only (security-sensitive)
     adminPassword: process.env.HOMEPORT_ADMIN_PASSWORD ?? '',
     sessionSecret: process.env.HOMEPORT_SESSION_SECRET || 'insecure-dev-secret-change-me',
-    dockerHost: process.env.DOCKER_HOST ?? '',
     dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
-    dockerSshKey: process.env.DOCKER_SSH_KEY ?? '',
     dockerSshPassphrase: process.env.DOCKER_SSH_KEY_PASSPHRASE ?? '',
-    domainProvider: (process.env.DOMAIN_PROVIDER || '').toLowerCase(),
-    npmConfDir: process.env.NPM_CONF_DIR ?? '',
-    caddyfilePath: process.env.CADDYFILE_PATH ?? '',
     demo: process.env.HOMEPORT_DEMO === 'true',
-    allowControl: process.env.HOMEPORT_ALLOW_CONTROL === 'true',
+
+    // env → settings → default
+    dockerHost: envStr('DOCKER_HOST') ?? dockerHostFromSettings,
+    dockerSshKey: envStr('DOCKER_SSH_KEY') ?? s.dockerSshKey ?? '',
+    domainProvider: (envStr('DOMAIN_PROVIDER') ?? s.domainProvider ?? '').toLowerCase(),
+    npmConfDir: envStr('NPM_CONF_DIR') ?? s.npmConfDir ?? '',
+    caddyfilePath: envStr('CADDYFILE_PATH') ?? s.caddyfilePath ?? '',
+    allowControl:
+      envStr('HOMEPORT_ALLOW_CONTROL') !== undefined
+        ? process.env.HOMEPORT_ALLOW_CONTROL === 'true'
+        : !!s.allowControl,
+  }
+}
+
+/** Which UI-editable fields are locked by an env var (the settings page disables these). */
+export function getEnvLocks() {
+  return {
+    docker: envStr('DOCKER_HOST') !== undefined,
+    dockerSshKey: envStr('DOCKER_SSH_KEY') !== undefined,
+    domainProvider: envStr('DOMAIN_PROVIDER') !== undefined,
+    npmConfDir: envStr('NPM_CONF_DIR') !== undefined,
+    caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
+    allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
+  }
+}
+
+/** Current persisted (UI) settings with sensible defaults filled in. */
+export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'>> & PersistedSettings {
+  const s = readSettings()
+  return {
+    dockerMode: s.dockerMode || 'local',
+    dockerHost: s.dockerHost || '',
+    dockerSshKey: s.dockerSshKey || '',
+    domainProvider: s.domainProvider || '',
+    npmConfDir: s.npmConfDir || '',
+    caddyfilePath: s.caddyfilePath || '',
+    allowControl: !!s.allowControl,
   }
 }

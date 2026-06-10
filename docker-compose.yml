@@ -15,7 +15,10 @@ services:
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       # In-container path where the NPM confs are mounted (see volume below).
       NPM_CONF_DIR: /npm
+      # Where the settings page persists its config.
+      HOMEPORT_DATA_DIR: /data
     volumes:
+      - homeport-data:/data
       # Reverse-proxy domain mapping: mount your NPM proxy-host confs read-only.
       - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
     ports:
@@ -48,3 +51,6 @@ networks:
     external: true
   internal:
     driver: bridge
+
+volumes:
+  homeport-data:

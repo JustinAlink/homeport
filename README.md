@@ -28,6 +28,7 @@ homeport reads it all live:
 - **Resource stats** — live CPU + memory per container, with **per-stack totals**.
 - **Grouped by stack** (Docker Compose project) — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
+- **In-app settings page** — pick your reverse proxy, Docker connection (local or remote-over-SSH), and toggle controls without editing env. (Env vars still win when set.)
 
 It's a read-only *status hub*, not a management console — pair it with Portainer/Dockge if
 you want to push buttons.
@@ -77,6 +78,11 @@ All via environment variables (set on the container at runtime):
 | `NPM_CONF_DIR` | _(none)_ | Path (in-container) to Nginx Proxy Manager proxy-host confs. Omit to disable domain mapping. |
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
+| `HOMEPORT_DATA_DIR` | `/data` | Where the **settings page** persists config. Mount a volume here to keep it. |
+
+> **Settings page** (the ⚙ in the header): change reverse-proxy provider, Docker connection
+> (local / remote-over-SSH), and the controls toggle in-app. Any value also set via an env
+> var is locked (env wins) — so headless deployments stay authoritative.
 
 ### Per-service overrides (optional Docker labels)
 

@@ -13,6 +13,7 @@ CONTEXT.md
 
 # Local fixtures / scratch
 fixtures/npm-live/
+.data/
 
 # OS
 .DS_Store

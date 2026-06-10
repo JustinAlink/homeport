@@ -11,7 +11,9 @@ services:
       HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET}
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       NPM_CONF_DIR: /npm
+      HOMEPORT_DATA_DIR: /data
     volumes:
+      - homeport-data:/data
       - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
     ports:
       - "3004:3000"
@@ -40,3 +42,6 @@ networks:
     external: true
   internal:
     driver: bridge
+
+volumes:
+  homeport-data:
