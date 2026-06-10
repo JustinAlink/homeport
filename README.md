@@ -31,7 +31,7 @@ homeport reads it all live:
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
-- **In-app settings page** — pick your reverse proxy, Docker connection (local or remote-over-SSH), and toggle controls without editing env. (Env vars still win when set.)
+- **In-app settings page** — pick your reverse proxy, set the Docker connection (local or remote-over-SSH, with host-key pinning), add/remove extra hosts, and toggle controls, uptime, systemd, and remote logos — all without editing env. (Env vars still win when set.)
 
 It's a read-only *status hub*, not a management console — pair it with Portainer/Dockge if
 you want to push buttons.
