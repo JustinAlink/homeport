@@ -142,7 +142,7 @@ trusted networks / your own hosts.
 ## Roadmap
 
 - Multi-host
-- gethomepage.dev-style compact redesign
+- Real service logos (dashboard-icons) + expandable detail view
 - SSH host-key verification (remote mode)
 
 ## License

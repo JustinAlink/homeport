@@ -32,23 +32,25 @@
       {{ error }}
     </div>
 
-    <div v-else class="space-y-8">
-      <StackGroup v-for="g in groups" :key="g.name" :name="g.name" :services="g.services" />
+    <div v-else>
       <p v-if="!groups.length" class="py-20 text-center text-slate-500">No services match “{{ q }}”.</p>
+      <div class="columns-1 gap-4 lg:columns-2 2xl:columns-3">
+        <StackGroup v-for="g in groups" :key="g.name" :name="g.name" :services="g.services" />
 
-      <section v-if="unmatched.length">
-        <div class="mb-3 flex items-center gap-3">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Unmatched domains</h2>
-          <span class="text-xs text-slate-600">{{ unmatched.length }}</span>
-          <div class="h-px flex-1 bg-white/5" />
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <div v-for="u in unmatched" :key="u.upstream" class="rounded-md border border-white/5 bg-ink-900 px-3 py-1.5 text-xs">
-            <span class="text-slate-300">{{ u.domains.join(', ') }}</span>
-            <span class="text-slate-600"> → {{ u.upstream }}</span>
+        <section v-if="unmatched.length" class="mb-4 break-inside-avoid">
+          <div class="mb-2 flex items-center gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Unmatched domains</h2>
+            <span class="text-xs text-slate-600">{{ unmatched.length }}</span>
+            <div class="h-px flex-1 bg-white/5" />
           </div>
-        </div>
-      </section>
+          <div class="flex flex-col gap-1.5">
+            <div v-for="u in unmatched" :key="u.upstream" class="rounded-md border border-white/5 bg-ink-900 px-2.5 py-1.5 text-[11px]">
+              <span class="text-slate-300">{{ u.domains.join(', ') }}</span>
+              <span class="text-slate-600"> → {{ u.upstream }}</span>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
