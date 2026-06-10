@@ -8,7 +8,11 @@
         <h3 class="truncate font-semibold text-slate-100" :title="service.name">
           <span v-if="service.icon" class="mr-1">{{ service.icon }}</span>{{ service.displayName }}
         </h3>
-        <p class="truncate font-mono text-[11px] text-slate-500" :title="service.image">
+        <p
+          class="truncate text-[11px] text-slate-500"
+          :class="service.kind === 'systemd' ? 'italic' : 'font-mono'"
+          :title="service.image"
+        >
           {{ service.image }}
         </p>
       </div>
@@ -25,6 +29,12 @@
         rel="noopener noreferrer"
         class="group inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-xs text-accent-light hover:bg-accent/20"
       >
+        <span
+          v-if="pings[d.url]"
+          class="h-1.5 w-1.5 rounded-full"
+          :class="pingClass(d.url)"
+          :title="pingTitle(d.url)"
+        />
         <span v-if="d.ssl" title="SSL" class="text-[10px]">🔒</span>
         <span class="truncate max-w-[14rem]">{{ d.domain }}</span>
         <span class="opacity-0 transition-opacity group-hover:opacity-100">↗</span>
@@ -61,7 +71,7 @@
           {{ service.statusText }}
         </p>
         <button
-          v-if="controlEnabled"
+          v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
           class="shrink-0 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50"
           :class="isUp
@@ -86,6 +96,20 @@ const host = computed(() => (import.meta.client ? window.location.hostname : 'lo
 
 const { stats, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
+
+const { pings } = usePings()
+function pingClass(url: string): string {
+  const p = pings.value[url]
+  if (!p) return ''
+  if (p.status === 0) return 'bg-red-400'
+  if (p.status < 400) return 'bg-accent'
+  return 'bg-amber-400'
+}
+function pingTitle(url: string): string {
+  const p = pings.value[url]
+  if (!p) return ''
+  return p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms}ms`
+}
 
 const { data, refresh: refreshServices } = useServices()
 const controlEnabled = computed(() => data.value?.controlEnabled ?? false)

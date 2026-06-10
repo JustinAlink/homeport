@@ -1,0 +1,7 @@
+[
+  { "unit": "nginx.service", "load": "loaded", "active": "active", "sub": "running", "description": "A high performance web server" },
+  { "unit": "postgresql.service", "load": "loaded", "active": "active", "sub": "running", "description": "PostgreSQL database server" },
+  { "unit": "fail2ban.service", "load": "loaded", "active": "failed", "sub": "failed", "description": "Ban hosts that cause errors" },
+  { "unit": "-.mount", "load": "loaded", "active": "active", "sub": "mounted", "description": "Root Mount" },
+  { "unit": "cron.timer", "load": "loaded", "active": "active", "sub": "waiting", "description": "Daily cron" }
+]

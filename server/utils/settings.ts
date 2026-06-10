@@ -11,6 +11,8 @@ export interface PersistedSettings {
   npmConfDir?: string
   caddyfilePath?: string
   allowControl?: boolean
+  pingEnabled?: boolean
+  systemdEnabled?: boolean
 }
 
 const dataDir = () => process.env.HOMEPORT_DATA_DIR || '/data'

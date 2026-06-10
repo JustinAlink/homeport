@@ -25,6 +25,8 @@ homeport reads it all live:
 - **Auto-maps domains** from your reverse proxy. It knows `webapp → app.example.com`
   because it reads the proxy config — you don't tell it anything.
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
+- **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
+- **systemd** — optionally shows host systemd services alongside containers.
 - **Resource stats** — live CPU + memory per container, with **per-stack totals**.
 - **Grouped by stack** (Docker Compose project) — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
@@ -79,6 +81,9 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
 | `HOMEPORT_DATA_DIR` | `/data` | Where the **settings page** persists config. Mount a volume here to keep it. |
+| `HOMEPORT_PING` | `true` | HTTP-ping mapped domains for an up/down dot. |
+| `HOMEPORT_SYSTEMD` | `false` | Show host systemd services. Needs `systemctl` access (host install, or mount `/run/systemd` + the dbus socket). |
+| `HOMEPORT_SYSTEMD_UNITS` | _(active+failed)_ | Comma list of units to show, e.g. `nginx,postgresql`. |
 
 > **Settings page** (the ⚙ in the header): change reverse-proxy provider, Docker connection
 > (local / remote-over-SSH), and the controls toggle in-app. Any value also set via an env
@@ -136,10 +141,9 @@ trusted networks / your own hosts.
 
 ## Roadmap
 
-- Traefik + Caddy domain providers
-- Uptime/HTTP health pings to domains
-- systemd (non-Docker) services
+- Live per-container graphs (CPU/mem history)
 - Multi-host
+- SSH host-key verification (remote mode)
 
 ## License
 
