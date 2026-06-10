@@ -41,6 +41,19 @@ export interface ContainerStats {
 
 export type StatsMap = Record<string, ContainerStats>
 
+export interface HostStats {
+  ncpu: number
+  cpuPercent: number // fleet CPU as a % of host cores
+  memUsed: number
+  memTotal: number // host total RAM (from docker info)
+  memPercent: number
+}
+
+export interface StatsResponse {
+  containers: StatsMap
+  host: HostStats | null
+}
+
 export interface PingResult {
   status: number // HTTP status, or 0 = no response (down)
   ms: number
