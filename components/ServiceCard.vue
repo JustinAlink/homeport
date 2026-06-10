@@ -5,7 +5,7 @@
   >
     <!-- top: logo · name + subtitle · control · status -->
     <div class="flex items-center gap-2.5">
-      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" />
+      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" :remote="remoteIcons" />
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</div>
         <div class="truncate text-[11px] text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
@@ -103,6 +103,7 @@ function pingTitle(url: string) {
 
 const { data, refresh: refreshServices } = useServices()
 const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
+const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const isUp = computed(() => props.service.state === 'running' || props.service.state === 'restarting')
 const busy = ref(false)
 async function control(action: 'start' | 'stop') {

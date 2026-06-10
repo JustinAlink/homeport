@@ -13,6 +13,20 @@ export interface PersistedSettings {
   allowControl?: boolean
   pingEnabled?: boolean
   systemdEnabled?: boolean
+  remoteIcons?: boolean
+  /** UI-managed multi-host list (empty = use the single connection above). */
+  hosts?: SettingsHost[]
+}
+
+export interface SettingsHost {
+  id?: string
+  name: string
+  dockerHost?: string // '' local, tcp://…, ssh://user@host
+  dockerSshKey?: string
+  sshFingerprint?: string // SHA256:… of the remote host key (optional)
+  domainProvider?: string
+  npmConfDir?: string
+  caddyfilePath?: string
 }
 
 const dataDir = () => process.env.HOMEPORT_DATA_DIR || '/data'

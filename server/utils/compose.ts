@@ -136,6 +136,7 @@ export async function buildServices(): Promise<ServicesResponse> {
     },
     domainProvider: providerNames.length === 1 ? providerNames[0] : providerNames.length ? `${providerNames.length} providers` : null,
     controlEnabled: cfg.allowControl,
+    remoteIcons: cfg.remoteIcons,
     hosts: perHost.map((h) => ({ id: h.host.id, name: h.host.name, online: h.online, error: h.error })),
     generatedAt: Date.now(),
   }

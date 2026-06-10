@@ -78,6 +78,9 @@ All via environment variables (set on the container at runtime):
 | `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), `ssh://user@host` for a remote host, or empty for `DOCKER_SOCKET`. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
 | `DOCKER_SSH_KEY` | _(agent)_ | Private-key path for `ssh://` (mount it read-only); falls back to the SSH agent. |
+| `DOCKER_SSH_FINGERPRINT` | _(none)_ | Pin the remote host key for `ssh://`, e.g. `SHA256:…`. When set, a mismatching host key is rejected. |
+| `HOMEPORT_HOSTS` | _(single host)_ | JSON array to watch several Docker hosts at once (see below). Locks the in-app Hosts list. |
+| `HOMEPORT_REMOTE_ICONS` | `true` | `false` skips the dashboard-icons CDN — offline monograms / your own `hub.icon` URLs only. |
 | `NPM_CONF_DIR` | _(none)_ | Path (in-container) to Nginx Proxy Manager proxy-host confs. Omit to disable domain mapping. |
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
@@ -87,8 +90,9 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_SYSTEMD_UNITS` | _(active+failed)_ | Comma list of units to show, e.g. `nginx,postgresql`. |
 
 > **Settings page** (the ⚙ in the header): change reverse-proxy provider, Docker connection
-> (local / remote-over-SSH), and the controls toggle in-app. Any value also set via an env
-> var is locked (env wins) — so headless deployments stay authoritative.
+> (local / remote-over-SSH), add/remove **extra hosts**, toggle remote logos, and the controls
+> toggle — all in-app. Any value also set via an env var is locked (env wins) — so headless
+> deployments stay authoritative.
 
 ### Per-service overrides (optional Docker labels)
 
@@ -128,25 +132,31 @@ volumes:
 ```
 
 The remote user must be able to reach its own `/var/run/docker.sock` (i.e. in the `docker`
-group). Note: in SSH mode homeport does not yet verify the remote host key — use it on
-trusted networks / your own hosts.
+group).
+
+**Host-key verification.** Pin the remote host key with `DOCKER_SSH_FINGERPRINT=SHA256:…`
+(grab it with `ssh-keyscan your-server | ssh-keygen -lf -`). When set, homeport rejects a
+mismatching key instead of trusting on first use. Each entry in the multi-host list below
+has its own optional fingerprint field too.
 
 ## Watch multiple hosts
 
-Set `HOMEPORT_HOSTS` to a JSON array and homeport aggregates them all — with a host
+Add hosts right from the **settings page** (Hosts → *+ Add host*), or set `HOMEPORT_HOSTS`
+to a JSON array for headless deploys. Either way homeport aggregates them all — with a host
 filter, host-tagged services, and per-host error isolation (a down host doesn't break the
-rest). Each host can use any connection (local socket, tcp, or `ssh://`) and its own
-reverse proxy:
+rest). Each host can use any connection (local socket, tcp, or `ssh://`), its own reverse
+proxy, and its own host-key fingerprint:
 
 ```jsonc
 HOMEPORT_HOSTS='[
   { "name": "this-box" },
   { "name": "vps", "dockerHost": "ssh://user@vps", "dockerSshKey": "/ssh/id_ed25519",
-    "npmConfDir": "/npm" }
+    "sshFingerprint": "SHA256:…", "npmConfDir": "/npm" }
 ]'
 ```
 
-(With no `HOMEPORT_HOSTS`, homeport just watches the single host from the normal config.)
+Setting `HOMEPORT_HOSTS` locks the in-app Hosts list (env stays authoritative). With
+neither set, homeport just watches the single host from the normal config.
 
 ## Security
 
@@ -159,10 +169,9 @@ HOMEPORT_HOSTS='[
 
 ## Roadmap
 
-- In-app host management (add/remove hosts from the settings page)
-- SSH host-key verification (remote mode)
-- Settings toggle for remote logos
-- SSH host-key verification (remote mode)
+- Per-service alerting / notifications (down, unhealthy)
+- More reverse-proxy providers (community PRs welcome)
+- Historical stats retention beyond the in-memory window
 
 ## License
 

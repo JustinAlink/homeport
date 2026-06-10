@@ -33,6 +33,8 @@ export interface HomeportConfig {
   systemdEnabled: boolean
   /** Optional allowlist of systemd units to show (empty = active + failed). */
   systemdUnits: string[]
+  /** Fetch real app logos from the dashboard-icons CDN. On by default. */
+  remoteIcons: boolean
 }
 
 const envStr = (k: string) => {
@@ -74,6 +76,10 @@ export function getConfig(): HomeportConfig {
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean),
+    remoteIcons:
+      envStr('HOMEPORT_REMOTE_ICONS') !== undefined
+        ? process.env.HOMEPORT_REMOTE_ICONS === 'true'
+        : s.remoteIcons ?? true,
   }
 }
 
@@ -88,6 +94,8 @@ export function getEnvLocks() {
     allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
     pingEnabled: envStr('HOMEPORT_PING') !== undefined,
     systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
+    remoteIcons: envStr('HOMEPORT_REMOTE_ICONS') !== undefined,
+    hosts: !!process.env.HOMEPORT_HOSTS,
   }
 }
 
@@ -104,5 +112,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     allowControl: !!s.allowControl,
     pingEnabled: s.pingEnabled ?? true,
     systemdEnabled: !!s.systemdEnabled,
+    remoteIcons: s.remoteIcons ?? true,
+    hosts: s.hosts ?? [],
   }
 }

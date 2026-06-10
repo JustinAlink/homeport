@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import Docker from 'dockerode'
 import type { HealthState, ServicePort } from '~/types/service'
 import type { HostConfig } from './hosts'
@@ -14,9 +15,15 @@ export function getDockerFor(host: HostConfig): Docker {
   const target = parseDockerHost(host.dockerHost)
   let docker: Docker
   if (target.kind === 'ssh') {
-    const sshOptions = host.dockerSshKey
+    const sshOptions: any = host.dockerSshKey
       ? { privateKey: readFileSync(host.dockerSshKey), passphrase: process.env.DOCKER_SSH_KEY_PASSPHRASE || undefined }
       : { agent: process.env.SSH_AUTH_SOCK }
+    // Optional host-key verification: compare the remote key's SHA256 to the expected.
+    if (host.sshFingerprint) {
+      const want = host.sshFingerprint.replace(/^SHA256:/i, '').replace(/=+$/, '')
+      sshOptions.hostVerifier = (key: Buffer) =>
+        createHash('sha256').update(key).digest('base64').replace(/=+$/, '') === want
+    }
     docker = new Docker({ protocol: 'ssh', host: target.host, port: target.port, username: target.username, sshOptions } as Docker.DockerOptions)
   } else if (target.kind === 'tcp') {
     docker = new Docker({ host: target.host, port: target.port, protocol: 'http' })
