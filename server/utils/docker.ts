@@ -96,9 +96,10 @@ export async function listContainersFor(host: HostConfig): Promise<RawContainer[
   return list.map(mapContainer)
 }
 
-export async function controlContainerFor(host: HostConfig, id: string, action: 'start' | 'stop'): Promise<void> {
+export async function controlContainerFor(host: HostConfig, id: string, action: 'start' | 'stop' | 'restart'): Promise<void> {
   const container = getDockerFor(host).getContainer(id)
   if (action === 'start') await container.start()
+  else if (action === 'restart') await container.restart()
   else await container.stop()
 }
 

@@ -3,18 +3,21 @@ import { controlContainerFor } from '../utils/docker'
 import { getHosts } from '../utils/hosts'
 import { demoControl } from '../utils/demo'
 
-// Start/stop a container. Disabled unless HOMEPORT_ALLOW_CONTROL=true.
+const ACTIONS = ['start', 'stop', 'restart'] as const
+type Action = (typeof ACTIONS)[number]
+
+// Start/stop/restart a container. Disabled unless HOMEPORT_ALLOW_CONTROL=true.
 export default defineEventHandler(async (event) => {
   const cfg = getConfig()
   if (!cfg.allowControl) {
     throw createError({ statusCode: 403, statusMessage: 'Controls are disabled (set HOMEPORT_ALLOW_CONTROL=true).' })
   }
 
-  const body = await readBody<{ id?: string; action?: 'start' | 'stop' }>(event)
+  const body = await readBody<{ id?: string; action?: Action }>(event)
   const id = body?.id
   const action = body?.action
-  if (!id || (action !== 'start' && action !== 'stop')) {
-    throw createError({ statusCode: 400, statusMessage: 'Expected { id, action: "start" | "stop" }' })
+  if (!id || !action || !ACTIONS.includes(action)) {
+    throw createError({ statusCode: 400, statusMessage: 'Expected { id, action: "start" | "stop" | "restart" }' })
   }
 
   try {

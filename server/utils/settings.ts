@@ -15,6 +15,13 @@ export interface PersistedSettings {
   nginxConfDir?: string
   traefikFilePath?: string
   allowControl?: boolean
+  /** Capability toggles (tiered opt-in; see README security table). */
+  logsEnabled?: boolean
+  updateCheckEnabled?: boolean
+  allowUpdates?: boolean
+  allowStacks?: boolean
+  allowTerminal?: boolean
+  allowProxyAdmin?: boolean
   pingEnabled?: boolean
   systemdEnabled?: boolean
   remoteIcons?: boolean
