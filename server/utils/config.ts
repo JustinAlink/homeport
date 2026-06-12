@@ -44,6 +44,8 @@ export interface HomeportConfig {
   logsEnabled: boolean
   /** Check registries for newer images (needs DISTRIBUTION=1 on the proxy). Off by default. */
   updateCheckEnabled: boolean
+  /** Hours between update sweeps per image (registry checks count toward Hub pull limits). */
+  updateCheckIntervalH: number
   /** Allow applying image updates: pull + recreate (needs IMAGES=1 POST=1). Off by default. */
   allowUpdates: boolean
   /** Compose stack management from a mounted stacks dir (needs broad proxy perms). Off by default. */
@@ -129,6 +131,7 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_UPDATE_CHECK') !== undefined
         ? process.env.HOMEPORT_UPDATE_CHECK === 'true'
         : !!s.updateCheckEnabled,
+    updateCheckIntervalH: Math.max(1, envNum('HOMEPORT_UPDATE_CHECK_INTERVAL_H') ?? 24),
     allowUpdates:
       envStr('HOMEPORT_ALLOW_UPDATES') !== undefined
         ? process.env.HOMEPORT_ALLOW_UPDATES === 'true'
