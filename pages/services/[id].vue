@@ -100,6 +100,12 @@
         <p v-else class="text-sm text-slate-500">Logs are disabled (<code>HOMEPORT_LOGS=false</code>).</p>
       </section>
 
+      <!-- TERMINAL -->
+      <section v-else-if="tab === 'terminal'" class="h-[65vh]">
+        <TerminalView v-if="isUp" :id="service.id" :name="service.displayName" class="h-full" />
+        <p v-else class="text-sm text-slate-500">The container isn't running — start it to open a shell.</p>
+      </section>
+
       <!-- UPDATE -->
       <section v-else-if="tab === 'update'" class="max-w-xl space-y-4">
         <div class="rounded-lg border border-white/5 bg-ink-900 p-4">
@@ -162,11 +168,12 @@ const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const hostName = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const isUp = computed(() => service.value?.state === 'running' || service.value?.state === 'restarting')
 
-type Tab = 'overview' | 'logs' | 'update'
+type Tab = 'overview' | 'logs' | 'terminal' | 'update'
 const tab = ref<Tab>('overview')
 const tabs = computed(() => [
   { key: 'overview' as Tab, label: 'Overview' },
   ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs' }] : []),
+  ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal' }] : []),
   ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
 ])
 

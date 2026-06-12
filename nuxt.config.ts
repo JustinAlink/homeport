@@ -6,6 +6,9 @@ export default defineNuxtConfig({
   // Server backend (reads the Docker socket) — NOT static.
   nitro: {
     preset: 'node-server',
+    experimental: {
+      websocket: true, // web terminal (crossws ships with nitro)
+    },
   },
 
   // All real config is read at request time from process.env in server/utils/config.ts,

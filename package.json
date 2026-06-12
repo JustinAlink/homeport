@@ -11,6 +11,8 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "confbox": "^0.2.0",
     "dockerode": "^4.0.2",
     "nuxt": "^3.16.0",
