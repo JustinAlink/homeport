@@ -14,6 +14,19 @@
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <button
+          v-if="caps.logs && service.kind === 'container'"
+          class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 opacity-0 transition hover:bg-white/5 group-hover:opacity-100"
+          title="View logs"
+          @click="showLogs = true"
+        >Logs</button>
+        <button
+          v-if="controlEnabled && service.kind === 'container' && isUp"
+          :disabled="busy"
+          class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300 opacity-0 transition hover:bg-white/5 group-hover:opacity-100 disabled:opacity-50"
+          title="Restart"
+          @click="control('restart')"
+        >↻</button>
+        <button
           v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
           class="rounded border px-1.5 py-0.5 text-[10px] font-medium opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
@@ -67,6 +80,8 @@
     <!-- non-running / systemd status -->
     <p v-else class="truncate pl-[42px] text-[11px] text-slate-500">{{ service.statusText }}</p>
 
+    <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
+
     <!-- per-card detail graph -->
     <div v-if="expanded" class="mt-1">
       <div class="mb-1 flex items-center gap-1 pl-[42px] text-[10px]">
@@ -90,6 +105,8 @@ import type { Service } from '~/types/service'
 const props = defineProps<{ service: Service }>()
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const expanded = ref(false)
+const showLogs = ref(false)
+const { caps } = useCapabilities()
 
 const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
@@ -145,7 +162,7 @@ const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const isUp = computed(() => props.service.state === 'running' || props.service.state === 'restarting')
 const busy = ref(false)
-async function control(action: 'start' | 'stop') {
+async function control(action: 'start' | 'stop' | 'restart') {
   if (action === 'stop' && !window.confirm(`Stop “${props.service.displayName}”?`)) return
   busy.value = true
   try {

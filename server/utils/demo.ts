@@ -39,10 +39,10 @@ const seeds: Seed[] = [
   { name: 'restic-backup', image: 'mazzolino/restic:1.6.0', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
 ]
 
-// In-memory overrides so demo start/stop actually toggle a card's state.
+// In-memory overrides so demo start/stop/restart actually toggle a card's state.
 const demoOverrides: Record<string, 'running' | 'exited'> = {}
-export function demoControl(id: string, action: 'start' | 'stop') {
-  demoOverrides[id] = action === 'start' ? 'running' : 'exited'
+export function demoControl(id: string, action: 'start' | 'stop' | 'restart') {
+  demoOverrides[id] = action === 'stop' ? 'exited' : 'running'
 }
 
 function toService(s: Seed, i: number): Service {
@@ -131,6 +131,32 @@ export function demoHistory(id: string, fromMs: number, toMs: number, res: numbe
     )
   }
   return { res, t, cpu, mem }
+}
+
+/** Synthetic log lines so the logs panel works in demo mode. Deterministic per id+seed. */
+export function demoLogLines(id: string, count: number, seed?: number): { s: 'stdout' | 'stderr'; t: string; line: string }[] {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 9973
+  const base = seed ?? Date.now() - count * 2000
+  const verbs = ['GET', 'POST', 'GET', 'GET', 'HEAD']
+  const paths = ['/', '/api/health', '/assets/app.js', '/favicon.ico', '/api/items', '/login']
+  const out: { s: 'stdout' | 'stderr'; t: string; line: string }[] = []
+  for (let i = 0; i < count; i++) {
+    const n = h + i
+    const t = new Date(base + i * 2000).toISOString()
+    if (n % 11 === 0) {
+      out.push({ s: 'stderr', t, line: `[warn] upstream slow: took ${120 + (n % 800)}ms` })
+    } else if (n % 17 === 0) {
+      out.push({ s: 'stdout', t, line: `[info] health check ok (uptime ${(n % 72) + 1}h)` })
+    } else {
+      out.push({
+        s: 'stdout',
+        t,
+        line: `10.0.0.${(n % 250) + 1} - "${verbs[n % verbs.length]} ${paths[n % paths.length]} HTTP/1.1" ${n % 23 === 0 ? 404 : 200} ${100 + ((n * 37) % 4000)}`,
+      })
+    }
+  }
+  return out
 }
 
 export function demoPings(): PingMap {

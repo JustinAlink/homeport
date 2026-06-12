@@ -83,6 +83,12 @@ export default defineEventHandler(async (event) => {
   if (body.nginxConfDir !== undefined) patch.nginxConfDir = body.nginxConfDir.trim()
   if (body.traefikFilePath !== undefined) patch.traefikFilePath = body.traefikFilePath.trim()
   if (body.allowControl !== undefined) patch.allowControl = !!body.allowControl
+  if (body.logsEnabled !== undefined) patch.logsEnabled = !!body.logsEnabled
+  if (body.updateCheckEnabled !== undefined) patch.updateCheckEnabled = !!body.updateCheckEnabled
+  if (body.allowUpdates !== undefined) patch.allowUpdates = !!body.allowUpdates
+  if (body.allowStacks !== undefined) patch.allowStacks = !!body.allowStacks
+  if (body.allowTerminal !== undefined) patch.allowTerminal = !!body.allowTerminal
+  if (body.allowProxyAdmin !== undefined) patch.allowProxyAdmin = !!body.allowProxyAdmin
   if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
   if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled
   if (body.remoteIcons !== undefined) patch.remoteIcons = !!body.remoteIcons

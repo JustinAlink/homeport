@@ -211,7 +211,19 @@ the page.
 
 - homeport never touches the raw Docker socket — it talks to a **read-only
   `docker-socket-proxy`** that only exposes container listing, info, events, and ping.
-  (Start/stop controls are off by default; enabling them needs `POST=1` on the proxy.)
+- **Tiered capabilities:** everything that writes is its own opt-in. Each tier lists the
+  socket-proxy permissions it needs — grant only what you use:
+
+  | Capability | Flag | Default | socket-proxy needs |
+  |---|---|---|---|
+  | Status dashboard | — | on | `CONTAINERS=1 INFO=1 EVENTS=1 PING=1` |
+  | Logs viewer | `HOMEPORT_LOGS` | on | nothing extra (read tier) |
+  | Start/stop/restart | `HOMEPORT_ALLOW_CONTROL` | off | `POST=1` |
+  | Update checks | `HOMEPORT_UPDATE_CHECK` | off | `DISTRIBUTION=1` |
+  | Apply updates | `HOMEPORT_ALLOW_UPDATES` | off | `IMAGES=1 POST=1` |
+  | Compose stacks | `HOMEPORT_ALLOW_STACKS` | off | `POST=1 IMAGES=1 NETWORKS=1 VOLUMES=1` |
+  | Web terminal | `HOMEPORT_ALLOW_TERMINAL` | off | `EXEC=1 POST=1` |
+  | Proxy management | `HOMEPORT_ALLOW_PROXY_ADMIN` | off | none (talks to your proxy, not Docker) |
 - The reverse-proxy config is mounted **read-only**.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.

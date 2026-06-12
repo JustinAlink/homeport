@@ -38,8 +38,22 @@ export interface HomeportConfig {
   traefikFilePath: string
   /** Serve a synthetic fleet (no Docker needed) — for trying homeport / screenshots. */
   demo: boolean
-  /** Allow start/stop controls. Off by default — homeport is read-only unless opted in. */
+  /** Allow start/stop/restart controls. Off by default — homeport is read-only unless opted in. */
   allowControl: boolean
+  /** Container logs viewer. On by default (read-tier; covered by CONTAINERS=1 on the proxy). */
+  logsEnabled: boolean
+  /** Check registries for newer images (needs DISTRIBUTION=1 on the proxy). Off by default. */
+  updateCheckEnabled: boolean
+  /** Allow applying image updates: pull + recreate (needs IMAGES=1 POST=1). Off by default. */
+  allowUpdates: boolean
+  /** Compose stack management from a mounted stacks dir (needs broad proxy perms). Off by default. */
+  allowStacks: boolean
+  /** Directory of compose stacks (each subdir = one stack). */
+  stacksDir: string
+  /** Web terminal: exec into containers (needs EXEC=1 POST=1). Off by default. */
+  allowTerminal: boolean
+  /** Manage the reverse proxy (create/edit domains) via provider APIs. Off by default. */
+  allowProxyAdmin: boolean
   /** Actively HTTP-ping mapped domains for an up/down indicator. On by default. */
   pingEnabled: boolean
   /** Also show host systemd services (best-effort; needs systemctl access). Off by default. */
@@ -107,6 +121,31 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALLOW_CONTROL') !== undefined
         ? process.env.HOMEPORT_ALLOW_CONTROL === 'true'
         : !!s.allowControl,
+    logsEnabled:
+      envStr('HOMEPORT_LOGS') !== undefined
+        ? process.env.HOMEPORT_LOGS === 'true'
+        : s.logsEnabled ?? true,
+    updateCheckEnabled:
+      envStr('HOMEPORT_UPDATE_CHECK') !== undefined
+        ? process.env.HOMEPORT_UPDATE_CHECK === 'true'
+        : !!s.updateCheckEnabled,
+    allowUpdates:
+      envStr('HOMEPORT_ALLOW_UPDATES') !== undefined
+        ? process.env.HOMEPORT_ALLOW_UPDATES === 'true'
+        : !!s.allowUpdates,
+    allowStacks:
+      envStr('HOMEPORT_ALLOW_STACKS') !== undefined
+        ? process.env.HOMEPORT_ALLOW_STACKS === 'true'
+        : !!s.allowStacks,
+    stacksDir: envStr('HOMEPORT_STACKS_DIR') ?? '/stacks',
+    allowTerminal:
+      envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined
+        ? process.env.HOMEPORT_ALLOW_TERMINAL === 'true'
+        : !!s.allowTerminal,
+    allowProxyAdmin:
+      envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined
+        ? process.env.HOMEPORT_ALLOW_PROXY_ADMIN === 'true'
+        : !!s.allowProxyAdmin,
     pingEnabled:
       envStr('HOMEPORT_PING') !== undefined
         ? process.env.HOMEPORT_PING === 'true'
@@ -158,6 +197,12 @@ export function getEnvLocks() {
     nginxConfDir: envStr('NGINX_CONF_DIR') !== undefined,
     traefikFilePath: envStr('TRAEFIK_FILE') !== undefined,
     allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
+    logsEnabled: envStr('HOMEPORT_LOGS') !== undefined,
+    updateCheckEnabled: envStr('HOMEPORT_UPDATE_CHECK') !== undefined,
+    allowUpdates: envStr('HOMEPORT_ALLOW_UPDATES') !== undefined,
+    allowStacks: envStr('HOMEPORT_ALLOW_STACKS') !== undefined,
+    allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
+    allowProxyAdmin: envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined,
     pingEnabled: envStr('HOMEPORT_PING') !== undefined,
     systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
     remoteIcons: envStr('HOMEPORT_REMOTE_ICONS') !== undefined,
@@ -182,6 +227,12 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     nginxConfDir: s.nginxConfDir || '',
     traefikFilePath: s.traefikFilePath || '',
     allowControl: !!s.allowControl,
+    logsEnabled: s.logsEnabled ?? true,
+    updateCheckEnabled: !!s.updateCheckEnabled,
+    allowUpdates: !!s.allowUpdates,
+    allowStacks: !!s.allowStacks,
+    allowTerminal: !!s.allowTerminal,
+    allowProxyAdmin: !!s.allowProxyAdmin,
     pingEnabled: s.pingEnabled ?? true,
     systemdEnabled: !!s.systemdEnabled,
     remoteIcons: s.remoteIcons ?? true,

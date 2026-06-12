@@ -159,18 +159,29 @@
         </div>
       </section>
 
-      <!-- Controls -->
+      <!-- Capabilities (tiered opt-in) -->
       <section class="space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Controls</h2>
-        <p v-if="locked.allowControl" class="text-xs text-slate-500">Set by <code>HOMEPORT_ALLOW_CONTROL</code> — locked.</p>
-        <label
-          class="flex items-center gap-2 text-sm text-slate-200"
-          :class="locked.allowControl ? 'pointer-events-none opacity-50' : ''"
-        >
-          <input v-model="form.allowControl" type="checkbox" />
-          Enable start/stop buttons
-          <span class="text-[11px] text-slate-500">(needs <code>POST=1</code> on the socket proxy)</span>
-        </label>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Capabilities</h2>
+        <p class="text-xs text-slate-500">
+          homeport is read-only by default. Each capability is its own opt-in; the hint shows what the
+          docker-socket-proxy must allow for it.
+        </p>
+        <div class="space-y-2.5">
+          <label
+            v-for="c in capabilityToggles"
+            :key="c.key"
+            class="flex items-start gap-2 text-sm text-slate-200"
+            :class="locked[c.lock] ? 'pointer-events-none opacity-50' : ''"
+          >
+            <input v-model="(form as any)[c.key]" type="checkbox" class="mt-0.5" />
+            <span>
+              {{ c.label }}
+              <span class="block text-[11px] text-slate-500">
+                {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code> — locked</template>
+              </span>
+            </span>
+          </label>
+        </div>
       </section>
 
       <!-- Uptime -->
@@ -364,6 +375,12 @@ const form = reactive({
   nginxConfDir: '',
   traefikFilePath: '',
   allowControl: false,
+  logsEnabled: true,
+  updateCheckEnabled: false,
+  allowUpdates: false,
+  allowStacks: false,
+  allowTerminal: false,
+  allowProxyAdmin: false,
   pingEnabled: true,
   systemdEnabled: false,
   remoteIcons: true,
@@ -376,6 +393,17 @@ const form = reactive({
   alertChannels: [] as ChannelRow[],
   hosts: [] as HostRow[],
 })
+
+// Tiered capability toggles + the socket-proxy permissions each one needs.
+const capabilityToggles = [
+  { key: 'logsEnabled', lock: 'logsEnabled', env: 'HOMEPORT_LOGS', label: 'Container logs viewer', hint: 'read-tier — already covered by CONTAINERS=1 (on by default)' },
+  { key: 'allowControl', lock: 'allowControl', env: 'HOMEPORT_ALLOW_CONTROL', label: 'Start / stop / restart buttons', hint: 'needs POST=1 on the socket proxy' },
+  { key: 'updateCheckEnabled', lock: 'updateCheckEnabled', env: 'HOMEPORT_UPDATE_CHECK', label: 'Check for image updates', hint: 'needs DISTRIBUTION=1 (read-only registry digests)' },
+  { key: 'allowUpdates', lock: 'allowUpdates', env: 'HOMEPORT_ALLOW_UPDATES', label: 'Apply image updates (pull + recreate)', hint: 'needs IMAGES=1 POST=1' },
+  { key: 'allowStacks', lock: 'allowStacks', env: 'HOMEPORT_ALLOW_STACKS', label: 'Compose stack management', hint: 'needs POST=1 CONTAINERS=1 IMAGES=1 NETWORKS=1 VOLUMES=1 + a mounted stacks dir' },
+  { key: 'allowTerminal', lock: 'allowTerminal', env: 'HOMEPORT_ALLOW_TERMINAL', label: 'Web terminal (exec into containers)', hint: 'needs EXEC=1 POST=1 — full shell access, enable with care' },
+  { key: 'allowProxyAdmin', lock: 'allowProxyAdmin', env: 'HOMEPORT_ALLOW_PROXY_ADMIN', label: 'Manage the reverse proxy (domains)', hint: 'talks to your proxy, not Docker — needs provider credentials below' },
+] as const
 
 interface ChannelRow {
   name: string
