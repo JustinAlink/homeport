@@ -145,6 +145,14 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
     step('inspect', false, e?.message)
   }
 
+  // Compose-managed containers must be updated through their stack — recreating
+  // one here would desync it from `docker compose` (label/hash drift, orphaning).
+  const project = inspect.Config?.Labels?.['com.docker.compose.project']
+  if (project) {
+    const cname = String(inspect.Name || '').replace(/^\//, '')
+    throw fail(`${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`)
+  }
+
   const image = inspect.Config?.Image
   const wasRunning = !!inspect.State?.Running
   const plan = buildCreatePayload(inspect, image)

@@ -15,17 +15,21 @@ export default defineEventHandler((event) => {
       stream.push(JSON.stringify({ line: op.lines[cursor++] }))
     }
   }
-  const finish = () => {
+
+  const onLine = () => flush()
+  const onDone = () => {
     flush()
     stream.push(JSON.stringify({ done: true, ok: op.ok }))
+    op.emitter.off('line', onLine)
+    op.emitter.off('done', onDone)
+    stream.close() // let the client know it's over instead of holding the SSE open
   }
 
   flush()
   if (op.done) {
-    finish()
+    stream.push(JSON.stringify({ done: true, ok: op.ok }))
+    stream.close()
   } else {
-    const onLine = () => flush()
-    const onDone = () => finish()
     op.emitter.on('line', onLine)
     op.emitter.on('done', onDone)
     stream.onClosed(() => {

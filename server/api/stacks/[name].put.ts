@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { getConfig } from '../../utils/config'
 import { saveStack, validateCompose } from '../../utils/stacks'
 import { demoStackSave } from '../../utils/demo'
@@ -29,9 +30,11 @@ export default defineEventHandler(async (event) => {
 
   const check = await validateCompose(saved.name)
   if (!check.ok) {
-    // restore the backup so a broken file never sits on disk
+    // restore the previous good version from .bak — backup:false so we don't
+    // overwrite that good .bak with the rejected content.
     try {
-      saveStack(saved.name, (await import('node:fs')).readFileSync(`${cfg.stacksDir}/${saved.name}/${saved.file}.bak`, 'utf8'))
+      const good = readFileSync(`${cfg.stacksDir}/${saved.name}/${saved.file}.bak`, 'utf8')
+      saveStack(saved.name, good, false, false)
     } catch {
       // no backup (new stack) — leave the invalid file for the user to fix
     }
