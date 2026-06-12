@@ -46,34 +46,39 @@ Every container has its own page — overview, logs, terminal, domains, and upda
 
 ## Quick start
 
-```yaml
-# docker-compose.yml — see the full file in this repo
-services:
-  homeport:
-    image: ghcr.io/<your-username>/homeport:latest
-    environment:
-      HOMEPORT_ADMIN_PASSWORD: change-me
-      HOMEPORT_SESSION_SECRET: $(openssl rand -hex 32)
-      DOCKER_HOST: tcp://docker-socket-proxy:2375
-      NPM_CONF_DIR: /npm
-    volumes:
-      - /path/to/npm/data/nginx/proxy_host:/npm:ro   # optional: domain mapping
-    ports: ["3004:3000"]
-    networks: [npm-network, internal]
-    depends_on: [docker-socket-proxy]
-
-  docker-socket-proxy:                # read-only Docker API — no raw socket for the app
-    image: tecnativa/docker-socket-proxy:latest
-    environment: { CONTAINERS: 1, INFO: 1, EVENTS: 1, PING: 1 }
-    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
-    networks: [internal]
-```
+**Try it in 30 seconds** (synthetic fleet, no Docker access needed):
 
 ```bash
-cp .env.example .env   # set HOMEPORT_ADMIN_PASSWORD + HOMEPORT_SESSION_SECRET (+ NPM path)
-docker compose up -d
-# open http://<host>:3004 and log in
+docker run --rm -p 3004:3000 -e HOMEPORT_DEMO=true -e HOMEPORT_ADMIN_PASSWORD=demo \
+  ghcr.io/justinalink/homeport:latest
+# open http://localhost:3004  ·  log in with "demo"
 ```
+
+**Run it for real** — one command, Docker socket mounted read-only:
+
+```bash
+docker run -d --name homeport -p 3004:3000 \
+  -e HOMEPORT_ADMIN_PASSWORD='choose-a-password' \
+  -e HOMEPORT_SESSION_SECRET="$(openssl rand -hex 32)" \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v homeport-data:/data \
+  ghcr.io/justinalink/homeport:latest
+# open http://<host>:3004
+```
+
+**Hardened (recommended for a server)** — Docker socket behind a read-only proxy + domain
+mapping. Grab [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example):
+
+```bash
+curl -O https://raw.githubusercontent.com/JustinAlink/homeport/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/JustinAlink/homeport/main/.env.example
+# edit .env: set HOMEPORT_ADMIN_PASSWORD + HOMEPORT_SESSION_SECRET (+ your NPM path)
+docker compose up -d
+```
+
+The compose file pulls the official image and runs homeport against a
+`tecnativa/docker-socket-proxy` (read-only Docker API — the app never gets the raw socket).
+Put it behind your reverse proxy with a real domain + HTTPS once it's up.
 
 ### Build & publish your own image (no CI required)
 

@@ -5,7 +5,7 @@
 
 services:
   homeport:
-    image: ghcr.io/${GHCR_OWNER}/homeport:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-justinalink}/homeport:${IMAGE_TAG:-latest}
     container_name: homeport
     restart: unless-stopped
     environment:
