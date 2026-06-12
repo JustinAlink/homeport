@@ -23,12 +23,6 @@ export interface Snapshot {
   hostsOnline: Record<string, boolean>
 }
 
-let latest: Snapshot | null = null
-
-export function getLatestSnapshot(): Snapshot | null {
-  return latest
-}
-
 /** One collection pass: services + stats across all hosts. Reuses the live pipelines. */
 export async function collectOnce(): Promise<Snapshot> {
   const [svc, stats] = await Promise.all([buildServices(), collectStats()])
@@ -45,7 +39,6 @@ export async function collectOnce(): Promise<Snapshot> {
 
 const tick = guard(async () => {
   const snap = await collectOnce()
-  latest = snap
   await recordHistory(snap)
   await evaluateAlerts(snap)
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled
