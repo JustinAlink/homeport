@@ -7,6 +7,7 @@ export interface Capabilities {
   terminal: boolean
   proxyAdmin: boolean
   loginDisabled: boolean
+  passwordEnvLocked: boolean
   demo: boolean
 }
 
@@ -19,6 +20,7 @@ const NONE: Capabilities = {
   terminal: false,
   proxyAdmin: false,
   loginDisabled: false,
+  passwordEnvLocked: false,
   demo: false,
 }
 
