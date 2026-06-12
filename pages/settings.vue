@@ -399,6 +399,28 @@
         </label>
       </section>
 
+      <!-- Account -->
+      <section :id="'account'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Account</h2>
+        <p v-if="caps.passwordEnvLocked" class="text-xs text-slate-500">
+          The admin password is set via <code>HOMEPORT_ADMIN_PASSWORD</code> — change it there.
+        </p>
+        <div v-else class="max-w-sm space-y-2">
+          <input v-model="pw.current" type="password" :class="fieldCls" placeholder="Current password" autocomplete="current-password" />
+          <input v-model="pw.next" type="password" :class="fieldCls" placeholder="New password" autocomplete="new-password" />
+          <input v-model="pw.confirm" type="password" :class="fieldCls" placeholder="Confirm new password" autocomplete="new-password" />
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              :disabled="pwBusy"
+              class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+              @click="changePassword"
+            >{{ pwBusy ? 'Saving…' : 'Change password' }}</button>
+            <span v-if="pwMsg" class="text-[11px]" :class="pwOk ? 'text-accent-light' : 'text-red-400'">{{ pwMsg }}</span>
+          </div>
+        </div>
+      </section>
+
       <div class="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-white/5 bg-ink-950/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
         <button
           type="submit"
@@ -439,8 +461,37 @@ const sections = computed(() =>
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'alerts', label: 'Alerts' },
     { id: 'appearance', label: 'Appearance' },
+    { id: 'account', label: 'Account' },
   ],
 )
+
+const { caps, load: loadCaps } = useCapabilities()
+
+// change password
+const pw = reactive({ current: '', next: '', confirm: '' })
+const pwBusy = ref(false)
+const pwMsg = ref('')
+const pwOk = ref(false)
+async function changePassword() {
+  if (pw.next !== pw.confirm) {
+    pwOk.value = false
+    pwMsg.value = 'New passwords do not match'
+    return
+  }
+  pwBusy.value = true
+  pwMsg.value = ''
+  try {
+    await $fetch('/api/account/password', { method: 'POST', body: { current: pw.current, password: pw.next } })
+    pwOk.value = true
+    pwMsg.value = 'Password changed.'
+    pw.current = pw.next = pw.confirm = ''
+  } catch (e: any) {
+    pwOk.value = false
+    pwMsg.value = e?.statusMessage || 'Could not change password'
+  } finally {
+    pwBusy.value = false
+  }
+}
 
 const showProviderHint = computed(
   () => loaded.value && !form.domainProvider && !form.npmConfDir && !form.caddyfilePath && !form.nginxConfDir && !form.traefikFilePath,
@@ -595,6 +646,7 @@ function addHost() {
 }
 
 onMounted(async () => {
+  loadCaps()
   try {
     const r = await $fetch<any>('/api/settings')
     Object.assign(form, r.settings)

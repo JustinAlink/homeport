@@ -58,13 +58,15 @@ docker run --rm -p 3004:3000 -e HOMEPORT_DEMO=true -e HOMEPORT_ADMIN_PASSWORD=de
 
 ```bash
 docker run -d --name homeport -p 3004:3000 \
-  -e HOMEPORT_ADMIN_PASSWORD='choose-a-password' \
-  -e HOMEPORT_SESSION_SECRET="$(openssl rand -hex 32)" \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v homeport-data:/data \
   ghcr.io/justinalink/homeport:latest
-# open http://<host>:3004
+# open http://<host>:3004 → create your admin password on first run
 ```
+
+No env vars required: on first visit homeport walks you through **setting an admin
+password** (and generates a session secret for you). Prefer headless? Set
+`HOMEPORT_ADMIN_PASSWORD` instead and skip the setup screen.
 
 **Hardened (recommended for a server)** — Docker socket behind a read-only proxy + domain
 mapping. Grab [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example):
@@ -100,8 +102,8 @@ All via environment variables (set on the container at runtime):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `HOMEPORT_ADMIN_PASSWORD` | — | Password for the single admin login (**required**). |
-| `HOMEPORT_SESSION_SECRET` | dev fallback | Secret used to sign the session cookie. Set a long random value. |
+| `HOMEPORT_ADMIN_PASSWORD` | _(first-run setup)_ | Admin login password. Leave unset to create it in the browser on first run (stored hashed); set it for headless/locked deploys. |
+| `HOMEPORT_SESSION_SECRET` | _(auto-generated)_ | Secret used to sign the session cookie. Generated and persisted under the data dir if unset; set it to keep sessions stable across re-creates without a volume. |
 | `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), `ssh://user@host` for a remote host, or empty for `DOCKER_SOCKET`. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
 | `DOCKER_SSH_KEY` | _(agent)_ | Private-key path for `ssh://` (mount it read-only); falls back to the SSH agent. |

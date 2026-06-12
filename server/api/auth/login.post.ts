@@ -1,21 +1,13 @@
-import { timingSafeEqual } from 'node:crypto'
-import { getConfig } from '../../utils/config'
 import { createSessionToken, SESSION_COOKIE } from '../../utils/session'
+import { hasPassword, verifyPassword } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const { adminPassword } = getConfig()
-  if (!adminPassword) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Login is unavailable: set HOMEPORT_ADMIN_PASSWORD on the server.',
-    })
+  if (!hasPassword()) {
+    throw createError({ statusCode: 409, statusMessage: 'No password set yet — complete first-run setup.' })
   }
 
   const body = await readBody<{ password?: string }>(event)
-  const supplied = Buffer.from(body?.password ?? '')
-  const expected = Buffer.from(adminPassword)
-  const ok = supplied.length === expected.length && timingSafeEqual(supplied, expected)
-  if (!ok) {
+  if (!verifyPassword(body?.password ?? '')) {
     throw createError({ statusCode: 401, statusMessage: 'Incorrect password' })
   }
 
