@@ -15,6 +15,9 @@ domain that points to it.
 > Want to see it before wiring up Docker? Run it with `HOMEPORT_DEMO=true` for a
 > synthetic fleet (the screenshot above is demo mode).
 
+> 🚧 **v2 is in development on the [`v2` branch](../../tree/v2)** — stack management,
+> logs, terminal, image updates, and in-app reverse-proxy management.
+
 ## Why
 
 If you self-host, you already know what's running — it's just scattered across `docker ps`,
