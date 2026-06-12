@@ -3,6 +3,7 @@ import { buildServices } from './compose'
 import { collectStats } from './stats'
 import { recordHistory } from './history'
 import { evaluateAlerts } from './alerts'
+import { runUpdateSweep } from './updates'
 import { guard } from './guard'
 
 // A periodic fleet snapshot held in a module singleton. node-server runs as a
@@ -47,6 +48,8 @@ const tick = guard(async () => {
   latest = snap
   await recordHistory(snap)
   await evaluateAlerts(snap)
+  // self-throttled (per-image interval) + no-op unless updateCheckEnabled
+  await runUpdateSweep(false)
   return snap
 })
 

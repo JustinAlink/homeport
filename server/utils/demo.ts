@@ -133,6 +133,34 @@ export function demoHistory(id: string, fromMs: number, toMs: number, res: numbe
   return { res, t, cpu, mem }
 }
 
+// Demo update statuses — jellyfin + vaultwarden start with updates available;
+// "applying" flips them to current so the whole flow is clickable without Docker.
+const demoUpdateState: Record<string, 'update' | 'current'> = {}
+export function demoUpdates(): Record<string, any> {
+  const out: Record<string, any> = {}
+  seeds.forEach((s, i) => {
+    const key = `default|${s.image}`
+    const seeded = i === 0 || i === 8 ? 'update' : 'current'
+    const status = demoUpdateState[key] ?? seeded
+    out[key] = {
+      status,
+      localDigest: `sha256:${'ab'.repeat(8)}${i}`,
+      remoteDigest: status === 'update' ? `sha256:${'cd'.repeat(8)}${i}` : `sha256:${'ab'.repeat(8)}${i}`,
+      checkedAt: Date.now() - 3600_000,
+    }
+  })
+  return out
+}
+export function demoApplyUpdate(image: string) {
+  demoUpdateState[`default|${image}`] = 'current'
+  return [
+    { step: 'pull', ok: true, detail: image },
+    { step: 'stop + rename old', ok: true },
+    { step: 'create + start new', ok: true },
+    { step: 'remove old', ok: true },
+  ]
+}
+
 /** Synthetic log lines so the logs panel works in demo mode. Deterministic per id+seed. */
 export function demoLogLines(id: string, count: number, seed?: number): { s: 'stdout' | 'stderr'; t: string; line: string }[] {
   let h = 0

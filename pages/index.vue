@@ -148,6 +148,7 @@ onMounted(() => {
   stats.start()
   pings.start()
   useCapabilities().load()
+  useUpdates().refresh()
   if (localStorage.getItem('hp:graph') === '1') showGraph.value = true
 })
 onBeforeUnmount(() => {

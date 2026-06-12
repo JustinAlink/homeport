@@ -1,0 +1,36 @@
+{
+  "Id": "abcdef123456789012345678901234567890abcdef123456789012345678901234",
+  "Name": "/webapp",
+  "State": { "Running": true },
+  "Config": {
+    "Hostname": "abcdef123456",
+    "User": "1000:1000",
+    "Env": ["TZ=Europe/Amsterdam", "NODE_ENV=production"],
+    "Cmd": ["node", "server.js"],
+    "Entrypoint": ["docker-entrypoint.sh"],
+    "Image": "user/webapp:1.2",
+    "WorkingDir": "/app",
+    "Labels": { "com.docker.compose.project": "web", "hub.group": "web" },
+    "ExposedPorts": { "3000/tcp": {} },
+    "Volumes": { "/data": {} }
+  },
+  "HostConfig": {
+    "Binds": ["/srv/webapp/data:/data:rw"],
+    "PortBindings": { "3000/tcp": [{ "HostIp": "", "HostPort": "8080" }] },
+    "RestartPolicy": { "Name": "unless-stopped", "MaximumRetryCount": 0 },
+    "NetworkMode": "web_default",
+    "Memory": 536870912
+  },
+  "NetworkSettings": {
+    "Networks": {
+      "web_default": {
+        "Aliases": ["webapp", "abcdef123456"],
+        "IPAMConfig": null
+      },
+      "npm-network": {
+        "Aliases": ["webapp", "abcdef123456"],
+        "IPAMConfig": { "IPv4Address": "172.20.0.10" }
+      }
+    }
+  }
+}

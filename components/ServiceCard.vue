@@ -7,7 +7,21 @@
     <div class="flex items-center gap-2.5">
       <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" :remote="remoteIcons" />
       <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</div>
+        <div class="flex items-center gap-1.5">
+          <NuxtLink
+            v-if="service.kind === 'container'"
+            :to="`/services/${encodeURIComponent(service.id)}`"
+            class="truncate text-sm font-medium text-slate-100 hover:text-accent-light"
+            :title="service.name"
+          >{{ service.displayName }}</NuxtLink>
+          <span v-else class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</span>
+          <NuxtLink
+            v-if="updateAvailable"
+            :to="`/services/${encodeURIComponent(service.id)}`"
+            class="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 text-[10px] leading-4 text-sky-300"
+            title="Update available — open the service page"
+          >⬆</NuxtLink>
+        </div>
         <div class="truncate text-[11px] text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
           {{ service.image }}
         </div>
@@ -107,6 +121,8 @@ const host = computed(() => (import.meta.client ? window.location.hostname : 'lo
 const expanded = ref(false)
 const showLogs = ref(false)
 const { caps } = useCapabilities()
+const updates = useUpdates()
+const updateAvailable = computed(() => updates.entryFor(props.service)?.status === 'update')
 
 const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
