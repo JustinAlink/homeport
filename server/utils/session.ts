@@ -15,6 +15,16 @@ export function createSessionToken(): string {
   return `${payload}.${sign(payload, sessionSecret)}`
 }
 
+/**
+ * Verify a session from a raw Cookie header (WebSocket upgrades bypass the h3
+ * middleware, so the terminal handler authenticates explicitly).
+ */
+export function verifyCookieHeader(header: string | null | undefined): boolean {
+  if (!header) return false
+  const m = header.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`))
+  return verifySessionToken(m ? decodeURIComponent(m[1]) : undefined)
+}
+
 /** Verify signature + freshness of a session token. */
 export function verifySessionToken(token: string | undefined): boolean {
   if (!token) return false
