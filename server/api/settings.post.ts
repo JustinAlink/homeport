@@ -45,6 +45,10 @@ function sanitizeHosts(input: unknown): SettingsHost[] {
         caddyfilePath: str(o.caddyfilePath),
         nginxConfDir: str(o.nginxConfDir),
         traefikFilePath: str(o.traefikFilePath),
+        npmApiUrl: str(o.npmApiUrl),
+        npmApiIdentity: str(o.npmApiIdentity),
+        npmApiSecret: str(o.npmApiSecret),
+        caddyAdminUrl: str(o.caddyAdminUrl),
       }
     })
     .filter((h) => h.name)
@@ -82,6 +86,18 @@ export default defineEventHandler(async (event) => {
   if (body.caddyfilePath !== undefined) patch.caddyfilePath = body.caddyfilePath.trim()
   if (body.nginxConfDir !== undefined) patch.nginxConfDir = body.nginxConfDir.trim()
   if (body.traefikFilePath !== undefined) patch.traefikFilePath = body.traefikFilePath.trim()
+  if (body.npmApiUrl !== undefined) {
+    const v = body.npmApiUrl.trim()
+    if (v && !/^https?:\/\//.test(v)) throw createError({ statusCode: 400, statusMessage: 'npmApiUrl must be http(s)://' })
+    patch.npmApiUrl = v
+  }
+  if (body.npmApiIdentity !== undefined) patch.npmApiIdentity = body.npmApiIdentity.trim()
+  if (body.npmApiSecret !== undefined) patch.npmApiSecret = body.npmApiSecret
+  if (body.caddyAdminUrl !== undefined) {
+    const v = body.caddyAdminUrl.trim()
+    if (v && !/^https?:\/\//.test(v)) throw createError({ statusCode: 400, statusMessage: 'caddyAdminUrl must be http(s)://' })
+    patch.caddyAdminUrl = v
+  }
   if (body.allowControl !== undefined) patch.allowControl = !!body.allowControl
   if (body.logsEnabled !== undefined) patch.logsEnabled = !!body.logsEnabled
   if (body.updateCheckEnabled !== undefined) patch.updateCheckEnabled = !!body.updateCheckEnabled

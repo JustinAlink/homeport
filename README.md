@@ -32,7 +32,8 @@ homeport reads it all live:
 - **systemd** — optionally shows host systemd services alongside containers.
 - **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
 - **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
-- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, and one-click **image updates** (registry digest checks without pulling).
+- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
+- **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
@@ -186,6 +187,23 @@ HOMEPORT_HOSTS='[
 
 Setting `HOMEPORT_HOSTS` locks the in-app Hosts list (env stays authoritative). With
 neither set, homeport just watches the single host from the normal config.
+
+## Manage domains (proxy admin)
+
+Beyond *reading* your proxy to map domains, homeport can *write* to it — create/edit/remove
+routes from the UI. Enable `HOMEPORT_ALLOW_PROXY_ADMIN=true` and configure the matching
+provider (per host on the settings page, or via env):
+
+| Proxy | How | Config |
+|---|---|---|
+| **Nginx Proxy Manager** | REST API (full CRUD on proxy hosts; reuses an existing matching cert for SSL) | `HOMEPORT_NPM_API_URL` + `_IDENTITY` + `_SECRET` |
+| **Caddy** | Admin API; homeport-created routes carry `@id: homeport-…` and only those are editable | `HOMEPORT_CADDY_ADMIN_URL` (keep it on a private network — never publish it) |
+| **Traefik (file)** | Writes a `homeport.yml` in your dynamic-config dir (or only `homeport-*` keys in a single file), atomically with backups | reuses `TRAEFIK_FILE` — **mount it read-write** |
+
+There's an **"Add domain"** action on each service page (prefilled with the container + its
+first port) and a `/domains` page to manage everything. Routes homeport didn't create are
+shown read-only. Credentials live in `settings.json` on the data volume — set its file
+permissions accordingly.
 
 ## Compose stacks
 
