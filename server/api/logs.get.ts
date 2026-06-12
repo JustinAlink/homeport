@@ -2,6 +2,7 @@ import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
 import { createDemuxer, createLineSplitter, splitTimestamp } from '../utils/logs-core'
+import { splitServiceId } from '../utils/service-id'
 import { demoLogLines } from '../utils/demo'
 
 // Container logs. SSE stream of {s, t, line} JSON events (default), or a plain-
@@ -42,10 +43,7 @@ export default defineEventHandler(async (event) => {
     return stream.send()
   }
 
-  // id is `${hostId}::${containerId}`
-  const sep = id.indexOf('::')
-  const hostId = sep >= 0 ? id.slice(0, sep) : 'default'
-  const containerId = sep >= 0 ? id.slice(sep + 2) : id
+  const { hostId, containerId } = splitServiceId(id)
   const host = getHosts().find((h) => h.id === hostId)
   if (!host) throw createError({ statusCode: 404, statusMessage: 'Unknown host' })
   const container = getDockerFor(host).getContainer(containerId)

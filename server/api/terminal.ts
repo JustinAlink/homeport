@@ -2,6 +2,7 @@ import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
 import { verifyCookieHeader } from '../utils/session'
+import { splitServiceId } from '../utils/service-id'
 import { parseClientFrame, SHELL_CMD, demoShellRespond, demoPrompt } from '../utils/terminal-core'
 
 // Web terminal: exec into a container over a WebSocket. Client sends JSON text
@@ -43,9 +44,7 @@ export default defineWebSocketHandler({
       return
     }
 
-    const sep = id.indexOf('::')
-    const hostId = sep >= 0 ? id.slice(0, sep) : 'default'
-    const containerId = sep >= 0 ? id.slice(sep + 2) : id
+    const { hostId, containerId } = splitServiceId(id)
     const host = getHosts().find((h) => h.id === hostId)
     if (!host) {
       peer.send('\r\nunknown host\r\n')

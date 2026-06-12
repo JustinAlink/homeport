@@ -140,15 +140,20 @@
               class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
               @click="checkNow"
             >{{ checking ? 'Checking…' : 'Check now' }}</button>
-            <button
-              v-if="updateEntry?.status === 'update' && caps.updates"
-              :disabled="applying"
-              class="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
-              @click="apply"
-            >{{ applying ? 'Updating…' : 'Update now' }}</button>
-            <span v-if="updateEntry?.status === 'update' && !caps.updates" class="text-[11px] text-slate-500">
-              applying updates is disabled (Settings → Capabilities)
-            </span>
+            <template v-if="updateEntry?.status === 'update'">
+              <NuxtLink
+                v-if="composeProject"
+                :to="`/stacks/${composeProject}`"
+                class="rounded-md border border-sky-400/30 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-400/10"
+              >Update via stack “{{ composeProject }}” →</NuxtLink>
+              <button
+                v-else-if="caps.updates"
+                :disabled="applying"
+                class="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
+                @click="apply"
+              >{{ applying ? 'Updating…' : 'Update now' }}</button>
+              <span v-else class="text-[11px] text-slate-500">applying updates is disabled (Settings → Capabilities)</span>
+            </template>
           </div>
         </div>
 
@@ -207,24 +212,7 @@ const facts = computed(() => {
 })
 
 // --- overview graph (live buffer or persisted history) ---
-type Range = 'live' | '1h' | '6h' | '24h'
-const range = ref<Range>('live')
-const past = ref<{ cpu: number[]; mem: number[] } | null>(null)
-const fill = (a: (number | null)[]) => {
-  let last = 0
-  return a.map((v) => (v == null ? last : (last = v)))
-}
-watch(range, async () => {
-  if (range.value === 'live') return
-  try {
-    const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
-      params: { id, range: range.value },
-    })
-    past.value = { cpu: fill(r.cpu), mem: fill(r.mem) }
-  } catch {
-    past.value = null
-  }
-})
+const { range, past } = useHistoryRange(id)
 const series = computed(() => {
   const live = stats.history.value[id] ?? { cpu: [], mem: [] }
   const src = range.value === 'live' ? live : past.value ?? { cpu: [], mem: [] }
@@ -251,6 +239,8 @@ async function control(action: 'start' | 'stop' | 'restart') {
 
 // --- update tab ---
 const updatesEnabled = computed(() => updates.enabled.value)
+// compose-managed containers update through their stack, not standalone recreate
+const composeProject = computed(() => (service.value?.kind === 'container' ? service.value?.project : null))
 const updateEntry = computed(() => (service.value ? updates.entryFor(service.value) : undefined))
 const updateLabel = computed(() => {
   switch (updateEntry.value?.status) {
