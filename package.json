@@ -7,6 +7,7 @@
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "test": "node --experimental-strip-types --test test/*.test.ts",
+    "publish:image": "bash scripts/publish.sh",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
