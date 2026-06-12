@@ -95,6 +95,7 @@ const { data, error, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
+const showGraph = ref(false)
 
 // Graph time range. 'live' = the in-memory rolling buffer (7s); the others load
 // persisted history from /api/history at the collector resolution.
@@ -132,7 +133,6 @@ const fleetSeries = computed(() => {
 })
 const pings = usePings()
 const q = ref('')
-const showGraph = ref(false)
 const hostFilter = ref('')
 
 const hosts = computed(() => data.value?.hosts ?? [])
