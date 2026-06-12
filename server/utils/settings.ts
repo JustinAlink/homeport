@@ -9,9 +9,11 @@ export interface PersistedSettings {
   dockerHost?: string // ssh://user@host when dockerMode==='ssh'
   dockerSshKey?: string // path to the private key
   dockerSshFingerprint?: string // SHA256:… of the remote host key (optional)
-  domainProvider?: string // '' | 'npm' | 'traefik' | 'caddy'
+  domainProvider?: string // '' | 'npm' | 'traefik' | 'caddy' | 'nginx' | 'traefik-file'
   npmConfDir?: string
   caddyfilePath?: string
+  nginxConfDir?: string
+  traefikFilePath?: string
   allowControl?: boolean
   pingEnabled?: boolean
   systemdEnabled?: boolean
@@ -39,6 +41,8 @@ export interface SettingsHost {
   domainProvider?: string
   npmConfDir?: string
   caddyfilePath?: string
+  nginxConfDir?: string
+  traefikFilePath?: string
 }
 
 const dataDir = () => process.env.HOMEPORT_DATA_DIR || '/data'

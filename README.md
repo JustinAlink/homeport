@@ -83,6 +83,8 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_HOSTS` | _(single host)_ | JSON array to watch several Docker hosts at once (see below). Locks the in-app Hosts list. |
 | `HOMEPORT_REMOTE_ICONS` | `true` | `false` skips the dashboard-icons CDN — offline monograms / your own `hub.icon` URLs only. |
 | `NPM_CONF_DIR` | _(none)_ | Path (in-container) to Nginx Proxy Manager proxy-host confs. Omit to disable domain mapping. |
+| `NGINX_CONF_DIR` | _(none)_ | Path to a plain-Nginx confs dir (or single file) to map domains from `server_name`/`proxy_pass`. |
+| `TRAEFIK_FILE` | _(none)_ | Path to a Traefik dynamic-config file or dir (YAML/TOML) for the file provider. |
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
 | `HOMEPORT_DATA_DIR` | `/data` | Where the **settings page** persists config. Mount a volume here to keep it. |
@@ -117,10 +119,13 @@ homeport reads your reverse proxy to map domains automatically:
 | Provider | How | Config |
 |---|---|---|
 | **Nginx Proxy Manager** | Parses its generated nginx confs (read-only) | `NPM_CONF_DIR=/…/nginx/proxy_host` |
+| **Nginx (plain)** | Parses `server_name` + `proxy_pass` from hand-written/SWAG configs (resolves `upstream` blocks) | `NGINX_CONF_DIR=/…/sites-enabled` (dir or single file) |
 | **Traefik** | Reads `traefik.*` Docker labels (zero extra config) | nothing — works from the containers it already sees |
+| **Traefik (file)** | Parses Traefik's dynamic-config file provider (YAML/TOML) | `TRAEFIK_FILE=/…/dynamic.yml` (file or dir) |
 | **Caddy** | Parses your Caddyfile | `CADDYFILE_PATH=/…/Caddyfile` |
 
-It **auto-detects** (NPM → Caddy → Traefik), or force one with `DOMAIN_PROVIDER=npm|traefik|caddy`.
+It **auto-detects** (NPM → Caddy → Nginx → Traefik-file → Traefik labels), or force one with
+`DOMAIN_PROVIDER=npm|nginx|traefik|traefik-file|caddy`.
 The layer is a small `DomainProvider` interface — more proxies are easy to add. PRs welcome.
 
 ## Watch a remote host (over SSH)

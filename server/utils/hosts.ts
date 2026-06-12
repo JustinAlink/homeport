@@ -10,6 +10,8 @@ export interface HostConfig {
   domainProvider?: string
   npmConfDir?: string
   caddyfilePath?: string
+  nginxConfDir?: string
+  traefikFilePath?: string
 }
 
 const slug = (s: string, fallback: string) => {
@@ -27,6 +29,8 @@ function normalize(h: SettingsHost, i: number): HostConfig {
     domainProvider: (h.domainProvider || '').toLowerCase(),
     npmConfDir: h.npmConfDir || '',
     caddyfilePath: h.caddyfilePath || '',
+    nginxConfDir: h.nginxConfDir || '',
+    traefikFilePath: h.traefikFilePath || '',
   }
 }
 
@@ -58,6 +62,8 @@ export function getHosts(): HostConfig[] {
       domainProvider: c.domainProvider,
       npmConfDir: c.npmConfDir,
       caddyfilePath: c.caddyfilePath,
+      nginxConfDir: c.nginxConfDir,
+      traefikFilePath: c.traefikFilePath,
     },
   ]
 }
