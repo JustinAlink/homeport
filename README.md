@@ -68,6 +68,20 @@ docker compose up -d
 # open http://<host>:3004 and log in
 ```
 
+### Build & publish your own image (no CI required)
+
+`docker-compose.yml` pulls `ghcr.io/<owner>/homeport`. To publish that image yourself —
+no GitHub Actions needed — log in once and run the bundled script:
+
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u YOUR_USER --password-stdin   # PAT w/ write:packages
+GHCR_OWNER=yourname npm run publish:image            # → ghcr.io/yourname/homeport:latest
+GHCR_OWNER=yourname npm run publish:image v0.3.0     # a specific tag
+```
+
+Multi-arch (amd64 + arm64) via buildx: `PLATFORMS=linux/amd64,linux/arm64 GHCR_OWNER=yourname npm run publish:image`.
+Or skip the registry entirely and build on the host with `docker compose -f docker-compose.build.yml up -d --build`.
+
 ## Configuration
 
 All via environment variables (set on the container at runtime):

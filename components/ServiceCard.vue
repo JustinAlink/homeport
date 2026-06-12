@@ -68,7 +68,19 @@
     <p v-else class="truncate pl-[42px] text-[11px] text-slate-500">{{ service.statusText }}</p>
 
     <!-- per-card detail graph -->
-    <LineGraph v-if="expanded && cpuHistory.length > 1" :series="cardSeries" :height="96" class="mt-1" />
+    <div v-if="expanded" class="mt-1">
+      <div class="mb-1 flex items-center gap-1 pl-[42px] text-[10px]">
+        <button
+          v-for="r in (['live', '1h', '6h', '24h'] as const)"
+          :key="r"
+          class="rounded border px-1.5 py-0.5"
+          :class="cardRange === r ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-500 hover:bg-white/5'"
+          @click="cardRange = r"
+        >{{ r }}</button>
+      </div>
+      <LineGraph v-if="activeCpu.length > 1" :series="cardSeries" :height="96" :interval-sec="cardIntervalSec" />
+      <p v-else class="pl-[42px] text-[11px] text-slate-600">collecting data…</p>
+    </div>
   </div>
 </template>
 
@@ -83,9 +95,36 @@ const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
 const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
 const memHistory = computed(() => history.value[props.service.id]?.mem ?? [])
+
+// Graph range: 'live' = the in-memory rolling buffer; others load persisted history.
+type GraphRange = 'live' | '1h' | '6h' | '24h'
+const cardRange = ref<GraphRange>('live')
+const cardIntervalSec = computed(() => (cardRange.value === 'live' ? 7 : 60))
+const cardPast = ref<{ cpu: number[]; mem: number[] } | null>(null)
+
+const fill = (a: (number | null)[]) => {
+  let last = 0
+  return a.map((v) => (v == null ? last : (last = v)))
+}
+
+async function loadCardHistory() {
+  if (!expanded.value || cardRange.value === 'live') return
+  try {
+    const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
+      params: { id: props.service.id, range: cardRange.value },
+    })
+    cardPast.value = { cpu: fill(r.cpu), mem: fill(r.mem) }
+  } catch {
+    cardPast.value = null
+  }
+}
+watch([expanded, cardRange], () => loadCardHistory())
+
+const activeCpu = computed(() => (cardRange.value === 'live' ? cpuHistory.value : cardPast.value?.cpu ?? []))
+const activeMem = computed(() => (cardRange.value === 'live' ? memHistory.value : cardPast.value?.mem ?? []))
 const cardSeries = computed(() => [
-  { label: 'CPU', color: '#10b981', data: cpuHistory.value, unit: '%' },
-  { label: 'MEM', color: '#38bdf8', data: memHistory.value, unit: 'MiB' },
+  { label: 'CPU', color: '#10b981', data: activeCpu.value, unit: '%' },
+  { label: 'MEM', color: '#38bdf8', data: activeMem.value, unit: 'MiB' },
 ])
 
 const { pings } = usePings()
