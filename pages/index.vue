@@ -38,6 +38,14 @@
       </div>
     </header>
 
+    <div
+      v-if="caps.loginDisabled && !caps.demo"
+      class="mb-4 rounded-md border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-300"
+    >
+      ⚠️ Login is disabled — anyone who can reach homeport sees your whole fleet. Set
+      <code>HOMEPORT_ADMIN_PASSWORD</code> and put it behind HTTPS.
+    </div>
+
     <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-4" />
 
     <div v-if="showGraph && fleet" class="mb-5">

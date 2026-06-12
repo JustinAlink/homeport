@@ -12,5 +12,8 @@ export default defineEventHandler(() => {
     stacks: cfg.allowStacks,
     terminal: cfg.allowTerminal,
     proxyAdmin: cfg.allowProxyAdmin,
+    // first-run hints (not secrets — just whether onboarding steps remain)
+    loginDisabled: !cfg.adminPassword,
+    demo: cfg.demo,
   }
 })
