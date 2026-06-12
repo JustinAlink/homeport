@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
     <header class="mb-6 flex items-center gap-3">
       <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
       <div class="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">⚓</div>
@@ -14,9 +14,33 @@
       You can still configure everything via environment variables.
     </div>
 
-    <form v-if="loaded" class="space-y-8" @submit.prevent="save">
+    <div v-if="loaded" class="gap-8 md:flex">
+      <!-- section nav (sticky on desktop) -->
+      <nav class="mb-4 hidden w-44 shrink-0 md:block">
+        <ul class="sticky top-6 space-y-0.5 text-sm">
+          <li v-for="s in sections" :key="s.id">
+            <a
+              :href="`#${s.id}`"
+              class="block rounded-md px-2.5 py-1.5 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+              :class="active === s.id ? 'bg-white/5 text-accent-light' : ''"
+              @click="active = s.id"
+            >{{ s.label }}</a>
+          </li>
+        </ul>
+      </nav>
+
+      <form class="min-w-0 flex-1 space-y-8" @submit.prevent="save">
+        <!-- first-run hint -->
+        <div
+          v-if="showProviderHint"
+          class="rounded-md border border-sky-400/20 bg-sky-400/5 p-3 text-xs text-sky-200/90"
+        >
+          No reverse proxy is configured yet, so domains aren't mapped. Pick one under
+          <a href="#proxy" class="underline">Reverse proxy</a>, or ignore this if you only want container status.
+        </div>
+
       <!-- Docker connection -->
-      <section class="space-y-3">
+      <section :id="'docker'" class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Docker connection</h2>
         <p v-if="locked.docker" class="text-xs text-slate-500">Set by <code>DOCKER_HOST</code> — locked.</p>
         <div class="space-y-3" :class="locked.docker ? 'pointer-events-none opacity-50' : ''">
@@ -44,10 +68,11 @@
         <p class="text-[11px] text-slate-500">
           This single connection is used when the multi-host list below is empty.
         </p>
+        <TestButton label="Test Docker connection" :run="testDocker" />
       </section>
 
       <!-- Hosts (multi-host) -->
-      <section class="space-y-3">
+      <section :id="'hosts'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Hosts</h2>
         <p v-if="locked.hosts" class="text-xs text-slate-500">Set by <code>HOMEPORT_HOSTS</code> — locked.</p>
         <p class="text-xs text-slate-500">
@@ -120,7 +145,7 @@
       </section>
 
       <!-- Reverse proxy -->
-      <section class="space-y-3">
+      <section :id="'proxy'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Reverse proxy (domain mapping)</h2>
         <p v-if="locked.domainProvider" class="text-xs text-slate-500">Set by <code>DOMAIN_PROVIDER</code> — locked.</p>
         <div class="space-y-3" :class="locked.domainProvider ? 'pointer-events-none opacity-50' : ''">
@@ -157,10 +182,11 @@
             placeholder="Caddyfile path (in-container)"
           />
         </div>
+        <TestButton label="Test provider" :run="testProvider" />
       </section>
 
       <!-- Proxy management (write side) -->
-      <section v-if="form.allowProxyAdmin" class="space-y-3">
+      <section :id="'proxy-admin'"  v-if="form.allowProxyAdmin" class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Proxy management</h2>
         <p class="text-xs text-slate-500">
           Credentials homeport uses to create/edit domains. Stored in <code>settings.json</code> on the
@@ -194,7 +220,7 @@
       </section>
 
       <!-- Capabilities (tiered opt-in) -->
-      <section class="space-y-3">
+      <section :id="'capabilities'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Capabilities</h2>
         <p class="text-xs text-slate-500">
           homeport is read-only by default. Each capability is its own opt-in; the hint shows what the
@@ -219,7 +245,7 @@
       </section>
 
       <!-- Uptime -->
-      <section class="space-y-3">
+      <section :id="'uptime'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Uptime</h2>
         <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code> — locked.</p>
         <label
@@ -233,7 +259,7 @@
       </section>
 
       <!-- Host services -->
-      <section class="space-y-3">
+      <section :id="'systemd'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Host services</h2>
         <p v-if="locked.systemdEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_SYSTEMD</code> — locked.</p>
         <label
@@ -247,7 +273,7 @@
       </section>
 
       <!-- Monitoring -->
-      <section class="space-y-3">
+      <section :id="'monitoring'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Monitoring</h2>
         <p v-if="locked.collectorInterval" class="text-xs text-slate-500">
           Interval set by <code>HOMEPORT_COLLECTOR_INTERVAL</code> — locked.
@@ -276,7 +302,7 @@
       </section>
 
       <!-- Alerts & notifications -->
-      <section class="space-y-3">
+      <section :id="'alerts'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Alerts &amp; notifications</h2>
         <p v-if="locked.alerts" class="text-xs text-slate-500">Set by <code>HOMEPORT_ALERTS</code> — locked.</p>
         <label
@@ -360,7 +386,7 @@
       </section>
 
       <!-- Appearance -->
-      <section class="space-y-3">
+      <section :id="'appearance'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Appearance</h2>
         <p v-if="locked.remoteIcons" class="text-xs text-slate-500">Set by <code>HOMEPORT_REMOTE_ICONS</code> — locked.</p>
         <label
@@ -373,7 +399,7 @@
         </label>
       </section>
 
-      <div class="flex items-center gap-3 border-t border-white/5 pt-5">
+      <div class="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-white/5 bg-ink-950/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
         <button
           type="submit"
           :disabled="busy || !writable"
@@ -383,7 +409,8 @@
         </button>
         <span v-if="msg" class="text-xs" :class="msgOk ? 'text-accent-light' : 'text-red-400'">{{ msg }}</span>
       </div>
-    </form>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -397,6 +424,41 @@ const locked = ref<Record<string, boolean>>({})
 const busy = ref(false)
 const msg = ref('')
 const msgOk = ref(false)
+
+// section anchor nav
+const active = ref('docker')
+const sections = computed(() =>
+  [
+    { id: 'docker', label: 'Docker connection' },
+    { id: 'hosts', label: 'Hosts' },
+    { id: 'proxy', label: 'Reverse proxy' },
+    ...(form.allowProxyAdmin ? [{ id: 'proxy-admin', label: 'Proxy management' }] : []),
+    { id: 'capabilities', label: 'Capabilities' },
+    { id: 'uptime', label: 'Uptime' },
+    { id: 'systemd', label: 'Host services' },
+    { id: 'monitoring', label: 'Monitoring' },
+    { id: 'alerts', label: 'Alerts' },
+    { id: 'appearance', label: 'Appearance' },
+  ],
+)
+
+const showProviderHint = computed(
+  () => loaded.value && !form.domainProvider && !form.npmConfDir && !form.caddyfilePath && !form.nginxConfDir && !form.traefikFilePath,
+)
+
+// connection tests (shared TestButton)
+async function testDocker() {
+  const r = await $fetch<{ hosts: { name: string; ok: boolean; message: string }[] }>('/api/test/docker', { method: 'POST' })
+  const ok = r.hosts.every((h) => h.ok)
+  return { ok, message: r.hosts.map((h) => `${h.name}: ${h.message}`).join(' · ') }
+}
+async function testProvider() {
+  const r = await $fetch<{ ok: boolean; provider: string | null; count?: number; samples?: string[]; message?: string }>('/api/test/provider', { method: 'POST' })
+  return {
+    ok: r.ok,
+    message: r.ok ? `${r.provider}: ${r.count} route(s)${r.samples?.length ? ' · ' + r.samples.join(', ') : ''}` : r.message || 'no provider',
+  }
+}
 
 const form = reactive({
   dockerMode: 'local',

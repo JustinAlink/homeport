@@ -6,6 +6,8 @@ export interface Capabilities {
   stacks: boolean
   terminal: boolean
   proxyAdmin: boolean
+  loginDisabled: boolean
+  demo: boolean
 }
 
 const NONE: Capabilities = {
@@ -16,6 +18,8 @@ const NONE: Capabilities = {
   stacks: false,
   terminal: false,
   proxyAdmin: false,
+  loginDisabled: false,
+  demo: false,
 }
 
 /** Fetched once, shared app-wide; everything hidden until known. */
