@@ -53,8 +53,12 @@ export function readStack(name: string): StackFile | null {
   }
 }
 
-/** Atomic save (tmp + rename) keeping a single .bak of the previous version. */
-export function saveStack(name: string, content: string, createNew = false): StackFile {
+/**
+ * Atomic save (tmp + rename) keeping a single .bak of the previous version.
+ * Pass backup=false when restoring a known-good version (so the rejected content
+ * doesn't overwrite the good .bak).
+ */
+export function saveStack(name: string, content: string, createNew = false, backup = true): StackFile {
   const safe = safeStackName(name)
   if (!safe) throw new Error('invalid stack name (use letters, digits, - and _)')
   const dir = join(stacksDir(), safe)
@@ -69,7 +73,7 @@ export function saveStack(name: string, content: string, createNew = false): Sta
   }
 
   const target = join(dir, file)
-  if (existsSync(target)) {
+  if (backup && existsSync(target)) {
     try {
       renameSync(target, `${target}.bak`)
     } catch {

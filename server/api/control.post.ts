@@ -1,6 +1,7 @@
 import { getConfig } from '../utils/config'
 import { controlContainerFor } from '../utils/docker'
 import { getHosts } from '../utils/hosts'
+import { splitServiceId } from '../utils/service-id'
 import { demoControl } from '../utils/demo'
 
 const ACTIONS = ['start', 'stop', 'restart'] as const
@@ -25,10 +26,7 @@ export default defineEventHandler(async (event) => {
       demoControl(id, action)
       return { ok: true }
     }
-    // id is `${hostId}::${containerId}`
-    const sep = id.indexOf('::')
-    const hostId = sep >= 0 ? id.slice(0, sep) : 'default'
-    const containerId = sep >= 0 ? id.slice(sep + 2) : id
+    const { hostId, containerId } = splitServiceId(id)
     const host = getHosts().find((h) => h.id === hostId)
     if (!host) throw new Error('unknown host')
     await controlContainerFor(host, containerId, action)

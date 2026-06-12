@@ -117,32 +117,9 @@ const fleet = stats.host
 const fleetHistory = stats.hostHistory
 const showGraph = ref(false)
 
-// Graph time range. 'live' = the in-memory rolling buffer (7s); the others load
-// persisted history from /api/history at the collector resolution.
-type GraphRange = 'live' | '1h' | '6h' | '24h'
-const graphRange = ref<GraphRange>('live')
-const graphIntervalSec = computed(() => (graphRange.value === 'live' ? 7 : 60))
-
-const fleetPast = ref<{ cpu: number[]; mem: number[] } | null>(null)
-
-// forward-fill nulls (gaps) so the line stays continuous
-const fill = (a: (number | null)[]) => {
-  let last = 0
-  return a.map((v) => (v == null ? last : (last = v)))
-}
-
-async function loadFleetHistory() {
-  if (graphRange.value === 'live') return
-  try {
-    const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
-      params: { id: 'host', range: graphRange.value },
-    })
-    fleetPast.value = { cpu: fill(r.cpu), mem: fill(r.mem) }
-  } catch {
-    fleetPast.value = null
-  }
-}
-watch([graphRange, showGraph], () => loadFleetHistory())
+// Fleet graph range. 'live' = the in-memory rolling buffer; ranges load history.
+const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host')
+watch(showGraph, () => loadFleetHistory())
 
 const fleetSeries = computed(() => {
   const src = graphRange.value === 'live' ? fleetHistory.value : fleetPast.value ?? { cpu: [], mem: [] }

@@ -25,8 +25,9 @@ export function upsertRoute(doc: any, route: NewRoute, slug: string): any {
     ...(route.ssl ? { tls: {}, entryPoints: ['websecure'] } : { entryPoints: ['web'] }),
   }
   next.http.services[key] = {
+    // Traefik terminates TLS (router `tls`/websecure); the upstream hop is plain HTTP.
     loadBalancer: {
-      servers: [{ url: `${route.ssl ? 'http' : 'http'}://${route.upstreamHost}:${route.upstreamPort}` }],
+      servers: [{ url: `http://${route.upstreamHost}:${route.upstreamPort}` }],
     },
   }
   return next

@@ -12,6 +12,7 @@ export interface Op {
   done: boolean
   ok: boolean | null
   startedAt: number
+  finishedAt: number
   emitter: EventEmitter
 }
 
@@ -22,7 +23,9 @@ let counter = 0
 function prune() {
   const now = Date.now()
   for (const [id, op] of ops) {
-    if (op.done && now - op.startedAt > KEEP_DONE_MS) ops.delete(id)
+    // keep finished ops around briefly for late readers — measured from FINISH,
+    // so a slow op is never evicted while it (or a fresh result) is still wanted.
+    if (op.done && now - op.finishedAt > KEEP_DONE_MS) ops.delete(id)
   }
 }
 
@@ -30,7 +33,7 @@ function prune() {
 export function startOp(title: string, run: (emit: (line: string) => void) => Promise<boolean>): string {
   prune()
   const id = `op${++counter}-${Date.now().toString(36)}`
-  const op: Op = { id, title, lines: [], done: false, ok: null, startedAt: Date.now(), emitter: new EventEmitter() }
+  const op: Op = { id, title, lines: [], done: false, ok: null, startedAt: Date.now(), finishedAt: 0, emitter: new EventEmitter() }
   op.emitter.setMaxListeners(20)
   ops.set(id, op)
 
@@ -42,15 +45,17 @@ export function startOp(title: string, run: (emit: (line: string) => void) => Pr
 
   run(emit)
     .then((ok) => {
-      op.done = true
       op.ok = ok
     })
     .catch((e) => {
       emit(`error: ${e?.message || e}`)
-      op.done = true
       op.ok = false
     })
-    .finally(() => op.emitter.emit('done'))
+    .finally(() => {
+      op.done = true
+      op.finishedAt = Date.now()
+      op.emitter.emit('done')
+    })
 
   return id
 }
