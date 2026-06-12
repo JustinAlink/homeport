@@ -285,4 +285,4 @@ the page.
 
 ## License
 
-MIT © Juniper Gray (Justin Alink)
+GPL-3.0 © Juniper Gray (Justin Alink)
