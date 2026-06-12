@@ -27,6 +27,12 @@
           class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
           title="Compose stacks"
         >Stacks</NuxtLink>
+        <NuxtLink
+          v-if="caps.proxyAdmin"
+          to="/domains"
+          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+          title="Manage domains"
+        >Domains</NuxtLink>
         <NuxtLink to="/settings" class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Settings">⚙</NuxtLink>
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-white/5" @click="logout">Log out</button>
       </div>

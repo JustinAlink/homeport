@@ -106,6 +106,17 @@
         <p v-else class="text-sm text-slate-500">The container isn't running — start it to open a shell.</p>
       </section>
 
+      <!-- DOMAINS -->
+      <section v-else-if="tab === 'domains'" class="max-w-xl space-y-4">
+        <p class="text-sm text-slate-400">Add a reverse-proxy route pointing a domain at this container.</p>
+        <DomainForm
+          :initial="{ upstreamHost: service.name, upstreamPort: service.ports[0]?.hostPort ?? 80, ssl: true }"
+          submit-label="Add domain"
+          @saved="onDomainSaved"
+        />
+        <NuxtLink to="/domains" class="inline-block text-xs text-accent-light hover:underline">Manage all domains →</NuxtLink>
+      </section>
+
       <!-- UPDATE -->
       <section v-else-if="tab === 'update'" class="max-w-xl space-y-4">
         <div class="rounded-lg border border-white/5 bg-ink-900 p-4">
@@ -168,14 +179,20 @@ const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const hostName = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const isUp = computed(() => service.value?.state === 'running' || service.value?.state === 'restarting')
 
-type Tab = 'overview' | 'logs' | 'terminal' | 'update'
+type Tab = 'overview' | 'logs' | 'terminal' | 'domains' | 'update'
 const tab = ref<Tab>('overview')
 const tabs = computed(() => [
   { key: 'overview' as Tab, label: 'Overview' },
   ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs' }] : []),
   ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal' }] : []),
+  ...(caps.value.proxyAdmin ? [{ key: 'domains' as Tab, label: 'Domains' }] : []),
   ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
 ])
+
+function onDomainSaved() {
+  refresh()
+  tab.value = 'overview'
+}
 
 // --- overview facts ---
 const facts = computed(() => {

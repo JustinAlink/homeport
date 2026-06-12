@@ -12,6 +12,11 @@ export interface HostConfig {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  // proxy admin (write side) credentials
+  npmApiUrl?: string
+  npmApiIdentity?: string
+  npmApiSecret?: string
+  caddyAdminUrl?: string
 }
 
 const slug = (s: string, fallback: string) => {
@@ -31,6 +36,10 @@ function normalize(h: SettingsHost, i: number): HostConfig {
     caddyfilePath: h.caddyfilePath || '',
     nginxConfDir: h.nginxConfDir || '',
     traefikFilePath: h.traefikFilePath || '',
+    npmApiUrl: h.npmApiUrl || '',
+    npmApiIdentity: h.npmApiIdentity || '',
+    npmApiSecret: h.npmApiSecret || '',
+    caddyAdminUrl: h.caddyAdminUrl || '',
   }
 }
 

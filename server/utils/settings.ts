@@ -50,6 +50,10 @@ export interface SettingsHost {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  npmApiUrl?: string
+  npmApiIdentity?: string
+  npmApiSecret?: string
+  caddyAdminUrl?: string
 }
 
 const dataDir = () => process.env.HOMEPORT_DATA_DIR || '/data'

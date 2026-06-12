@@ -159,6 +159,40 @@
         </div>
       </section>
 
+      <!-- Proxy management (write side) -->
+      <section v-if="form.allowProxyAdmin" class="space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Proxy management</h2>
+        <p class="text-xs text-slate-500">
+          Credentials homeport uses to create/edit domains. Stored in <code>settings.json</code> on the
+          data volume — set its file permissions accordingly.
+        </p>
+
+        <div v-if="form.domainProvider === 'npm' || form.domainProvider === ''" class="space-y-2">
+          <p v-if="locked.npmApiUrl" class="text-xs text-slate-500">Set by <code>HOMEPORT_NPM_API_URL</code> — locked.</p>
+          <input v-model="form.npmApiUrl" :class="fieldCls" placeholder="NPM API URL (e.g. http://npm:81)" />
+          <input v-model="form.npmApiIdentity" :class="fieldCls" placeholder="NPM email / identity" />
+          <input v-model="form.npmApiSecret" type="password" :class="fieldCls" placeholder="NPM password" />
+        </div>
+        <div v-if="form.domainProvider === 'caddy'" class="space-y-2">
+          <input v-model="form.caddyAdminUrl" :class="fieldCls" placeholder="Caddy admin API (e.g. http://caddy:2019)" />
+          <p class="text-[11px] text-slate-500">The admin API is root-of-proxy — keep it on a private network, never published.</p>
+        </div>
+        <p v-if="form.domainProvider === 'traefik-file'" class="text-[11px] text-slate-500">
+          Traefik file admin writes a <code>homeport.yml</code> in the dynamic-config dir (or only
+          <code>homeport-*</code> keys in a single file). Mount it <strong>read-write</strong>.
+        </p>
+
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            :disabled="proxyTesting"
+            class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+            @click="testProxy"
+          >{{ proxyTesting ? 'Testing…' : 'Test connection' }}</button>
+          <span v-if="proxyMsg" class="text-[11px]" :class="proxyOk ? 'text-accent-light' : 'text-red-400'">{{ proxyMsg }}</span>
+        </div>
+      </section>
+
       <!-- Capabilities (tiered opt-in) -->
       <section class="space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Capabilities</h2>
@@ -374,6 +408,10 @@ const form = reactive({
   caddyfilePath: '',
   nginxConfDir: '',
   traefikFilePath: '',
+  npmApiUrl: '',
+  npmApiIdentity: '',
+  npmApiSecret: '',
+  caddyAdminUrl: '',
   allowControl: false,
   logsEnabled: true,
   updateCheckEnabled: false,
@@ -414,6 +452,35 @@ interface ChannelRow {
 
 function addChannel() {
   form.alertChannels.push({ name: '', url: '', preset: 'discord', template: '' })
+}
+
+const proxyTesting = ref(false)
+const proxyMsg = ref('')
+const proxyOk = ref(false)
+async function testProxy() {
+  proxyTesting.value = true
+  proxyMsg.value = ''
+  try {
+    // persist creds first so the server tests what's on screen
+    await $fetch('/api/settings', {
+      method: 'POST',
+      body: {
+        allowProxyAdmin: true,
+        npmApiUrl: form.npmApiUrl,
+        npmApiIdentity: form.npmApiIdentity,
+        npmApiSecret: form.npmApiSecret,
+        caddyAdminUrl: form.caddyAdminUrl,
+      },
+    })
+    const r = await $fetch<{ ok: boolean; message: string; provider: string }>('/api/proxy/test', { method: 'POST' })
+    proxyOk.value = r.ok
+    proxyMsg.value = `${r.provider}: ${r.message}`
+  } catch (e: any) {
+    proxyOk.value = false
+    proxyMsg.value = e?.statusMessage || e?.message || 'Test failed'
+  } finally {
+    proxyTesting.value = false
+  }
 }
 
 const testMsg = ref('')
