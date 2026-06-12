@@ -1,6 +1,7 @@
 import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from '~/types/service'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
+import { startOp } from './ops'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -159,6 +160,70 @@ export function demoApplyUpdate(image: string) {
     { step: 'create + start new', ok: true },
     { step: 'remove old', ok: true },
   ]
+}
+
+// ---- demo stacks (group seeds presented as compose stacks) ----
+
+const demoStackContent = new Map<string, string>()
+
+function synthCompose(group: string): string {
+  const members = seeds.filter((s) => s.group === group)
+  const svc = (s: Seed) =>
+    [
+      `  ${s.name}:`,
+      `    image: ${s.image}`,
+      `    restart: unless-stopped`,
+      ...(s.ports?.length ? [`    ports:`, ...s.ports.map((p) => `      - "${p}:${p}"`)] : []),
+    ].join('\n')
+  return `services:\n${members.map(svc).join('\n')}\n`
+}
+
+export function demoStackList() {
+  const groups = [...new Set(seeds.map((s) => s.group))]
+  const stacks = groups.map((g) => {
+    const members = seeds.map((s, i) => ({ s, i })).filter(({ s }) => s.group === g)
+    const running = members.filter(({ s, i }) => (demoOverrides[`demo-${i}`] || s.state || 'running') === 'running').length
+    const total = members.length
+    return {
+      name: g,
+      state: running === 0 ? 'stopped' : running === total ? 'running' : 'partial',
+      running,
+      total,
+      file: 'compose.yaml',
+    }
+  })
+  return { stacks, unmanaged: [{ name: 'legacy-app', running: 1, total: 1 }], dir: '/stacks' }
+}
+
+export function demoStackRead(name: string) {
+  if (![...new Set(seeds.map((s) => s.group))].includes(name) && !demoStackContent.has(name)) return null
+  return { name, file: 'compose.yaml', content: demoStackContent.get(name) ?? synthCompose(name) }
+}
+
+export function demoStackSave(name: string, content: string, _create: boolean) {
+  demoStackContent.set(name, content)
+  return { ok: true, stack: { name, file: 'compose.yaml', content } }
+}
+
+export function demoStackAction(name: string, op: string): string {
+  // run a scripted op through the real registry so SSE streaming is identical
+  const lines =
+    op === 'pull'
+      ? [`$ docker compose -p ${name} pull`, 'Pulling images…', '✔ images up to date', `$ docker compose -p ${name} up -d`, `✔ Container ${name}-app-1  Started`, '✓ done']
+      : op === 'down'
+        ? [`$ docker compose -p ${name} down`, `✔ Container ${name}-app-1  Removed`, '✓ done']
+        : [`$ docker compose -p ${name} ${op} -d`, `✔ Container ${name}-app-1  Started`, '✓ done']
+  return startOp(`${op} ${name}`, async (emit) => {
+    for (const l of lines) {
+      emit(l)
+      await new Promise((r) => setTimeout(r, 450))
+    }
+    // flip demo container states for up/down so the dashboard reflects it
+    seeds.forEach((s, i) => {
+      if (s.group === name) demoOverrides[`demo-${i}`] = op === 'down' ? 'exited' : 'running'
+    })
+    return true
+  })
 }
 
 /** Synthetic log lines so the logs panel works in demo mode. Deterministic per id+seed. */
