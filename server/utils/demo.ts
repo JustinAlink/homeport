@@ -162,6 +162,57 @@ export function demoApplyUpdate(image: string) {
   ]
 }
 
+// ---- demo proxy admin (in-memory route store seeded from demo domains) ----
+
+import type { AdminRoute, NewRoute, ProxyAdmin } from './proxy-admin/types'
+
+let demoRoutes: AdminRoute[] | null = null
+function seedRoutes(): AdminRoute[] {
+  if (demoRoutes) return demoRoutes
+  demoRoutes = []
+  seeds.forEach((s, i) => {
+    for (const d of s.domains || []) {
+      demoRoutes!.push({
+        id: `npm-${i}`,
+        domains: [d.domain],
+        upstreamHost: s.name,
+        upstreamPort: s.ports?.[0] ?? 80,
+        ssl: !!d.ssl,
+        managed: true,
+      })
+    }
+  })
+  return demoRoutes
+}
+
+export function demoProxyAdmin(): ProxyAdmin {
+  return {
+    name: 'Demo proxy',
+    capabilities: { create: true, update: true, delete: true },
+    async test() {
+      return { ok: true, message: 'Demo proxy admin (no real proxy).' }
+    },
+    async listRoutes() {
+      return [...seedRoutes()]
+    },
+    async createRoute(r: NewRoute) {
+      const route: AdminRoute = { ...r, id: `hp-${seedRoutes().length + 1}`, managed: true }
+      seedRoutes().push(route)
+      return route
+    },
+    async updateRoute(id: string, r: NewRoute) {
+      const list = seedRoutes()
+      const idx = list.findIndex((x) => x.id === id)
+      if (idx < 0) throw new Error('route not found')
+      list[idx] = { ...r, id, managed: true }
+      return list[idx]
+    },
+    async deleteRoute(id: string) {
+      demoRoutes = seedRoutes().filter((x) => x.id !== id)
+    },
+  }
+}
+
 // ---- demo stacks (group seeds presented as compose stacks) ----
 
 const demoStackContent = new Map<string, string>()

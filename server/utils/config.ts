@@ -36,6 +36,11 @@ export interface HomeportConfig {
   nginxConfDir: string
   /** Path to a Traefik dynamic-config file/dir (YAML/TOML) for the file provider. */
   traefikFilePath: string
+  /** Proxy-admin (write) credentials for the single host. */
+  npmApiUrl: string
+  npmApiIdentity: string
+  npmApiSecret: string
+  caddyAdminUrl: string
   /** Serve a synthetic fleet (no Docker needed) — for trying homeport / screenshots. */
   demo: boolean
   /** Allow start/stop/restart controls. Off by default — homeport is read-only unless opted in. */
@@ -119,6 +124,10 @@ export function getConfig(): HomeportConfig {
     caddyfilePath: envStr('CADDYFILE_PATH') ?? s.caddyfilePath ?? '',
     nginxConfDir: envStr('NGINX_CONF_DIR') ?? s.nginxConfDir ?? '',
     traefikFilePath: envStr('TRAEFIK_FILE') ?? s.traefikFilePath ?? '',
+    npmApiUrl: envStr('HOMEPORT_NPM_API_URL') ?? s.npmApiUrl ?? '',
+    npmApiIdentity: envStr('HOMEPORT_NPM_API_IDENTITY') ?? s.npmApiIdentity ?? '',
+    npmApiSecret: envStr('HOMEPORT_NPM_API_SECRET') ?? s.npmApiSecret ?? '',
+    caddyAdminUrl: envStr('HOMEPORT_CADDY_ADMIN_URL') ?? s.caddyAdminUrl ?? '',
     allowControl:
       envStr('HOMEPORT_ALLOW_CONTROL') !== undefined
         ? process.env.HOMEPORT_ALLOW_CONTROL === 'true'
@@ -199,6 +208,10 @@ export function getEnvLocks() {
     caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
     nginxConfDir: envStr('NGINX_CONF_DIR') !== undefined,
     traefikFilePath: envStr('TRAEFIK_FILE') !== undefined,
+    npmApiUrl: envStr('HOMEPORT_NPM_API_URL') !== undefined,
+    npmApiIdentity: envStr('HOMEPORT_NPM_API_IDENTITY') !== undefined,
+    npmApiSecret: envStr('HOMEPORT_NPM_API_SECRET') !== undefined,
+    caddyAdminUrl: envStr('HOMEPORT_CADDY_ADMIN_URL') !== undefined,
     allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
     logsEnabled: envStr('HOMEPORT_LOGS') !== undefined,
     updateCheckEnabled: envStr('HOMEPORT_UPDATE_CHECK') !== undefined,
@@ -229,6 +242,10 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     caddyfilePath: s.caddyfilePath || '',
     nginxConfDir: s.nginxConfDir || '',
     traefikFilePath: s.traefikFilePath || '',
+    npmApiUrl: s.npmApiUrl || '',
+    npmApiIdentity: s.npmApiIdentity || '',
+    npmApiSecret: s.npmApiSecret || '',
+    caddyAdminUrl: s.caddyAdminUrl || '',
     allowControl: !!s.allowControl,
     logsEnabled: s.logsEnabled ?? true,
     updateCheckEnabled: !!s.updateCheckEnabled,
