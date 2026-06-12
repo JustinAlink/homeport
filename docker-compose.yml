@@ -9,8 +9,9 @@ services:
     container_name: homeport
     restart: unless-stopped
     environment:
-      HOMEPORT_ADMIN_PASSWORD: ${HOMEPORT_ADMIN_PASSWORD}
-      HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET}
+      # Optional — leave unset to set the password in-app on first run (env wins if set).
+      HOMEPORT_ADMIN_PASSWORD: ${HOMEPORT_ADMIN_PASSWORD:-}
+      HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET:-}
       # Talk to Docker via the read-only socket proxy below (never the raw socket).
       DOCKER_HOST: tcp://docker-socket-proxy:2375
       # In-container path where the NPM confs are mounted (see volume below).
