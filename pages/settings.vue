@@ -78,7 +78,9 @@
               <select v-model="h.domainProvider" :class="fieldCls">
                 <option value="">Proxy: auto / none</option>
                 <option value="npm">Nginx Proxy Manager</option>
+                <option value="nginx">Nginx (plain)</option>
                 <option value="traefik">Traefik (labels)</option>
+                <option value="traefik-file">Traefik (file)</option>
                 <option value="caddy">Caddy</option>
               </select>
               <input
@@ -86,6 +88,18 @@
                 v-model="h.npmConfDir"
                 :class="fieldCls"
                 placeholder="NPM proxy_host dir"
+              />
+              <input
+                v-else-if="h.domainProvider === 'nginx'"
+                v-model="h.nginxConfDir"
+                :class="fieldCls"
+                placeholder="Nginx confs dir/file"
+              />
+              <input
+                v-else-if="h.domainProvider === 'traefik-file'"
+                v-model="h.traefikFilePath"
+                :class="fieldCls"
+                placeholder="Traefik config file/dir"
               />
               <input
                 v-else-if="h.domainProvider === 'caddy'"
@@ -113,7 +127,9 @@
           <select v-model="form.domainProvider" :class="fieldCls">
             <option value="">Auto-detect</option>
             <option value="npm">Nginx Proxy Manager</option>
+            <option value="nginx">Nginx (plain)</option>
             <option value="traefik">Traefik (labels)</option>
+            <option value="traefik-file">Traefik (file)</option>
             <option value="caddy">Caddy</option>
           </select>
           <input
@@ -121,6 +137,18 @@
             v-model="form.npmConfDir"
             :class="fieldCls"
             placeholder="NPM proxy_host dir (in-container path)"
+          />
+          <input
+            v-if="form.domainProvider === 'nginx'"
+            v-model="form.nginxConfDir"
+            :class="fieldCls"
+            placeholder="Nginx confs dir or file (e.g. /nginx/sites-enabled)"
+          />
+          <input
+            v-if="form.domainProvider === 'traefik-file'"
+            v-model="form.traefikFilePath"
+            :class="fieldCls"
+            placeholder="Traefik dynamic config file/dir (YAML or TOML)"
           />
           <input
             v-if="form.domainProvider === 'caddy'"
@@ -333,6 +361,8 @@ const form = reactive({
   domainProvider: '',
   npmConfDir: '',
   caddyfilePath: '',
+  nginxConfDir: '',
+  traefikFilePath: '',
   allowControl: false,
   pingEnabled: true,
   systemdEnabled: false,
@@ -389,6 +419,8 @@ interface HostRow {
   domainProvider: string
   npmConfDir: string
   caddyfilePath: string
+  nginxConfDir: string
+  traefikFilePath: string
 }
 
 function addHost() {
@@ -400,6 +432,8 @@ function addHost() {
     domainProvider: '',
     npmConfDir: '',
     caddyfilePath: '',
+    nginxConfDir: '',
+    traefikFilePath: '',
   })
 }
 
@@ -416,6 +450,8 @@ onMounted(async () => {
       domainProvider: h.domainProvider ?? '',
       npmConfDir: h.npmConfDir ?? '',
       caddyfilePath: h.caddyfilePath ?? '',
+      nginxConfDir: h.nginxConfDir ?? '',
+      traefikFilePath: h.traefikFilePath ?? '',
     }))
     form.alertChannels = (r.settings.alertChannels ?? []).map((c: Partial<ChannelRow>) => ({
       name: c.name ?? '',

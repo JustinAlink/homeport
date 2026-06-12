@@ -2,7 +2,7 @@ import { writeSettings, settingsWritable, type PersistedSettings, type SettingsH
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 
-const PROVIDERS = ['', 'npm', 'traefik', 'caddy']
+const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'custom']
 
 function sanitizeChannels(input: unknown): WebhookChannel[] {
@@ -43,6 +43,8 @@ function sanitizeHosts(input: unknown): SettingsHost[] {
         domainProvider,
         npmConfDir: str(o.npmConfDir),
         caddyfilePath: str(o.caddyfilePath),
+        nginxConfDir: str(o.nginxConfDir),
+        traefikFilePath: str(o.traefikFilePath),
       }
     })
     .filter((h) => h.name)
@@ -78,6 +80,8 @@ export default defineEventHandler(async (event) => {
   }
   if (body.npmConfDir !== undefined) patch.npmConfDir = body.npmConfDir.trim()
   if (body.caddyfilePath !== undefined) patch.caddyfilePath = body.caddyfilePath.trim()
+  if (body.nginxConfDir !== undefined) patch.nginxConfDir = body.nginxConfDir.trim()
+  if (body.traefikFilePath !== undefined) patch.traefikFilePath = body.traefikFilePath.trim()
   if (body.allowControl !== undefined) patch.allowControl = !!body.allowControl
   if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
   if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled

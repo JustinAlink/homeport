@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { parseConf } from '../server/utils/providers/npm.ts'
 import { parseTraefikContainer } from '../server/utils/providers/traefik.ts'
 import { parseCaddyfile } from '../server/utils/providers/caddy.ts'
+import { parseNginxConf } from '../server/utils/providers/nginx.ts'
+import { parseTraefikFile } from '../server/utils/providers/traefik-file.ts'
 import { parseDockerHost } from '../server/utils/docker-target.ts'
 import { parseSystemctlJson } from '../server/utils/systemd.ts'
 
@@ -94,4 +96,50 @@ test('caddy: simple + multi-domain + http(no tls) + nested to', () => {
   assert.equal(internal?.ssl, false)
   assert.equal(internal?.upstreamHost, 'backend')
   assert.equal(internal?.upstreamPort, 3000)
+})
+
+test('nginx: upstream resolution + ssl + direct host:port', () => {
+  const routes = parseNginxConf(read('nginx/site.conf'))
+  const by = (d: string) => routes.find((r) => r.domains.includes(d))
+  const blog = by('blog.example.com')
+  assert.deepEqual(blog?.domains, ['blog.example.com', 'www.blog.example.com'])
+  assert.equal(blog?.upstreamHost, 'ghost') // resolved via upstream blog_backend → ghost:2368
+  assert.equal(blog?.upstreamPort, 2368)
+  assert.equal(blog?.ssl, true)
+  const app = by('app.example.com')
+  assert.equal(app?.upstreamHost, '10.0.0.5')
+  assert.equal(app?.upstreamPort, 8080)
+  assert.equal(app?.ssl, false)
+})
+
+test('traefik-file: yaml routers → services (tls + entrypoints, multi-host rule)', () => {
+  const routes = parseTraefikFile(read('traefik-file.yml'), 'yaml')
+  const by = (d: string) => routes.find((r) => r.domains.includes(d))
+  const blog = by('blog.example.com')
+  assert.equal(blog?.upstreamHost, 'ghost')
+  assert.equal(blog?.upstreamPort, 2368)
+  assert.equal(blog?.ssl, true) // tls: {}
+  const api = by('api.example.com')
+  assert.deepEqual(api?.domains, ['api.example.com', 'api2.example.com'])
+  assert.equal(api?.upstreamHost, '10.0.0.9')
+  assert.equal(api?.upstreamPort, 9000)
+  assert.equal(api?.ssl, true) // entryPoints: [websecure]
+})
+
+test('traefik-file: toml format', () => {
+  const toml = `
+[http.routers.web]
+rule = "Host(\`site.example.com\`)"
+service = "web-svc"
+[http.routers.web.tls]
+[http.services.web-svc.loadBalancer]
+[[http.services.web-svc.loadBalancer.servers]]
+url = "http://web:3000"
+`
+  const routes = parseTraefikFile(toml, 'toml')
+  assert.equal(routes.length, 1)
+  assert.deepEqual(routes[0].domains, ['site.example.com'])
+  assert.equal(routes[0].upstreamHost, 'web')
+  assert.equal(routes[0].upstreamPort, 3000)
+  assert.equal(routes[0].ssl, true)
 })

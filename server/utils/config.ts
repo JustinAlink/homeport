@@ -32,6 +32,10 @@ export interface HomeportConfig {
   npmConfDir: string
   /** Path to a Caddyfile (for the caddy provider). */
   caddyfilePath: string
+  /** Directory of plain Nginx server confs (sites-enabled / conf.d), or a single file. */
+  nginxConfDir: string
+  /** Path to a Traefik dynamic-config file/dir (YAML/TOML) for the file provider. */
+  traefikFilePath: string
   /** Serve a synthetic fleet (no Docker needed) — for trying homeport / screenshots. */
   demo: boolean
   /** Allow start/stop controls. Off by default — homeport is read-only unless opted in. */
@@ -97,6 +101,8 @@ export function getConfig(): HomeportConfig {
     domainProvider: (envStr('DOMAIN_PROVIDER') ?? s.domainProvider ?? '').toLowerCase(),
     npmConfDir: envStr('NPM_CONF_DIR') ?? s.npmConfDir ?? '',
     caddyfilePath: envStr('CADDYFILE_PATH') ?? s.caddyfilePath ?? '',
+    nginxConfDir: envStr('NGINX_CONF_DIR') ?? s.nginxConfDir ?? '',
+    traefikFilePath: envStr('TRAEFIK_FILE') ?? s.traefikFilePath ?? '',
     allowControl:
       envStr('HOMEPORT_ALLOW_CONTROL') !== undefined
         ? process.env.HOMEPORT_ALLOW_CONTROL === 'true'
@@ -149,6 +155,8 @@ export function getEnvLocks() {
     domainProvider: envStr('DOMAIN_PROVIDER') !== undefined,
     npmConfDir: envStr('NPM_CONF_DIR') !== undefined,
     caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
+    nginxConfDir: envStr('NGINX_CONF_DIR') !== undefined,
+    traefikFilePath: envStr('TRAEFIK_FILE') !== undefined,
     allowControl: envStr('HOMEPORT_ALLOW_CONTROL') !== undefined,
     pingEnabled: envStr('HOMEPORT_PING') !== undefined,
     systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
@@ -171,6 +179,8 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     domainProvider: s.domainProvider || '',
     npmConfDir: s.npmConfDir || '',
     caddyfilePath: s.caddyfilePath || '',
+    nginxConfDir: s.nginxConfDir || '',
+    traefikFilePath: s.traefikFilePath || '',
     allowControl: !!s.allowControl,
     pingEnabled: s.pingEnabled ?? true,
     systemdEnabled: !!s.systemdEnabled,
