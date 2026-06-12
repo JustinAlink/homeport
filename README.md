@@ -279,8 +279,8 @@ the page.
 
 ## Roadmap
 
+- **App catalog** — browse and one-click install Docker apps (templates on top of the stack manager)
 - Email/SMTP alert channel (webhooks ship today)
-- Deploy new containers from the UI (app templates), building on the stack manager
 - More reverse-proxy providers (the `DomainProvider` interface keeps these small — PRs welcome)
 
 ## License
