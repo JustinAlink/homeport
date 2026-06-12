@@ -21,6 +21,9 @@ services:
       - homeport-data:/data
       # Reverse-proxy domain mapping: mount your NPM proxy-host confs read-only.
       - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
+      # Stack manager (HOMEPORT_ALLOW_STACKS=true): mount your compose dir.
+      # Each subdirectory containing a compose.yaml is a stack.
+      # - /opt/stacks:/stacks
     ports:
       - "3004:3000"
     networks:
@@ -40,7 +43,12 @@ services:
       INFO: 1
       EVENTS: 1
       PING: 1
-      # everything else stays denied (default 0)
+      # everything else stays denied (default 0). Per-capability extras:
+      #   start/stop/restart        → POST: 1
+      #   update checks             → DISTRIBUTION: 1
+      #   apply updates             → IMAGES: 1, POST: 1
+      #   compose stacks            → POST: 1, IMAGES: 1, NETWORKS: 1, VOLUMES: 1
+      #   web terminal              → EXEC: 1, POST: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:

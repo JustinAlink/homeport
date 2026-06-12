@@ -21,6 +21,12 @@
           @click="toggleGraph"
         >📈</button>
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
+        <NuxtLink
+          v-if="caps.stacks"
+          to="/stacks"
+          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+          title="Compose stacks"
+        >Stacks</NuxtLink>
         <NuxtLink to="/settings" class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Settings">⚙</NuxtLink>
         <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-white/5" @click="logout">Log out</button>
       </div>
@@ -132,6 +138,7 @@ const fleetSeries = computed(() => {
   ]
 })
 const pings = usePings()
+const { caps } = useCapabilities()
 const q = ref('')
 const hostFilter = ref('')
 

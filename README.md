@@ -32,13 +32,15 @@ homeport reads it all live:
 - **systemd** — optionally shows host systemd services alongside containers.
 - **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
 - **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
+- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, and one-click **image updates** (registry digest checks without pulling).
+- **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
 - **In-app settings page** — pick your reverse proxy, set the Docker connection (local or remote-over-SSH, with host-key pinning), add/remove extra hosts, and toggle controls, uptime, systemd, and remote logos — all without editing env. (Env vars still win when set.)
 
-It's a read-only *status hub*, not a management console — pair it with Portainer/Dockge if
-you want to push buttons.
+It's a *status hub first*: read-only out of the box, with management — controls, logs,
+terminal, updates, stacks — unlocked per capability when **you** opt in (see Security).
 
 ## Quick start
 
@@ -184,6 +186,25 @@ HOMEPORT_HOSTS='[
 
 Setting `HOMEPORT_HOSTS` locks the in-app Hosts list (env stays authoritative). With
 neither set, homeport just watches the single host from the normal config.
+
+## Compose stacks
+
+Enable `HOMEPORT_ALLOW_STACKS=true`, grant the proxy permissions from the security table,
+and mount your compose directory (e.g. `/opt/stacks:/stacks`). Every subdirectory with a
+`compose.yaml` (or `docker-compose.yml`) is a stack — the directory name is the compose
+project name:
+
+- **Edit in the browser** (YAML editor with highlighting); saves are validated with
+  `docker compose config` first, and the previous version is kept as a `.bak`.
+- **Deploy / restart / pull-and-recreate / down** per stack, with the compose output
+  streamed live to the page.
+- Running compose projects without a stack directory show up as **unmanaged** — visible,
+  not editable.
+- The dashboard's image-update detection pairs naturally with `pull` here.
+
+Limitations (documented, by design): stacks operate on the host `DOCKER_HOST` points at —
+local socket or `tcp://`; `ssh://` hosts aren't supported for stacks (run homeport on that
+host instead).
 
 ## History & alerts
 
