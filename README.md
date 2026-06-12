@@ -15,9 +15,6 @@ domain that points to it.
 > Want to see it before wiring up Docker? Run it with `HOMEPORT_DEMO=true` for a
 > synthetic fleet (the screenshot above is demo mode).
 
-> 🚧 **v2 is in development on the [`v2` branch](../../tree/v2)** — stack management,
-> logs, terminal, image updates, and in-app reverse-proxy management.
-
 ## Why
 
 If you self-host, you already know what's running — it's just scattered across `docker ps`,
@@ -30,7 +27,7 @@ homeport reads it all live:
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
 - **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
 - **systemd** — optionally shows host systemd services alongside containers.
-- **Resource stats** — live CPU + memory per container with **sparkline graphs** (click to expand a CPU/RAM detail graph), per-stack totals, **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
+- **Resource stats** — live CPU + memory per container with **sparklines** (click through to the service page's full CPU/RAM graph), per-stack totals, a **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
 - **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
 - **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
@@ -42,6 +39,10 @@ homeport reads it all live:
 
 It's a *status hub first*: read-only out of the box, with management — controls, logs,
 terminal, updates, stacks — unlocked per capability when **you** opt in (see Security).
+
+Every container has its own page — overview, logs, terminal, domains, and updates:
+
+![service page](docs/service-page.png)
 
 ## Quick start
 
@@ -220,6 +221,8 @@ project name:
   not editable.
 - The dashboard's image-update detection pairs naturally with `pull` here.
 
+![compose stack editor](docs/stacks.png)
+
 Limitations (documented, by design): stacks operate on the host `DOCKER_HOST` points at —
 local socket or `tcp://`; `ssh://` hosts aren't supported for stacks (run homeport on that
 host instead).
@@ -269,9 +272,9 @@ the page.
 
 ## Roadmap
 
-- More reverse-proxy providers — plain Nginx, Traefik file provider (community PRs welcome)
-- Email/SMTP alert channel (webhooks land first)
-- Per-container history range in the expandable card graph
+- Email/SMTP alert channel (webhooks ship today)
+- Deploy new containers from the UI (app templates), building on the stack manager
+- More reverse-proxy providers (the `DomainProvider` interface keeps these small — PRs welcome)
 
 ## License
 
