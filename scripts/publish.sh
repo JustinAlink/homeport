@@ -36,17 +36,26 @@ if ! docker system info >/dev/null 2>&1; then
   exit 1
 fi
 
+# Also publish :latest when a version tag is given (the install commands use :latest).
+LATEST="${REGISTRY}/${OWNER}/homeport:latest"
+TAGS=("$IMAGE")
+[ "$TAG" != "latest" ] && TAGS+=("$LATEST")
+
 echo "→ Building ${IMAGE}"
 if [ -n "${PLATFORMS:-}" ]; then
   echo "  (multi-arch: ${PLATFORMS})"
-  docker buildx build --platform "$PLATFORMS" -t "$IMAGE" --push .
+  TAG_ARGS=(); for t in "${TAGS[@]}"; do TAG_ARGS+=(-t "$t"); done
+  docker buildx build --platform "$PLATFORMS" "${TAG_ARGS[@]}" --push .
 else
-  docker build -t "$IMAGE" .
-  echo "→ Pushing ${IMAGE}"
-  docker push "$IMAGE"
+  TAG_ARGS=(); for t in "${TAGS[@]}"; do TAG_ARGS+=(-t "$t"); done
+  docker build "${TAG_ARGS[@]}" .
+  for t in "${TAGS[@]}"; do
+    echo "→ Pushing ${t}"
+    docker push "$t"
+  done
 fi
 
-echo "✓ Published ${IMAGE}"
+echo "✓ Published: ${TAGS[*]}"
 echo
 echo "Deploy on the host:"
 echo "  export GHCR_OWNER=${OWNER}${TAG:+ IMAGE_TAG=${TAG}}"
