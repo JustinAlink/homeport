@@ -7,6 +7,17 @@ import { parseDockerHost } from './docker-target'
 
 const clients = new Map<string, Docker>()
 
+/**
+ * A hard deadline for one-shot Docker calls. Without it a half-open TCP connection
+ * to the daemon (common with a socket-proxy mid-restart) hangs the request forever —
+ * this was the dashboard's "stuck on Loading…". Long-lived streams (events,
+ * logs --follow, exec, stats --stream) pass no signal, so they stay open.
+ * Override with HOMEPORT_DOCKER_TIMEOUT_MS. (Don't use docker-modem's own
+ * DOCKER_CLIENT_TIMEOUT — it arms a socket timeout on every request, killing streams.)
+ */
+const ONESHOT_TIMEOUT = Number(process.env.HOMEPORT_DOCKER_TIMEOUT_MS) || 15000
+export const oneShot = () => ({ abortSignal: AbortSignal.timeout(ONESHOT_TIMEOUT) })
+
 /** Lazily build (and cache) a dockerode client for a host (ssh / tcp / unix socket). */
 export function getDockerFor(host: HostConfig): Docker {
   const cached = clients.get(host.id)
@@ -92,7 +103,7 @@ function mapContainer(c: Docker.ContainerInfo): RawContainer {
 }
 
 export async function listContainersFor(host: HostConfig): Promise<RawContainer[]> {
-  const list = await getDockerFor(host).listContainers({ all: true })
+  const list = await getDockerFor(host).listContainers({ all: true, ...oneShot() })
   return list.map(mapContainer)
 }
 

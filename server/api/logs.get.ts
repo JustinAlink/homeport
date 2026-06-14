@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
   const tail = Math.min(5000, Math.max(1, Number(q.tail) || 200))
   const follow = String(q.follow ?? '1') !== '0'
   const asText = String(q.format || '') === 'text'
+  if (!asText) setHeader(event, 'X-Accel-Buffering', 'no') // don't let nginx/NPM buffer the SSE stream
 
   // demo mode — synthetic lines so the UI is fully usable without Docker
   if (cfg.demo) {

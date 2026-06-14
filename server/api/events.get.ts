@@ -4,6 +4,7 @@ import { getHosts } from '../utils/hosts'
 // SSE: push a "refresh" whenever any host reports a container change, plus a
 // periodic heartbeat. The client re-fetches /api/services on each.
 export default defineEventHandler(async (event) => {
+  setHeader(event, 'X-Accel-Buffering', 'no') // don't let nginx/NPM buffer the SSE stream
   const stream = createEventStream(event)
   const dockerStreams: NodeJS.ReadableStream[] = []
 
