@@ -73,6 +73,10 @@ export function getHosts(): HostConfig[] {
       caddyfilePath: c.caddyfilePath,
       nginxConfDir: c.nginxConfDir,
       traefikFilePath: c.traefikFilePath,
+      npmApiUrl: c.npmApiUrl,
+      npmApiIdentity: c.npmApiIdentity,
+      npmApiSecret: c.npmApiSecret,
+      caddyAdminUrl: c.caddyAdminUrl,
     },
   ]
 }
