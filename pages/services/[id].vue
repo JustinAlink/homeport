@@ -108,10 +108,13 @@
 
       <!-- DOMAINS -->
       <section v-else-if="tab === 'domains'" class="max-w-xl space-y-4">
-        <p class="text-sm text-slate-400">Add a reverse-proxy route pointing a domain at this container.</p>
+        <p class="text-sm text-slate-400">
+          {{ matchedRoute ? 'This container already has a reverse-proxy route — edit it below.' : 'Add a reverse-proxy route pointing a domain at this container.' }}
+        </p>
         <DomainForm
-          :initial="{ upstreamHost: service.name, upstreamPort: service.ports[0]?.hostPort ?? 80, ssl: true }"
-          submit-label="Add domain"
+          :key="domainFormKey"
+          :initial="domainInitial"
+          :submit-label="matchedRoute ? 'Update domain' : 'Add domain'"
           @saved="onDomainSaved"
         />
         <NuxtLink to="/domains" class="inline-block text-xs text-accent-light hover:underline">Manage all domains →</NuxtLink>
@@ -194,8 +197,43 @@ const tabs = computed(() => [
   ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
 ])
 
+// --- domains tab ---
+// Pull the proxy's existing routes so the form can pre-fill and, when a route
+// already points at this container, switch from "Add" (POST → would conflict)
+// to "Update" (PUT) instead.
+interface ProxyRoute { id: string; domains: string[]; upstreamHost: string; upstreamPort: number; ssl: boolean }
+const proxyRoutes = ref<ProxyRoute[]>([])
+const routesLoaded = ref(false)
+async function loadRoutes() {
+  try {
+    const r = await $fetch<{ routes: ProxyRoute[] }>('/api/proxy/routes')
+    proxyRoutes.value = r.routes ?? []
+  } catch {
+    // proxy admin unreachable — fall back to prefill-only (no route id → plain Add)
+  } finally {
+    routesLoaded.value = true
+  }
+}
+watch(
+  () => tab.value === 'domains' && caps.value.proxyAdmin,
+  (on) => { if (on && !routesLoaded.value) loadRoutes() },
+  { immediate: true },
+)
+const matchedRoute = computed(() =>
+  service.value ? proxyRoutes.value.find((r) => r.upstreamHost === service.value!.name) : undefined,
+)
+const domainInitial = computed(() => {
+  const s = service.value!
+  const m = matchedRoute.value
+  if (m) return { id: m.id, domains: m.domains, upstreamHost: m.upstreamHost, upstreamPort: m.upstreamPort, ssl: m.ssl }
+  return { domains: s.domains.map((d) => d.domain), upstreamHost: s.name, upstreamPort: s.ports[0]?.hostPort ?? 80, ssl: s.domains[0]?.ssl ?? true }
+})
+// remount the form once routes resolve so it re-reads `initial`
+const domainFormKey = computed(() => (matchedRoute.value?.id ?? (routesLoaded.value ? 'new' : 'loading')))
+
 function onDomainSaved() {
   refresh()
+  loadRoutes()
   tab.value = 'overview'
 }
 
