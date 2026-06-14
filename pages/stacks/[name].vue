@@ -99,7 +99,7 @@ async function load() {
     await setupEditor(s.content)
   } catch (e: any) {
     if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
-    loadError.value = e?.statusMessage || 'Could not load this stack'
+    loadError.value = errMsg(e, 'Could not load this stack')
   }
 }
 
@@ -119,7 +119,7 @@ async function save() {
     saveMsg.value = 'Saved & validated.'
   } catch (e: any) {
     saveOk.value = false
-    saveMsg.value = e?.statusMessage || 'Save failed'
+    saveMsg.value = errMsg(e, 'Save failed')
   } finally {
     saving.value = false
   }
@@ -167,7 +167,7 @@ async function runAction(op: string) {
       es?.close()
     }
   } catch (e: any) {
-    opLines.value.push(e?.statusMessage || 'could not start the operation')
+    opLines.value.push(errMsg(e, 'could not start the operation'))
     opOk.value = false
     opRunning.value = false
   }

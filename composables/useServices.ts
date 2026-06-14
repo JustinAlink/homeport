@@ -20,7 +20,7 @@ export function useServices() {
         await navigateTo('/login')
         return
       }
-      error.value = e?.statusMessage || e?.message || 'Failed to load services'
+      error.value = errMsg(e, 'Failed to load services')
     } finally {
       loading.value = false
     }

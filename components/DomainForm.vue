@@ -74,7 +74,7 @@ async function submit() {
     emit('saved', r)
   } catch (e: any) {
     msgOk.value = false
-    msg.value = e?.statusMessage || e?.message || 'Save failed'
+    msg.value = errMsg(e, 'Save failed')
   } finally {
     busy.value = false
   }

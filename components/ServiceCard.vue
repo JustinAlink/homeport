@@ -138,7 +138,7 @@ async function control(action: 'start' | 'stop' | 'restart') {
     await refreshServices()
     refreshStats()
   } catch (e: any) {
-    window.alert(e?.statusMessage || e?.message || 'Action failed')
+    window.alert(errMsg(e, 'Action failed'))
   } finally {
     busy.value = false
   }
