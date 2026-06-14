@@ -79,7 +79,7 @@ async function submit() {
     await $fetch('/api/auth/login', { method: 'POST', body: { password: password.value } })
     await navigateTo('/')
   } catch (e: any) {
-    err.value = e?.statusMessage || 'Login failed'
+    err.value = errMsg(e, 'Login failed')
   } finally {
     busy.value = false
   }
@@ -96,7 +96,7 @@ async function doSetup() {
     await $fetch('/api/setup', { method: 'POST', body: { password: password.value } })
     await navigateTo('/')
   } catch (e: any) {
-    err.value = e?.statusMessage || 'Setup failed'
+    err.value = errMsg(e, 'Setup failed')
   } finally {
     busy.value = false
   }
@@ -109,7 +109,7 @@ async function doSkip() {
     await $fetch('/api/setup', { method: 'POST', body: { skip: true } })
     await navigateTo('/')
   } catch (e: any) {
-    err.value = e?.statusMessage || 'Failed'
+    err.value = errMsg(e, 'Failed')
   } finally {
     busy.value = false
   }

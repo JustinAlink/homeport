@@ -487,7 +487,7 @@ async function changePassword() {
     pw.current = pw.next = pw.confirm = ''
   } catch (e: any) {
     pwOk.value = false
-    pwMsg.value = e?.statusMessage || 'Could not change password'
+    pwMsg.value = errMsg(e, 'Could not change password')
   } finally {
     pwBusy.value = false
   }
@@ -590,7 +590,7 @@ async function testProxy() {
     proxyMsg.value = `${r.provider}: ${r.message}`
   } catch (e: any) {
     proxyOk.value = false
-    proxyMsg.value = e?.statusMessage || e?.message || 'Test failed'
+    proxyMsg.value = errMsg(e, 'Test failed')
   } finally {
     proxyTesting.value = false
   }
@@ -612,7 +612,7 @@ async function sendTest() {
     testMsg.value = r.channels.map((c) => `${c.name}: ${c.ok ? 'ok' : c.error || 'failed'}`).join(' · ')
   } catch (e: any) {
     testOk.value = false
-    testMsg.value = e?.statusMessage || e?.message || 'Test failed'
+    testMsg.value = errMsg(e, 'Test failed')
   } finally {
     testing.value = false
   }
@@ -686,7 +686,7 @@ async function save() {
     msg.value = 'Saved.'
   } catch (e: any) {
     msgOk.value = false
-    msg.value = e?.statusMessage || e?.message || 'Save failed'
+    msg.value = errMsg(e, 'Save failed')
   } finally {
     busy.value = false
   }

@@ -83,7 +83,7 @@ async function load() {
     error.value = ''
   } catch (e: any) {
     if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
-    error.value = e?.statusMessage || 'Could not load domains'
+    error.value = errMsg(e, 'Could not load domains')
   } finally {
     loaded.value = true
   }
@@ -101,7 +101,7 @@ async function remove(r: AdminRoute) {
     await $fetch(`/api/proxy/routes?id=${encodeURIComponent(r.id)}`, { method: 'DELETE' })
     load()
   } catch (e: any) {
-    window.alert(e?.statusMessage || 'Delete failed')
+    window.alert(errMsg(e, 'Delete failed'))
   }
 }
 

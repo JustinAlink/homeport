@@ -29,7 +29,7 @@ async function run() {
     msg.value = r.message
   } catch (e: any) {
     ok.value = false
-    msg.value = e?.statusMessage || e?.message || 'Test failed'
+    msg.value = errMsg(e, 'Test failed')
   } finally {
     busy.value = false
   }

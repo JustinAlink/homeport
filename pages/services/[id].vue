@@ -231,7 +231,7 @@ async function control(action: 'start' | 'stop' | 'restart') {
     await $fetch('/api/control', { method: 'POST', body: { id, action } })
     await refresh()
   } catch (e: any) {
-    window.alert(e?.statusMessage || e?.message || 'Action failed')
+    window.alert(errMsg(e, 'Action failed'))
   } finally {
     busy.value = false
   }
@@ -267,7 +267,7 @@ async function checkNow() {
     await $fetch('/api/updates/check', { method: 'POST' })
     await updates.refresh()
   } catch (e: any) {
-    window.alert(e?.statusMessage || 'Check failed')
+    window.alert(errMsg(e, 'Check failed'))
   } finally {
     checking.value = false
   }
@@ -288,7 +288,7 @@ async function apply() {
     await Promise.all([refresh(), updates.refresh()])
   } catch (e: any) {
     applySteps.value = e?.data?.data?.steps || []
-    window.alert(e?.statusMessage || 'Update failed')
+    window.alert(errMsg(e, 'Update failed'))
   } finally {
     applying.value = false
   }

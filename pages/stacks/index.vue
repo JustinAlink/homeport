@@ -88,7 +88,7 @@ async function load() {
     error.value = ''
   } catch (e: any) {
     if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
-    error.value = e?.statusMessage || e?.message || 'Could not load stacks'
+    error.value = errMsg(e, 'Could not load stacks')
   }
 }
 
