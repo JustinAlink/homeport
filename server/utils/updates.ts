@@ -89,8 +89,21 @@ async function checkImage(host: HostConfig, image: string, now: number): Promise
       checkedAt: now,
     }
   } catch (e: any) {
-    return { status: 'error', checkedAt: now, error: e?.message || String(e) }
+    return { status: 'error', checkedAt: now, error: friendlyCheckError(e) }
   }
+}
+
+/**
+ * Turn a raw daemon/proxy error into something actionable. The common one is a
+ * 403 from docker-socket-proxy ("Request forbidden by administrative rules")
+ * when DISTRIBUTION isn't allowed — the update check needs that endpoint.
+ */
+function friendlyCheckError(e: any): string {
+  const raw = (e?.message || String(e || '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (/403/.test(raw) && /forbidden|administrative rules/i.test(raw)) {
+    return 'Docker socket-proxy blocked the registry check. Add DISTRIBUTION=1 to the socket-proxy to enable update checks.'
+  }
+  return raw.length > 200 ? raw.slice(0, 200) + '…' : raw || 'check failed'
 }
 
 /** One throttled sweep across all hosts (called from the collector tick + check-now). */
