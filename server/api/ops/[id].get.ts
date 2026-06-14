@@ -7,6 +7,7 @@ export default defineEventHandler((event) => {
   const op = getOp(id)
   if (!op) throw createError({ statusCode: 404, statusMessage: 'Unknown operation' })
 
+  setHeader(event, 'X-Accel-Buffering', 'no') // don't let nginx/NPM buffer the SSE stream
   const stream = createEventStream(event)
   let cursor = 0
 

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, constan
 import { join, dirname } from 'node:path'
 import { getConfig } from './config'
 import { getHosts, type HostConfig } from './hosts'
-import { getDockerFor, listContainersFor } from './docker'
+import { getDockerFor, listContainersFor, oneShot } from './docker'
 import { parseImageRef, digestMatches, pickDueChecks, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { guard } from './guard'
@@ -77,7 +77,7 @@ async function checkImage(host: HostConfig, image: string, now: number): Promise
     const repoDigests: string[] = local?.RepoDigests || []
     if (!repoDigests.length) return { status: 'local', checkedAt: now } // built locally — nothing to compare
 
-    const dist: any = await (docker.getImage(image) as any).distribution()
+    const dist: any = await (docker.getImage(image) as any).distribution(oneShot())
     const remoteDigest: string = dist?.Descriptor?.digest || ''
     if (!remoteDigest) return { status: 'error', checkedAt: now, error: 'registry returned no digest' }
 
