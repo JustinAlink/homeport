@@ -100,6 +100,9 @@ export interface HomeportConfig {
  */
 export const DEFAULT_CATALOG_URLS = [
   'https://raw.githubusercontent.com/portainer/templates/master/templates-2.0.json',
+  // Lissy93's list aggregates the big community collections (~500 templates,
+  // ~280 container-type). Slug collisions merge first-wins, built-ins first.
+  'https://raw.githubusercontent.com/Lissy93/portainer-templates/main/templates.json',
 ]
 
 const envStr = (k: string) => {

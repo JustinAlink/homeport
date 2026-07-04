@@ -270,6 +270,17 @@
             class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
             @click="form.catalogUrls.push('')"
           >+ Add source</button>
+          <div v-if="suggestedSources.length" class="flex flex-wrap items-center gap-1.5 pt-1">
+            <span class="text-[11px] text-slate-600">Suggested:</span>
+            <button
+              v-for="s in suggestedSources"
+              :key="s.url"
+              type="button"
+              class="rounded-full border border-sky-400/25 px-2.5 py-1 text-[11px] text-sky-300 hover:bg-sky-400/10"
+              :title="s.url"
+              @click="form.catalogUrls.push(s.url)"
+            >+ {{ s.name }}</button>
+          </div>
         </div>
       </section>
 
@@ -575,6 +586,14 @@ const form = reactive({
   alertChannels: [] as ChannelRow[],
   hosts: [] as HostRow[],
 })
+
+// Known-good community template lists, offered as one-click additions.
+const KNOWN_SOURCES = [
+  { name: 'Portainer official', url: 'https://raw.githubusercontent.com/portainer/templates/master/templates-2.0.json' },
+  { name: 'Lissy93 (aggregated)', url: 'https://raw.githubusercontent.com/Lissy93/portainer-templates/main/templates.json' },
+  { name: 'SelfhostedPro', url: 'https://raw.githubusercontent.com/SelfhostedPro/selfhosted_templates/master/Template/portainer-v2.json' },
+]
+const suggestedSources = computed(() => KNOWN_SOURCES.filter((s) => !form.catalogUrls.includes(s.url)))
 
 // Tiered capability toggles + the socket-proxy permissions each one needs.
 const capabilityToggles = [
