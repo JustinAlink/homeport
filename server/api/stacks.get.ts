@@ -3,6 +3,7 @@ import { getHosts } from '../utils/hosts'
 import { listContainersFor } from '../utils/docker'
 import { listStackDirs } from '../utils/stacks'
 import { stackStatuses } from '../utils/stacks-core'
+import { isGitStack } from '../utils/git-stacks'
 import { demoStackList } from '../utils/demo'
 
 // List compose stacks (dirs under HOMEPORT_STACKS_DIR) joined with live container
@@ -27,7 +28,11 @@ export default defineEventHandler(async () => {
 
   const { stacks, unmanaged } = stackStatuses(dirs.map((d) => d.name), containers)
   return {
-    stacks: stacks.map((s) => ({ ...s, file: dirs.find((d) => d.name === s.name)?.file })),
+    stacks: stacks.map((s) => ({
+      ...s,
+      file: dirs.find((d) => d.name === s.name)?.file,
+      git: isGitStack(s.name),
+    })),
     unmanaged,
     dir: cfg.stacksDir,
   }

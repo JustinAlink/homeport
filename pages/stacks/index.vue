@@ -18,15 +18,64 @@
 
     <template v-else>
       <!-- create row -->
-      <div v-if="creating" class="mb-4 flex items-center gap-2 rounded-lg border border-white/10 bg-ink-900 p-3">
-        <input
-          v-model="newName"
-          placeholder="stack name (becomes the directory + project name)"
-          class="flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          @keydown.enter="createStack"
-        />
-        <button class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light" @click="createStack">Create</button>
-        <button class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5" @click="creating = false">Cancel</button>
+      <div v-if="creating" class="mb-4 space-y-3 rounded-lg border border-white/10 bg-ink-900 p-3">
+        <div class="flex gap-1 text-xs">
+          <button
+            class="rounded-md px-2.5 py-1.5"
+            :class="createMode === 'empty' ? 'bg-accent/15 text-accent-light' : 'text-slate-400 hover:bg-white/5'"
+            @click="createMode = 'empty'"
+          >Empty stack</button>
+          <button
+            class="rounded-md px-2.5 py-1.5"
+            :class="createMode === 'git' ? 'bg-accent/15 text-accent-light' : 'text-slate-400 hover:bg-white/5'"
+            @click="createMode = 'git'"
+          >From git repository</button>
+          <button class="ml-auto rounded-md border border-white/10 px-3 py-1.5 text-slate-400 hover:bg-white/5" @click="creating = false">Cancel</button>
+        </div>
+
+        <div v-if="createMode === 'empty'" class="flex items-center gap-2">
+          <input
+            v-model="newName"
+            placeholder="stack name (becomes the directory + project name)"
+            class="flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            @keydown.enter="createStack"
+          />
+          <button class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light" @click="createStack">Create</button>
+        </div>
+
+        <div v-else class="space-y-2">
+          <div class="flex flex-wrap gap-2">
+            <input
+              v-model="git.repo"
+              placeholder="https://github.com/user/repo (needs a compose file at its root)"
+              class="min-w-[16rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+            <input
+              v-model="git.ref"
+              placeholder="branch (main)"
+              class="w-36 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              v-model="git.name"
+              :placeholder="`stack name (${gitNameHint || 'from the repo'})`"
+              class="w-52 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+            <input
+              v-model="git.token"
+              type="password"
+              placeholder="access token (private repos — stored server-side only)"
+              class="min-w-[16rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+            <button
+              class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+              :disabled="!git.repo.trim() || gitCreating"
+              @click="createFromGit"
+            >{{ gitCreating ? 'Cloning…' : 'Clone & deploy' }}</button>
+          </div>
+          <p v-if="gitError" class="whitespace-pre-line text-[11px] text-red-400">{{ gitError }}</p>
+        </div>
       </div>
 
       <p v-if="!data.stacks.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
@@ -43,6 +92,11 @@
         >
           <span class="h-2 w-2 shrink-0 rounded-full" :class="dotCls(s.state)" />
           <span class="text-sm font-medium text-slate-100">{{ s.name }}</span>
+          <span
+            v-if="s.git"
+            class="rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300"
+            title="Git-backed stack"
+          >git</span>
           <span class="font-mono text-[11px] text-slate-600">{{ s.file }}</span>
           <span class="ml-auto text-xs text-slate-500">{{ s.running }}/{{ s.total }} running</span>
           <span class="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider" :class="pillCls(s.state)">{{ s.state }}</span>
@@ -70,6 +124,7 @@ interface StackRow {
   running: number
   total: number
   file?: string
+  git?: boolean
 }
 interface StacksResponse {
   stacks: StackRow[]
@@ -96,6 +151,34 @@ function createStack() {
   const name = newName.value.trim()
   if (!name) return
   navigateTo(`/stacks/${encodeURIComponent(name)}?new=1`)
+}
+
+// --- create from git ---
+const createMode = ref<'empty' | 'git'>('empty')
+const git = reactive({ repo: '', ref: '', name: '', token: '' })
+const gitCreating = ref(false)
+const gitError = ref('')
+const gitNameHint = computed(() => git.repo.split('/').pop()?.replace(/\.git$/, '') ?? '')
+
+async function createFromGit() {
+  gitCreating.value = true
+  gitError.value = ''
+  try {
+    const res = await $fetch<{ stack: string; opId: string }>('/api/stacks/from-git', {
+      method: 'POST',
+      body: {
+        repo: git.repo.trim(),
+        ref: git.ref.trim() || 'main',
+        name: git.name.trim() || undefined,
+        token: git.token.trim() || undefined,
+      },
+    })
+    navigateTo(`/stacks/${encodeURIComponent(res.stack)}?op=${encodeURIComponent(res.opId)}`)
+  } catch (e: any) {
+    gitError.value = errMsg(e, 'Could not create the stack')
+  } finally {
+    gitCreating.value = false
+  }
 }
 
 const dotCls = (s: string) => (s === 'running' ? 'bg-accent' : s === 'partial' ? 'bg-amber-400' : 'bg-slate-600')

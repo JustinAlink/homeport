@@ -7,6 +7,14 @@
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
       <div class="ml-auto flex items-center gap-2">
         <button
+          v-if="gitInfo"
+          :disabled="opRunning"
+          class="rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
+          :class="gitInfo.behind ? 'border-accent/40 bg-accent/10 text-accent-light' : 'border-white/10 text-slate-300 hover:bg-white/5'"
+          :title="gitInfo.behind ? 'The repository has new commits' : 'Re-pull and redeploy from the repository'"
+          @click="runAction('update')"
+        >{{ gitInfo.behind ? '⬆ Update available' : '↑ Update from Git' }}</button>
+        <button
           v-for="a in actions"
           :key="a.op"
           :disabled="opRunning"
@@ -16,6 +24,22 @@
         >{{ a.label }}</button>
       </div>
     </header>
+
+    <!-- git source line -->
+    <div v-if="gitInfo" class="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-white/5 bg-ink-900/60 px-3 py-2 text-xs">
+      <span class="rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300">git</span>
+      <a :href="gitInfo.repo" target="_blank" rel="noopener" class="font-mono text-slate-300 hover:text-slate-100 hover:underline">{{ gitInfo.repo }}</a>
+      <span class="text-slate-600">{{ gitInfo.branch }} @ {{ gitInfo.commit }}</span>
+      <span class="truncate text-slate-500" :title="gitInfo.subject">“{{ gitInfo.subject }}”</span>
+      <span v-if="gitInfo.behind" class="rounded-full border border-accent/40 px-2 py-0.5 text-[10px] text-accent-light">
+        ⬆ {{ gitInfo.remoteCommit }} available
+      </span>
+      <button
+        class="ml-auto rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 disabled:opacity-40"
+        :disabled="gitChecking"
+        @click="loadGit(true)"
+      >{{ gitChecking ? 'Checking…' : '↻ Check' }}</button>
+    </div>
 
     <div v-if="loadError" class="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ loadError }}</div>
 
@@ -138,9 +162,35 @@ const opRunning = ref(false)
 const opOk = ref<boolean | null>(null)
 let es: EventSource | null = null
 
+function attachOp(opId: string, onDone?: () => void) {
+  es?.close()
+  es = new EventSource(`/api/ops/${opId}`)
+  es.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data)
+      if (msg.line !== undefined) opLines.value.push(msg.line)
+      if (msg.done) {
+        opOk.value = msg.ok
+        opRunning.value = false
+        es?.close()
+        onDone?.()
+      }
+    } catch {}
+  }
+  es.onerror = () => {
+    opRunning.value = false
+    es?.close()
+  }
+}
+
 async function runAction(op: string) {
   if (op === 'down' && !window.confirm(`Take stack “${name}” down?`)) return
-  if (dirty.value && !window.confirm('You have unsaved changes — run anyway?')) return
+  if (
+    op === 'update' &&
+    !window.confirm(`Update “${name}” to the latest commit from its repository?\nAny local edits to the stack files are overwritten.`)
+  )
+    return
+  if (op !== 'update' && dirty.value && !window.confirm('You have unsaved changes — run anyway?')) return
   opLines.value = []
   opOk.value = null
   opRunning.value = true
@@ -149,23 +199,7 @@ async function runAction(op: string) {
       method: 'POST',
       body: { op },
     })
-    es?.close()
-    es = new EventSource(`/api/ops/${opId}`)
-    es.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data)
-        if (msg.line !== undefined) opLines.value.push(msg.line)
-        if (msg.done) {
-          opOk.value = msg.ok
-          opRunning.value = false
-          es?.close()
-        }
-      } catch {}
-    }
-    es.onerror = () => {
-      opRunning.value = false
-      es?.close()
-    }
+    attachOp(opId, op === 'update' ? () => { load(); loadGit() } : undefined)
   } catch (e: any) {
     opLines.value.push(errMsg(e, 'could not start the operation'))
     opOk.value = false
@@ -173,7 +207,43 @@ async function runAction(op: string) {
   }
 }
 
-onMounted(load)
+// --- git-backed stacks ---
+interface GitInfo {
+  git: boolean
+  repo: string
+  branch: string
+  commit: string
+  subject: string
+  behind: boolean | null
+  remoteCommit?: string
+}
+const gitInfo = ref<GitInfo | null>(null)
+const gitChecking = ref(false)
+
+async function loadGit(force = false) {
+  gitChecking.value = force
+  try {
+    const g = await $fetch<GitInfo>(`/api/stacks/${encodeURIComponent(name)}/git`, {
+      query: force ? { check: 1 } : {},
+    })
+    gitInfo.value = g.git ? g : null
+  } catch {
+    gitInfo.value = null // non-git stack or stacks disabled — no bar
+  } finally {
+    gitChecking.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+  if (!isNew.value) loadGit()
+  // arriving from "Clone & deploy" — attach to the in-flight clone op
+  const opId = String(useRoute().query.op || '')
+  if (opId) {
+    opRunning.value = true
+    attachOp(opId, () => { load(); loadGit() })
+  }
+})
 onBeforeUnmount(() => {
   es?.close()
   view?.destroy()

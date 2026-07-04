@@ -241,6 +241,7 @@ export function demoStackList() {
       running,
       total,
       file: 'compose.yaml',
+      git: g === 'media' || demoGitStacks.has(g),
     }
   })
   return { stacks, unmanaged: [{ name: 'legacy-app', running: 1, total: 1 }], dir: '/stacks' }
@@ -254,6 +255,47 @@ export function demoStackRead(name: string) {
 export function demoStackSave(name: string, content: string, _create: boolean) {
   demoStackContent.set(name, content)
   return { ok: true, stack: { name, file: 'compose.yaml', content } }
+}
+
+// One demo stack presents as git-backed so the from-git flow is demoable.
+const DEMO_GIT_STACK = 'media'
+
+export function demoGitMeta(name: string) {
+  if (name !== DEMO_GIT_STACK && !demoGitStacks.has(name)) return { git: false }
+  return {
+    git: true,
+    repo: 'https://github.com/example/media-stack',
+    branch: 'main',
+    commit: 'a1b2c3d',
+    subject: 'Tune jellyfin transcode settings',
+    committedAt: '2026-07-01T12:00:00+02:00',
+    behind: true,
+    remoteCommit: 'e4f5a6b',
+  }
+}
+
+const demoGitStacks = new Set<string>()
+
+export function demoStackFromGit(name: string, repo: string, ref: string) {
+  demoGitStacks.add(name)
+  demoStackContent.set(name, synthCompose(name))
+  const opId = startOp(`clone ${name}`, async (emit) => {
+    const lines = [
+      `$ git clone --depth 1 --branch ${ref} ${repo}`,
+      `Cloning into '${name}'…`,
+      'remote: Enumerating objects: 42, done.',
+      'Receiving objects: 100% (42/42), done.',
+      `$ docker compose -p ${name} up -d`,
+      `✔ Container ${name}-app-1  Started`,
+      '✓ done',
+    ]
+    for (const l of lines) {
+      emit(l)
+      await new Promise((r) => setTimeout(r, 400))
+    }
+    return true
+  })
+  return { ok: true, stack: name, opId }
 }
 
 export function demoCatalogInstall(
@@ -283,7 +325,9 @@ export function demoCatalogInstall(
 export function demoStackAction(name: string, op: string): string {
   // run a scripted op through the real registry so SSE streaming is identical
   const lines =
-    op === 'pull'
+    op === 'update'
+      ? [`$ git fetch origin main`, 'From https://github.com/example/media-stack', '   a1b2c3d..e4f5a6b  main -> origin/main', '$ git reset --hard FETCH_HEAD', "HEAD is now at e4f5a6b Add hardware transcode profile", `$ docker compose -p ${name} up -d --build --remove-orphans`, `✔ Container ${name}-app-1  Started`, '✓ done']
+      : op === 'pull'
       ? [`$ docker compose -p ${name} pull`, 'Pulling images…', '✔ images up to date', `$ docker compose -p ${name} up -d`, `✔ Container ${name}-app-1  Started`, '✓ done']
       : op === 'down'
         ? [`$ docker compose -p ${name} down`, `✔ Container ${name}-app-1  Removed`, '✓ done']

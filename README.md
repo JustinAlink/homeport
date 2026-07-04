@@ -33,6 +33,7 @@ homeport reads it all live:
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
 - **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords.
+- **Git-backed stacks** — deploy a stack straight from a GitHub/Gitea/GitLab repo and update it with one click when the repo moves (fetch → reset → rebuild → redeploy, streamed live). Private repos use a per-stack access token, stored server-side only.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
@@ -294,6 +295,20 @@ remote source — and you can add, replace or remove sources in **Settings → A
 An installed app is just a normal compose stack: it appears on the dashboard, and is editable on
 `/stacks/<name>` afterwards. Installing therefore requires the **Compose stacks** capability
 (browsing the catalog doesn't). Env: `HOMEPORT_CATALOG_URLS=url1,url2` (locks the settings field).
+
+## Git-backed stacks
+
+On **/stacks → New stack → From git repository**, point homeport at any http(s) git remote with a
+compose file at its root. The clone becomes a normal stack (editable, start/stoppable) that knows
+where it came from: the stack page shows the source repo, branch and commit, checks the remote for
+new commits, and offers **Update** — `git fetch` + hard reset to the branch head, then
+`docker compose up -d --build`, so source-built projects rebuild too. Local edits to a git stack
+are overwritten by Update (the repo is the source of truth — the UI warns).
+
+Private repositories take an access token per stack (a GitHub fine-grained PAT or deploy token
+with read-only contents access). Tokens are stored server-side under the data dir with `0600`
+permissions, sent to git as a per-invocation header (never written into `.git/config`), scrubbed
+from all streamed output, and never returned to the browser.
 
 ## Roadmap
 

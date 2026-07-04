@@ -10,7 +10,8 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 # docker CLI + compose plugin power the stack manager (HOMEPORT_ALLOW_STACKS).
 # They talk to DOCKER_HOST (the socket proxy) — homeport never gets the raw socket.
-RUN apk add --no-cache docker-cli docker-cli-compose
+# git powers git-backed stacks (clone / update-from-repo).
+RUN apk add --no-cache docker-cli docker-cli-compose git
 ENV NODE_ENV=production \
     NITRO_PORT=3000 \
     NITRO_HOST=0.0.0.0
