@@ -244,6 +244,35 @@
         </div>
       </section>
 
+      <!-- App catalog -->
+      <section :id="'catalog'"  class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">App catalog</h2>
+        <p class="text-xs text-slate-500">
+          Extra template sources for the <NuxtLink to="/catalog" class="text-accent-light hover:underline">catalog</NuxtLink> —
+          homeport-native or Portainer <code>templates.json</code> URLs, fetched server-side.
+          <template v-if="locked.catalogUrls"> Set by <code>HOMEPORT_CATALOG_URLS</code> — locked.</template>
+        </p>
+        <div class="space-y-2" :class="locked.catalogUrls ? 'pointer-events-none opacity-50' : ''">
+          <div v-for="(u, i) in form.catalogUrls" :key="i" class="flex items-center gap-2">
+            <input
+              v-model="form.catalogUrls[i]"
+              :class="fieldCls"
+              placeholder="https://raw.githubusercontent.com/…/templates.json"
+            />
+            <button
+              type="button"
+              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              @click="form.catalogUrls.splice(i, 1)"
+            >Remove</button>
+          </div>
+          <button
+            type="button"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            @click="form.catalogUrls.push('')"
+          >+ Add source</button>
+        </div>
+      </section>
+
       <!-- Uptime -->
       <section :id="'uptime'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Uptime</h2>
@@ -456,6 +485,7 @@ const sections = computed(() =>
     { id: 'proxy', label: 'Reverse proxy' },
     ...(form.allowProxyAdmin ? [{ id: 'proxy-admin', label: 'Proxy management' }] : []),
     { id: 'capabilities', label: 'Capabilities' },
+    { id: 'catalog', label: 'App catalog' },
     { id: 'uptime', label: 'Uptime' },
     { id: 'systemd', label: 'Host services' },
     { id: 'monitoring', label: 'Monitoring' },
@@ -530,6 +560,7 @@ const form = reactive({
   updateCheckEnabled: false,
   allowUpdates: false,
   allowStacks: false,
+  catalogUrls: [] as string[],
   allowTerminal: false,
   allowProxyAdmin: false,
   pingEnabled: true,

@@ -57,6 +57,8 @@ export interface HomeportConfig {
   allowStacks: boolean
   /** Directory of compose stacks (each subdir = one stack). */
   stacksDir: string
+  /** Extra app-catalog template source URLs (native or Portainer format). */
+  catalogUrls: string[]
   /** Web terminal: exec into containers (needs EXEC=1 POST=1). Off by default. */
   allowTerminal: boolean
   /** Manage the reverse proxy (create/edit domains) via provider APIs. Off by default. */
@@ -150,6 +152,13 @@ export function getConfig(): HomeportConfig {
         ? process.env.HOMEPORT_ALLOW_STACKS === 'true'
         : !!s.allowStacks,
     stacksDir: envStr('HOMEPORT_STACKS_DIR') ?? '/stacks',
+    catalogUrls:
+      envStr('HOMEPORT_CATALOG_URLS') !== undefined
+        ? (envStr('HOMEPORT_CATALOG_URLS') || '')
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean)
+        : s.catalogUrls ?? [],
     allowTerminal:
       envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined
         ? process.env.HOMEPORT_ALLOW_TERMINAL === 'true'
@@ -217,6 +226,7 @@ export function getEnvLocks() {
     updateCheckEnabled: envStr('HOMEPORT_UPDATE_CHECK') !== undefined,
     allowUpdates: envStr('HOMEPORT_ALLOW_UPDATES') !== undefined,
     allowStacks: envStr('HOMEPORT_ALLOW_STACKS') !== undefined,
+    catalogUrls: envStr('HOMEPORT_CATALOG_URLS') !== undefined,
     allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
     allowProxyAdmin: envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined,
     pingEnabled: envStr('HOMEPORT_PING') !== undefined,
@@ -251,6 +261,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     updateCheckEnabled: !!s.updateCheckEnabled,
     allowUpdates: !!s.allowUpdates,
     allowStacks: !!s.allowStacks,
+    catalogUrls: s.catalogUrls ?? [],
     allowTerminal: !!s.allowTerminal,
     allowProxyAdmin: !!s.allowProxyAdmin,
     pingEnabled: s.pingEnabled ?? true,

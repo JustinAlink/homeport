@@ -20,6 +20,8 @@ export interface PersistedSettings {
   updateCheckEnabled?: boolean
   allowUpdates?: boolean
   allowStacks?: boolean
+  /** Extra app-catalog template source URLs (native or Portainer format). */
+  catalogUrls?: string[]
   allowTerminal?: boolean
   allowProxyAdmin?: boolean
   pingEnabled?: boolean

@@ -256,6 +256,30 @@ export function demoStackSave(name: string, content: string, _create: boolean) {
   return { ok: true, stack: { name, file: 'compose.yaml', content } }
 }
 
+export function demoCatalogInstall(
+  app: { name: string; image: string },
+  stackName: string,
+  content: string,
+): { ok: true; stack: string; opId: string } {
+  demoStackContent.set(stackName, content)
+  const opId = startOp(`install ${stackName}`, async (emit) => {
+    const lines = [
+      `$ docker compose -p ${stackName} up -d`,
+      `Pulling ${app.image}…`,
+      '✔ image pulled',
+      `✔ Container ${stackName}-app-1  Created`,
+      `✔ Container ${stackName}-app-1  Started`,
+      '✓ done',
+    ]
+    for (const l of lines) {
+      emit(l)
+      await new Promise((r) => setTimeout(r, 450))
+    }
+    return true
+  })
+  return { ok: true, stack: stackName, opId }
+}
+
 export function demoStackAction(name: string, op: string): string {
   // run a scripted op through the real registry so SSE streaming is identical
   const lines =

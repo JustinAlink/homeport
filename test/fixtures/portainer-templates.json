@@ -1,0 +1,56 @@
+{
+  "version": "2",
+  "templates": [
+    {
+      "type": 1,
+      "title": "Whoami",
+      "description": "Tiny webserver that prints request info.",
+      "categories": ["Tools"],
+      "platform": "linux",
+      "logo": "https://example.com/whoami.png",
+      "image": "traefik/whoami:latest",
+      "ports": ["8000:80/tcp"],
+      "restart_policy": "always",
+      "note": "Demo container.",
+      "env": [
+        {
+          "name": "WHOAMI_NAME",
+          "label": "Instance name",
+          "default": "whoami-1"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "label": "Log level",
+          "select": [
+            { "text": "Info", "value": "info", "default": true },
+            { "text": "Debug", "value": "debug" }
+          ]
+        },
+        {
+          "name": "HIDDEN_PRESET",
+          "label": "Hidden",
+          "default": "fixed",
+          "preset": true
+        }
+      ],
+      "volumes": [
+        { "container": "/data" },
+        { "container": "/etc/localtime", "bind": "/etc/localtime", "readonly": true }
+      ],
+      "labels": [{ "name": "my.custom", "value": "yes" }]
+    },
+    {
+      "type": 3,
+      "title": "Git Stack App",
+      "description": "Compose stack from a git repository — unsupported.",
+      "platform": "linux",
+      "repository": { "url": "https://github.com/example/app", "stackfile": "docker-compose.yml" }
+    },
+    {
+      "type": 1,
+      "title": "Windows Thing",
+      "platform": "windows",
+      "image": "example/windows:latest"
+    }
+  ]
+}

@@ -32,6 +32,7 @@ homeport reads it all live:
 - **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
+- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
@@ -277,9 +278,24 @@ the page.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.
 
+## App catalog
+
+Browse and one-click install apps from **/catalog** (linked in the dashboard header).
+Ships with a small curated set (Uptime Kuma, Vaultwarden, Jellyfin, Grafana, …) and you can
+add more template sources in **Settings → App catalog**:
+
+- **homeport native** — `{ "apps": [{ name, description, icon, compose, inputs }] }`, where
+  `compose` is a compose file with `{{VAR}}` placeholders and `inputs` describes the install form.
+- **Portainer app templates** (`templates.json`, v2/v3) — container-type templates from the huge
+  community ecosystem are converted to compose stacks automatically (git-stack/swarm templates
+  are skipped and counted, since they'd need a repository clone).
+
+An installed app is just a normal compose stack: it appears on the dashboard, and is editable on
+`/stacks/<name>` afterwards. Installing therefore requires the **Compose stacks** capability
+(browsing the catalog doesn't). Env: `HOMEPORT_CATALOG_URLS=url1,url2` (locks the settings field).
+
 ## Roadmap
 
-- **App catalog** — browse and one-click install Docker apps (templates on top of the stack manager)
 - Email/SMTP alert channel (webhooks ship today)
 - More reverse-proxy providers (the `DomainProvider` interface keeps these small — PRs welcome)
 

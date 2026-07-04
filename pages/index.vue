@@ -28,6 +28,11 @@
           title="Compose stacks"
         >Stacks</NuxtLink>
         <NuxtLink
+          to="/catalog"
+          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+          title="Install apps from the catalog"
+        >Catalog</NuxtLink>
+        <NuxtLink
           v-if="caps.proxyAdmin"
           to="/domains"
           class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"

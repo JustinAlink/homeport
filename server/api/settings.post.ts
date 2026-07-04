@@ -103,6 +103,18 @@ export default defineEventHandler(async (event) => {
   if (body.updateCheckEnabled !== undefined) patch.updateCheckEnabled = !!body.updateCheckEnabled
   if (body.allowUpdates !== undefined) patch.allowUpdates = !!body.allowUpdates
   if (body.allowStacks !== undefined) patch.allowStacks = !!body.allowStacks
+  if (body.catalogUrls !== undefined) {
+    if (!Array.isArray(body.catalogUrls))
+      throw createError({ statusCode: 400, statusMessage: 'catalogUrls must be an array' })
+    patch.catalogUrls = body.catalogUrls
+      .map((u) => (typeof u === 'string' ? u.trim() : ''))
+      .filter(Boolean)
+      .map((u) => {
+        if (!/^https?:\/\//.test(u))
+          throw createError({ statusCode: 400, statusMessage: 'catalog source URLs must be http(s)://' })
+        return u
+      })
+  }
   if (body.allowTerminal !== undefined) patch.allowTerminal = !!body.allowTerminal
   if (body.allowProxyAdmin !== undefined) patch.allowProxyAdmin = !!body.allowProxyAdmin
   if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
