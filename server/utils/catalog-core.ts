@@ -49,6 +49,24 @@ export function slugify(name: string): string {
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const strArr = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
 
+/**
+ * Community template lists are inconsistent about category casing/formatting
+ * ("development" vs "Development", "continuous-integration"). Normalize to
+ * Title Case with spaces so filters merge; short all-caps input stays (CMS).
+ */
+export function normalizeCategory(raw: string): string {
+  const c = raw.trim()
+  if (!c) return ''
+  if (c.length <= 5 && c === c.toUpperCase()) return c
+  return c
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => (w.length <= 3 && w === w.toUpperCase() ? w : w[0].toUpperCase() + w.slice(1).toLowerCase()))
+    .join(' ')
+}
+
+const categoryArr = (v: unknown) => [...new Set(strArr(v).map(normalizeCategory).filter(Boolean))]
+
 function sanitizeInput(raw: unknown): AppInput | null {
   const o = (raw ?? {}) as Record<string, unknown>
   const name = str(o.name)
@@ -102,7 +120,7 @@ export function parseNativeCatalog(
       slug,
       name,
       description: str(o.description),
-      categories: strArr(o.categories),
+      categories: categoryArr(o.categories),
       icon: str(o.icon),
       image: str(o.image),
       source,
@@ -216,7 +234,7 @@ export function parsePortainerTemplates(
       slug,
       name: title,
       description: str(o.description),
-      categories: strArr(o.categories),
+      categories: categoryArr(o.categories),
       icon: logo,
       image,
       source,

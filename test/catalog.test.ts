@@ -13,6 +13,7 @@ import {
   substituteTokens,
   composeForInstall,
   slugify,
+  normalizeCategory,
 } from '../server/utils/catalog-core.ts'
 import { BUILTIN_CATALOG } from '../server/utils/catalog-builtin.ts'
 
@@ -126,4 +127,12 @@ test('composeForInstall: end-to-end on a built-in app', () => {
   assert.ok(out.ok)
   const doc: any = parseYAML((out as any).content)
   assert.deepEqual(doc.services['uptime-kuma'].ports, ['3200:3001'])
+})
+
+test('normalizeCategory: merges community list inconsistencies', () => {
+  assert.equal(normalizeCategory('development'), 'Development')
+  assert.equal(normalizeCategory('Development'), 'Development')
+  assert.equal(normalizeCategory('continuous-integration'), 'Continuous Integration')
+  assert.equal(normalizeCategory('CMS'), 'CMS')
+  assert.equal(normalizeCategory('operating_system'), 'Operating System')
 })

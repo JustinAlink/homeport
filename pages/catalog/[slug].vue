@@ -33,38 +33,50 @@
       <div class="rounded-lg border border-white/10 bg-ink-900 p-5">
         <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Install</h2>
 
-        <div class="mb-4">
-          <label class="mb-1 block text-xs text-slate-400">Stack name</label>
-          <input
-            v-model="stackName"
-            class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          />
-          <p class="mt-1 text-[11px] text-slate-600">Becomes the directory + compose project name.</p>
+        <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs text-slate-400">Stack name</label>
+            <input
+              v-model="stackName"
+              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+            <p class="mt-1 text-[11px] text-slate-600">Becomes the directory + compose project name.</p>
+          </div>
+
+          <div v-for="input in visibleInputs" :key="input.name">
+            <label class="mb-1 block text-xs text-slate-400">
+              {{ input.label }}<span v-if="input.required" class="text-red-400"> *</span>
+            </label>
+            <select
+              v-if="input.select"
+              v-model="values[input.name]"
+              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            >
+              <option v-for="opt in input.select" :key="opt.value" :value="opt.value">{{ opt.text }}</option>
+            </select>
+            <input
+              v-else
+              v-model="values[input.name]"
+              :type="/password|secret|token/i.test(input.name) ? 'password' : 'text'"
+              :placeholder="input.default"
+              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+            />
+            <p v-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
+            <p v-if="portClash(input)" class="mt-1 text-[11px] text-amber-300">
+              ⚠ host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
+            </p>
+          </div>
         </div>
 
-        <div v-for="input in visibleInputs" :key="input.name" class="mb-4">
-          <label class="mb-1 block text-xs text-slate-400">
-            {{ input.label }}<span v-if="input.required" class="text-red-400"> *</span>
-          </label>
-          <select
-            v-if="input.select"
-            v-model="values[input.name]"
-            class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          >
-            <option v-for="opt in input.select" :key="opt.value" :value="opt.value">{{ opt.text }}</option>
-          </select>
-          <input
-            v-else
-            v-model="values[input.name]"
-            :type="/password|secret|token/i.test(input.name) ? 'password' : 'text'"
-            :placeholder="input.default"
-            class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          />
-          <p v-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
-          <p v-if="portClash(input)" class="mt-1 text-[11px] text-amber-300">
-            ⚠ host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
+        <details class="mt-5 rounded-md border border-white/5 bg-ink-950/60">
+          <summary class="cursor-pointer select-none px-3 py-2 text-xs text-slate-400 hover:text-slate-200">
+            What will run — compose preview
+          </summary>
+          <pre class="max-h-72 overflow-auto border-t border-white/5 p-3 font-mono text-[11px] leading-relaxed text-slate-400">{{ app.compose }}</pre>
+          <p class="border-t border-white/5 px-3 py-1.5 text-[10px] text-slate-600">
+            <code v-pre>{{VAR}}</code> placeholders are filled from the form on install.
           </p>
-        </div>
+        </details>
 
         <div class="mt-5 flex items-center gap-3">
           <button
@@ -117,6 +129,7 @@ interface CatalogAppFull {
   source: string
   notes?: string
   inputs: AppInputRow[]
+  compose: string
 }
 interface CatalogResponse {
   apps: CatalogAppFull[]
