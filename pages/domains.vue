@@ -1,8 +1,7 @@
 <template>
-  <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
       <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
-      <div class="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">⚓</div>
       <h1 class="text-xl font-semibold text-slate-100">Domains</h1>
       <span v-if="provider" class="font-mono text-xs text-slate-600">via {{ provider }}</span>
       <button

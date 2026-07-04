@@ -1,6 +1,6 @@
 <template>
-  <section class="mb-4 break-inside-avoid rounded-xl border border-white/5 bg-ink-900/40 p-2.5">
-    <button class="group mb-1 flex w-full items-center gap-3 px-1 text-left" @click="toggle">
+  <section class="mb-6 break-inside-avoid rounded-2xl border border-white/10 bg-ink-900 p-4 shadow-sm">
+    <button class="group mb-2 flex w-full items-center gap-3 px-1.5 text-left" @click="toggle">
       <svg
         class="h-3 w-3 shrink-0 text-slate-500 transition-transform"
         :class="collapsed ? '-rotate-90' : ''"
@@ -9,7 +9,7 @@
       >
         <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-300">
+      <h2 class="text-[13px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">
         {{ name }}
       </h2>
       <span class="text-xs text-slate-600">{{ running }}/{{ services.length }}</span>
@@ -20,7 +20,7 @@
       </span>
     </button>
 
-    <div v-show="!collapsed" class="flex flex-col gap-0.5">
+    <div v-show="!collapsed" class="flex flex-col gap-1.5">
       <ServiceCard v-for="s in services" :key="s.id" :service="s" />
     </div>
   </section>

@@ -1,11 +1,11 @@
 <template>
   <div
-    class="group relative flex flex-col gap-1.5 rounded-md px-2.5 py-2 transition-colors hover:bg-white/[0.03]"
+    class="group relative flex flex-col gap-2 rounded-xl px-3 py-3 transition-colors hover:bg-white/[0.04]"
     :class="{ 'opacity-60': service.state !== 'running' && service.kind === 'container' }"
   >
     <!-- top: logo · name + subtitle · control · status -->
-    <div class="flex items-center gap-2.5">
-      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" :remote="remoteIcons" />
+    <div class="flex items-center gap-3">
+      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="36" :remote="remoteIcons" />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5">
           <NuxtLink
@@ -22,28 +22,28 @@
             title="Update available — open the service page"
           >⬆</NuxtLink>
         </div>
-        <div class="truncate text-[11px] text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
+        <div class="mt-0.5 truncate text-xs text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
           {{ service.image }}
         </div>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <button
           v-if="caps.logs && service.kind === 'container'"
-          class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 opacity-0 transition hover:bg-white/5 group-hover:opacity-100"
+          class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-400 opacity-0 transition hover:bg-white/5 group-hover:opacity-100"
           title="View logs"
           @click="showLogs = true"
         >Logs</button>
         <button
           v-if="controlEnabled && service.kind === 'container' && isUp"
           :disabled="busy"
-          class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300 opacity-0 transition hover:bg-white/5 group-hover:opacity-100 disabled:opacity-50"
+          class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-300 opacity-0 transition hover:bg-white/5 group-hover:opacity-100 disabled:opacity-50"
           title="Restart"
           @click="control('restart')"
         >↻</button>
         <button
           v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
-          class="rounded border px-1.5 py-0.5 text-[10px] font-medium opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
+          class="rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
           :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-accent/25 text-accent-light hover:bg-accent/10'"
           @click="control(isUp ? 'stop' : 'start')"
         >{{ busy ? '…' : isUp ? 'Stop' : 'Start' }}</button>
@@ -52,7 +52,7 @@
     </div>
 
     <!-- domains + ports -->
-    <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1 pl-[42px]">
+    <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1.5 pl-[48px]">
       <a
         v-for="d in service.domains"
         :key="d.domain"
@@ -117,7 +117,7 @@ function pingClass(url: string) {
   const p = pings.value[url]
   if (!p) return ''
   if (p.status === 0) return 'bg-red-400'
-  if (p.status < 400) return 'bg-accent'
+  if (p.status < 400) return 'bg-ok'
   return 'bg-amber-400'
 }
 function pingTitle(url: string) {

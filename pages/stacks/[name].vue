@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-5 flex flex-wrap items-center gap-3">
       <NuxtLink to="/stacks" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
@@ -60,7 +60,7 @@
     <!-- operation output -->
     <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
       <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-        <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-accent' : 'bg-red-400'" />
+        <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
         {{ opRunning ? 'running…' : opOk ? 'finished' : 'failed' }}
       </div>
       <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>

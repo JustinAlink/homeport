@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-3xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
       <NuxtLink to="/catalog" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
       <template v-if="app">
@@ -94,7 +94,7 @@
       <!-- op output -->
       <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
         <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-          <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-accent' : 'bg-red-400'" />
+          <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
           {{ opRunning ? 'installing…' : opOk ? 'installed' : 'failed' }}
         </div>
         <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>

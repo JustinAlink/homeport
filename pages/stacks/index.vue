@@ -1,8 +1,7 @@
 <template>
-  <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
       <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
-      <div class="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">⚓</div>
       <h1 class="text-xl font-semibold text-slate-100">Stacks</h1>
       <span v-if="data" class="font-mono text-xs text-slate-600">{{ data.dir }}</span>
       <button
@@ -181,10 +180,10 @@ async function createFromGit() {
   }
 }
 
-const dotCls = (s: string) => (s === 'running' ? 'bg-accent' : s === 'partial' ? 'bg-amber-400' : 'bg-slate-600')
+const dotCls = (s: string) => (s === 'running' ? 'bg-ok' : s === 'partial' ? 'bg-amber-400' : 'bg-slate-600')
 const pillCls = (s: string) =>
   s === 'running'
-    ? 'border-accent/40 text-accent-light'
+    ? 'border-ok/40 text-ok'
     : s === 'partial'
       ? 'border-amber-400/40 text-amber-300'
       : 'border-white/10 text-slate-500'

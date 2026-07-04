@@ -1,45 +1,21 @@
 <template>
-  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-    <header class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-      <div class="flex items-center gap-2">
-        <div class="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">⚓</div>
-        <h1 class="text-xl font-semibold text-slate-100">homeport</h1>
+  <div class="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
+    <header class="mb-8 flex flex-wrap items-center gap-x-5 gap-y-4">
+      <div>
+        <h1 class="text-[22px] font-semibold tracking-tight text-slate-100">Fleet</h1>
+        <p v-if="data" class="mt-1 text-[13px] text-slate-500">
+          {{ data.stats.running }} running · {{ data.stats.total - data.stats.running }} stopped<template v-if="data.domainProvider"> · via {{ data.domainProvider }}</template>
+        </p>
       </div>
-      <div v-if="data" class="flex items-center gap-2 text-xs">
-        <span class="rounded-full bg-accent/10 px-2 py-0.5 text-accent-light">{{ data.stats.running }} running</span>
-        <span class="rounded-full bg-white/5 px-2 py-0.5 text-slate-400">{{ data.stats.total }} total</span>
-        <span v-if="data.domainProvider" class="hidden rounded-full bg-white/5 px-2 py-0.5 text-slate-500 sm:inline">
-          via {{ data.domainProvider }}
-        </span>
-      </div>
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex items-center gap-2.5">
         <SearchBar v-model="q" />
         <button
-          class="rounded-md border px-2.5 py-1.5 text-xs hover:bg-white/5"
+          class="rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-white/5"
           :class="showGraph ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
           title="Toggle CPU/RAM graph"
           @click="toggleGraph"
         >📈</button>
-        <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
-        <NuxtLink
-          v-if="caps.stacks"
-          to="/stacks"
-          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-          title="Compose stacks"
-        >Stacks</NuxtLink>
-        <NuxtLink
-          to="/catalog"
-          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-          title="Install apps from the catalog"
-        >Catalog</NuxtLink>
-        <NuxtLink
-          v-if="caps.proxyAdmin"
-          to="/domains"
-          class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-          title="Manage domains"
-        >Domains</NuxtLink>
-        <NuxtLink to="/settings" class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5" title="Settings">⚙</NuxtLink>
-        <button class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-white/5" @click="logout">Log out</button>
+        <button class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
       </div>
     </header>
 
@@ -51,9 +27,9 @@
       <code>HOMEPORT_ADMIN_PASSWORD</code> and put it behind HTTPS.
     </div>
 
-    <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-4" />
+    <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-6" />
 
-    <div v-if="showGraph" class="mb-5">
+    <div v-if="showGraph" class="mb-7">
       <div class="mb-2 flex items-center gap-1 text-[11px]">
         <button
           v-for="r in (['live', '1h', '6h', '24h'] as const)"
@@ -80,7 +56,7 @@
         :title="h.online ? '' : h.error || 'unreachable'"
         @click="hostFilter = h.name"
       >
-        <span class="h-1.5 w-1.5 rounded-full" :class="h.online ? 'bg-accent' : 'bg-red-400'" />
+        <span class="h-1.5 w-1.5 rounded-full" :class="h.online ? 'bg-ok' : 'bg-red-400'" />
         {{ h.name }}
       </button>
     </div>
@@ -92,7 +68,7 @@
 
     <div v-else>
       <p v-if="!groups.length" class="py-20 text-center text-slate-500">No services match “{{ q }}”.</p>
-      <div class="columns-1 gap-4 lg:columns-2 2xl:columns-3">
+      <div class="columns-1 gap-6 lg:columns-2 2xl:columns-3">
         <StackGroup v-for="g in groups" :key="g.name" :name="g.name" :services="g.services" />
 
         <section v-if="unmatched.length" class="mb-4 break-inside-avoid">
@@ -208,13 +184,6 @@ const unmatched = computed(() => {
   if (!term) return list
   return list.filter((u) => (u.domains.join(' ') + u.upstream).toLowerCase().includes(term))
 })
-
-async function logout() {
-  try {
-    await $fetch('/api/auth/logout', { method: 'POST' })
-  } catch {}
-  await navigateTo('/login')
-}
 
 useHead({ title: 'homeport' })
 </script>

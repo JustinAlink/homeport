@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+  <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <!-- header -->
     <header class="mb-5 flex flex-wrap items-center gap-3">
       <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>

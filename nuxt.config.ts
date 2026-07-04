@@ -25,10 +25,16 @@ export default defineNuxtConfig({
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: 'A zero-config status hub for your self-hosted Docker fleet.' },
-        { name: 'theme-color', content: '#0b0f14' },
+        { name: 'theme-color', content: '#0a0e15' },
         { name: 'robots', content: 'noindex' },
       ],
       htmlAttrs: { lang: 'en' },
+      script: [
+        {
+          // theme before first paint (no flash): explicit choice wins, else OS
+          innerHTML: `(function(){try{var t=localStorage.getItem('hp:theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d)}catch(e){document.documentElement.classList.add('dark')}})()`,
+        },
+      ],
     },
   },
 
