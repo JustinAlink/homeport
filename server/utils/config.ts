@@ -93,6 +93,15 @@ export interface HomeportConfig {
   alertChannels: WebhookChannel[]
 }
 
+/**
+ * Default app-catalog sources when none are configured — the official Portainer
+ * community template list. Shown as a normal row in settings, so it can be
+ * removed (saving an empty list) or replaced like any user-added source.
+ */
+export const DEFAULT_CATALOG_URLS = [
+  'https://raw.githubusercontent.com/portainer/templates/master/templates-2.0.json',
+]
+
 const envStr = (k: string) => {
   const v = process.env[k]
   return v !== undefined && v !== '' ? v : undefined
@@ -158,7 +167,7 @@ export function getConfig(): HomeportConfig {
             .split(',')
             .map((x) => x.trim())
             .filter(Boolean)
-        : s.catalogUrls ?? [],
+        : s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal:
       envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined
         ? process.env.HOMEPORT_ALLOW_TERMINAL === 'true'
@@ -261,7 +270,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     updateCheckEnabled: !!s.updateCheckEnabled,
     allowUpdates: !!s.allowUpdates,
     allowStacks: !!s.allowStacks,
-    catalogUrls: s.catalogUrls ?? [],
+    catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal: !!s.allowTerminal,
     allowProxyAdmin: !!s.allowProxyAdmin,
     pingEnabled: s.pingEnabled ?? true,

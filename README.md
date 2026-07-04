@@ -281,8 +281,9 @@ the page.
 ## App catalog
 
 Browse and one-click install apps from **/catalog** (linked in the dashboard header).
-Ships with a small curated set (Uptime Kuma, Vaultwarden, Jellyfin, Grafana, …) and you can
-add more template sources in **Settings → App catalog**:
+Ships with a small curated set (Uptime Kuma, Vaultwarden, Jellyfin, Grafana, …) plus the
+official [Portainer community templates](https://github.com/portainer/templates) as a default
+remote source — and you can add, replace or remove sources in **Settings → App catalog**:
 
 - **homeport native** — `{ "apps": [{ name, description, icon, compose, inputs }] }`, where
   `compose` is a compose file with `{{VAR}}` placeholders and `inputs` describes the install form.
