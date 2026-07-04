@@ -330,6 +330,16 @@ export function demoCatalogInstall(
   return { ok: true, stack: stackName, opId }
 }
 
+// In-memory restart policies so the start-on-boot row round-trips in demo.
+const demoPolicies: Record<string, string> = {}
+export function demoRestartPolicy(id: string) {
+  return { policy: demoPolicies[id] ?? 'unless-stopped', composeManaged: true }
+}
+export function demoSetRestartPolicy(id: string, policy: string) {
+  demoPolicies[id] = policy
+  return { ok: true, policy }
+}
+
 export function demoStackAction(name: string, op: string): string {
   // run a scripted op through the real registry so SSE streaming is identical
   const lines =

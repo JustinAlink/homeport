@@ -58,6 +58,35 @@
           </div>
         </div>
 
+        <!-- restart policy: whether this container comes back on reboot -->
+        <div
+          v-if="service.kind === 'container' && restart.policy !== null"
+          class="flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-ink-900 px-3 py-2.5 text-xs"
+        >
+          <span class="uppercase tracking-wider text-slate-500">Start on boot</span>
+          <select
+            v-model="restart.selected"
+            :disabled="!caps.control"
+            class="rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
+          >
+            <option value="unless-stopped">unless-stopped — start on boot (unless you stopped it)</option>
+            <option value="always">always — start on boot, restart on crash</option>
+            <option value="on-failure">on-failure — only restart after crashes</option>
+            <option value="no">no — stays down after a reboot</option>
+          </select>
+          <button
+            v-if="restart.selected !== restart.policy"
+            :disabled="restart.saving"
+            class="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            @click="saveRestartPolicy"
+          >{{ restart.saving ? 'Applying…' : 'Apply' }}</button>
+          <span v-if="restart.msg" class="text-[11px]" :class="restart.ok ? 'text-accent-light' : 'text-red-400'">{{ restart.msg }}</span>
+          <span v-if="!caps.control" class="text-[11px] text-slate-600">needs the start/stop capability</span>
+          <span v-else-if="restart.composeManaged" class="basis-full text-[11px] text-slate-600">
+            ⚠ compose-managed: this applies immediately, but the compose file's <code>restart:</code> wins if the stack is recreated — update it there too for a permanent change.
+          </span>
+        </div>
+
         <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1.5">
           <a
             v-for="d in service.domains"
@@ -237,6 +266,43 @@ function onDomainSaved() {
   tab.value = 'overview'
 }
 
+// --- restart policy (start on boot) ---
+const restart = reactive({
+  policy: null as string | null,
+  selected: 'no',
+  composeManaged: false,
+  saving: false,
+  msg: '',
+  ok: false,
+})
+
+async function loadRestartPolicy() {
+  try {
+    const r = await $fetch<{ policy: string; composeManaged: boolean }>('/api/restart-policy', { query: { id } })
+    restart.policy = r.policy
+    restart.selected = r.policy
+    restart.composeManaged = r.composeManaged
+  } catch {
+    restart.policy = null // endpoint unavailable (e.g. host down) — hide the row
+  }
+}
+
+async function saveRestartPolicy() {
+  restart.saving = true
+  restart.msg = ''
+  try {
+    await $fetch('/api/restart-policy', { method: 'POST', body: { id, policy: restart.selected } })
+    restart.policy = restart.selected
+    restart.ok = true
+    restart.msg = restart.selected === 'no' ? 'applied — this container will stay down after a reboot.' : 'applied.'
+  } catch (e: any) {
+    restart.ok = false
+    restart.msg = errMsg(e, 'could not change the restart policy')
+  } finally {
+    restart.saving = false
+  }
+}
+
 // --- overview facts ---
 const facts = computed(() => {
   const s = service.value!
@@ -333,6 +399,7 @@ async function apply() {
 }
 
 onMounted(() => {
+  loadRestartPolicy()
   start()
   stats.start()
   loadCaps()

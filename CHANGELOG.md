@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.3.1 — 2026-07-04
+
+- **Start-on-boot control**: every container's page (Overview) gets a restart-policy
+  selector — `unless-stopped` / `always` / `on-failure` / `no` — applied live via
+  `docker update`, no recreate. Control-capability gated; compose-managed containers
+  get an honest note that the compose file wins on recreate.
+
 ## v2.3.0 — 2026-07-04
 
 - **Self-update from the UI** (Settings → About): a short-lived helper container
