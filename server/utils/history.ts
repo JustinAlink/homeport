@@ -11,6 +11,7 @@ import { type Series, createSeries, appendPoint, readRange, serialize, deseriali
 // ---- fs / runtime layer ----
 
 const HOST_KEY = 'host'
+const SYSTEM_KEY = 'host-system'
 const safeKey = (id: string) => 'c_' + id.replace(/[^a-zA-Z0-9]+/g, '_')
 
 const statsDir = () => join(process.env.HOMEPORT_DATA_DIR || '/data', 'stats')
@@ -75,6 +76,13 @@ export function recordHistory(snap: Snapshot): void {
     const s = loadSeries(HOST_KEY)
     appendPoint(s, at, snap.host.cpuPercent, snap.host.memPercent)
     lastSeen.set(HOST_KEY, at)
+  }
+
+  // whole-host system series (procfs) — lets graphs show container vs machine
+  if (snap.host?.system) {
+    const s = loadSeries(SYSTEM_KEY)
+    appendPoint(s, at, snap.host.system.cpuPercent, snap.host.system.memPercent)
+    lastSeen.set(SYSTEM_KEY, at)
   }
 
   // per-container series (cpu %, mem MiB)

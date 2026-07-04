@@ -27,7 +27,7 @@ homeport reads it all live:
 - **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
 - **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
 - **systemd** — optionally shows host systemd services alongside containers.
-- **Resource stats** — live CPU + memory per container with **sparklines** (click through to the service page's full CPU/RAM graph), per-stack totals, a **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range.
+- **Resource stats** — live CPU + memory per container with **sparklines** (click through to the service page's full CPU/RAM graph), per-stack totals, a **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range — including **whole-machine CPU/RAM** (containers vs. everything else), read straight from procfs with no extra mounts.
 - **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
 - **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).

@@ -49,6 +49,13 @@ export interface HostStats {
   memUsed: number
   memTotal: number // host total RAM (from docker info)
   memPercent: number
+  /** Whole-host usage from procfs (containers + everything else). Absent for remote hosts. */
+  system?: {
+    cpuPercent: number
+    memUsed: number // total − available: honest "in use", page cache excluded
+    memTotal: number
+    memPercent: number
+  } | null
 }
 
 export interface StatsResponse {

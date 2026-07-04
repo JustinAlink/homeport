@@ -69,6 +69,8 @@ export interface HomeportConfig {
   systemdEnabled: boolean
   /** Optional allowlist of systemd units to show (empty = active + failed). */
   systemdUnits: string[]
+  /** procfs path for whole-host CPU/RAM ('' disables). In-container /proc shows host values. */
+  hostProcPath: string
   /** Fetch real app logos from the dashboard-icons CDN. On by default. */
   remoteIcons: boolean
   /** Background collector cadence in seconds (feeds history + alerts). Min 10. */
@@ -187,6 +189,10 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_SYSTEMD') !== undefined
         ? process.env.HOMEPORT_SYSTEMD === 'true'
         : !!s.systemdEnabled,
+    hostProcPath: (() => {
+      const v = envStr('HOMEPORT_HOST_PROC') ?? '/proc'
+      return v === 'off' || v === 'false' ? '' : v
+    })(),
     systemdUnits: (envStr('HOMEPORT_SYSTEMD_UNITS') || '')
       .split(',')
       .map((x) => x.trim())

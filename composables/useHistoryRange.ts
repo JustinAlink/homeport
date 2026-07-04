@@ -11,8 +11,16 @@ export function fillGaps(a: (number | null)[]): number[] {
  * /api/history id ('host' for the fleet, or a service id). 'live' uses the
  * caller's in-memory buffer; the ranges load persisted history here.
  */
-export function useHistoryRange(id: string) {
-  const range = ref<GraphRange>('live')
+const RANGES: GraphRange[] = ['live', '1h', '6h', '24h']
+
+export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
+  // A history default matters for first paint: 'live' starts empty and needs
+  // ~a minute of polling, while ranges draw instantly from the collector.
+  const stored = import.meta.client ? (localStorage.getItem(`hp:range:${id}`) as GraphRange | null) : null
+  const range = ref<GraphRange>(stored && RANGES.includes(stored) ? stored : defaultRange)
+  watch(range, (r) => {
+    if (import.meta.client) localStorage.setItem(`hp:range:${id}`, r)
+  })
   const intervalSec = computed(() => (range.value === 'live' ? 7 : 60))
   const past = ref<{ cpu: number[]; mem: number[] } | null>(null)
 

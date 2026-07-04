@@ -120,18 +120,29 @@ const { data, error, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
+const systemHistory = stats.systemHistory
 const showGraph = ref(false)
 
 // Fleet graph range. 'live' = the in-memory rolling buffer; ranges load history.
-const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host')
-watch(showGraph, () => loadFleetHistory())
+const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host', '1h')
+const { range: sysRange, past: systemPast, load: loadSystemHistory } = useHistoryRange('host-system', '1h')
+watch(graphRange, (r) => (sysRange.value = r))
+watch(showGraph, () => {
+  loadFleetHistory()
+  loadSystemHistory()
+})
 
 const fleetSeries = computed(() => {
   const src = graphRange.value === 'live' ? fleetHistory.value : fleetPast.value ?? { cpu: [], mem: [] }
-  return [
-    { label: 'CPU', color: '#10b981', data: src.cpu, unit: '%' },
-    { label: 'RAM', color: '#38bdf8', data: src.mem, unit: '%' },
+  const sys = graphRange.value === 'live' ? systemHistory.value : systemPast.value ?? { cpu: [], mem: [] }
+  const out = [
+    { label: 'Containers CPU', color: '#10b981', data: src.cpu, unit: '%' },
+    { label: 'Containers RAM', color: '#38bdf8', data: src.mem, unit: '%' },
   ]
+  // whole-machine series (procfs) — shows what the host uses beyond containers
+  if (sys.cpu.length) out.push({ label: 'System CPU', color: '#a78bfa', data: sys.cpu, unit: '%' })
+  if (sys.mem.length) out.push({ label: 'System RAM', color: '#f59e0b', data: sys.mem, unit: '%' })
+  return out
 })
 const pings = usePings()
 const { caps } = useCapabilities()

@@ -461,6 +461,29 @@
         </div>
       </section>
 
+      <!-- About / self-update -->
+      <section :id="'about'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">About</h2>
+        <p class="text-xs text-slate-500">
+          homeport <b class="text-slate-300">v{{ appVersion || '…' }}</b>
+          <template v-if="caps.demo"> · demo mode</template>
+        </p>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
+            :disabled="selfUpdating || !caps.updates && !caps.demo"
+            @click="selfUpdate"
+          >⬆ Update homeport</button>
+          <span v-if="!caps.updates && !caps.demo" class="text-[11px] text-slate-500">needs the “Apply image updates” capability</span>
+          <span v-if="selfUpdateMsg" class="text-[11px]" :class="selfUpdateOk ? 'text-accent-light' : 'text-red-400'">{{ selfUpdateMsg }}</span>
+        </div>
+        <p class="text-[11px] text-slate-600">
+          Pulls the newest image and recreates this container from outside (a short-lived helper
+          runs <code>compose pull && up -d</code>). The UI reconnects automatically.
+        </p>
+      </section>
+
       <div class="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-white/5 bg-ink-950/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
         <button
           type="submit"
@@ -503,10 +526,60 @@ const sections = computed(() =>
     { id: 'alerts', label: 'Alerts' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
+    { id: 'about', label: 'About' },
   ],
 )
 
 const { caps, load: loadCaps } = useCapabilities()
+
+// --- about / self-update ---
+const appVersion = ref('')
+const selfUpdating = ref(false)
+const selfUpdateMsg = ref('')
+const selfUpdateOk = ref(false)
+
+async function selfUpdate() {
+  if (!window.confirm('Update homeport to the latest image? The UI will briefly disconnect while the container is recreated.')) return
+  selfUpdating.value = true
+  selfUpdateOk.value = false
+  selfUpdateMsg.value = 'starting the update helper…'
+  const before = appVersion.value
+  try {
+    await $fetch('/api/self-update', { method: 'POST' })
+  } catch (e: any) {
+    selfUpdateMsg.value = errMsg(e, 'could not start the update')
+    selfUpdating.value = false
+    return
+  }
+  if (caps.value.demo) {
+    await new Promise((r) => setTimeout(r, 4000))
+    selfUpdateOk.value = true
+    selfUpdateMsg.value = 'updated (demo) — already current.'
+    selfUpdating.value = false
+    return
+  }
+  selfUpdateMsg.value = 'pulling the new image… the page will reconnect by itself.'
+  const deadline = Date.now() + 5 * 60_000
+  const poll = async () => {
+    try {
+      const v = await $fetch<{ version: string }>('/api/version', { timeout: 4000 })
+      if (v.version && v.version !== before) {
+        selfUpdateMsg.value = `updated to v${v.version} — reloading…`
+        selfUpdateOk.value = true
+        setTimeout(() => window.location.reload(), 1200)
+        return
+      }
+    } catch {
+      selfUpdateMsg.value = 'homeport is restarting… reconnecting.'
+    }
+    if (Date.now() < deadline) setTimeout(poll, 3000)
+    else {
+      selfUpdateMsg.value = 'still waiting — if this persists, check `docker ps` on the host.'
+      selfUpdating.value = false
+    }
+  }
+  setTimeout(poll, 4000)
+}
 
 // change password
 const pw = reactive({ current: '', next: '', confirm: '' })
@@ -697,6 +770,9 @@ function addHost() {
 
 onMounted(async () => {
   loadCaps()
+  $fetch<{ version: string }>('/api/version')
+    .then((v) => (appVersion.value = v.version))
+    .catch(() => {})
   try {
     const r = await $fetch<any>('/api/settings')
     Object.assign(form, r.settings)

@@ -3,6 +3,7 @@ import type { HostConfig } from './hosts'
 import { getDockerFor, listContainersFor, oneShot } from './docker'
 import { getHosts } from './hosts'
 import { getConfig } from './config'
+import { readHostSystem } from './host-system'
 import { demoStats } from './demo'
 
 // One-shot CPU% using Docker's standard delta formula. With stream:false the
@@ -95,7 +96,9 @@ export async function collectStats(): Promise<StatsResponse> {
     }),
   )
 
-  return { containers, host: aggregateHostStats(containers, ncpu, memTotal) }
+  const host = aggregateHostStats(containers, ncpu, memTotal)
+  if (host) host.system = readHostSystem()
+  return { containers, host }
 }
 
 /** Aggregate fleet usage vs host capacity across all containers + hosts. */

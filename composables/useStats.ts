@@ -14,6 +14,7 @@ export function useStats() {
   const host = useState<HostStats | null>('hp:host', () => null)
   const history = useState<Record<string, StatHistory>>('hp:hist', () => ({}))
   const hostHistory = useState<StatHistory>('hp:hosthist', () => ({ cpu: [], mem: [] }))
+  const systemHistory = useState<StatHistory>('hp:syshist', () => ({ cpu: [], mem: [] }))
   let poll: ReturnType<typeof setInterval> | null = null
 
   const push = (arr: number[], v: number) => {
@@ -42,6 +43,12 @@ export function useStats() {
           cpu: push(hostHistory.value.cpu, r.host.cpuPercent),
           mem: push(hostHistory.value.mem, r.host.memPercent),
         }
+        if (r.host.system) {
+          systemHistory.value = {
+            cpu: push(systemHistory.value.cpu, r.host.system.cpuPercent),
+            mem: push(systemHistory.value.mem, r.host.system.memPercent),
+          }
+        }
       }
     } catch {
       // keep last values
@@ -57,5 +64,5 @@ export function useStats() {
     poll = null
   }
 
-  return { stats, host, history, hostHistory, refresh, start, stop }
+  return { stats, host, history, hostHistory, systemHistory, refresh, start, stop }
 }

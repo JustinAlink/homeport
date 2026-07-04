@@ -1,0 +1,34 @@
+name: Bug report
+description: Something in homeport misbehaves
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: homeport version
+      description: Settings → About, or the image tag you run
+      placeholder: v2.3.0
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: How do you run homeport?
+      placeholder: |
+        docker compose with the socket proxy · reverse proxy: NPM
+        capabilities enabled: stacks, updates
+        single host / multi-host / ssh remote
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`docker logs homeport` around the time it happened (redact domains/tokens)"
+      render: text

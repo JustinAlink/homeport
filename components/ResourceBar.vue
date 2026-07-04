@@ -13,12 +13,19 @@
     <div class="rounded-lg border border-white/5 bg-ink-900 px-3 py-2">
       <div class="flex items-baseline justify-between">
         <span class="text-[10px] uppercase tracking-wide text-slate-500">RAM</span>
-        <span class="text-sm font-semibold text-slate-100">{{ fleet.memPercent }}%</span>
+        <span class="text-sm font-semibold text-slate-100">{{ fleet.system ? fleet.system.memPercent : fleet.memPercent }}%</span>
       </div>
-      <div class="mt-1.5 h-1 overflow-hidden rounded bg-white/5">
-        <div class="h-full rounded" style="background: #38bdf8" :style="{ width: clamp(fleet.memPercent) + '%' }" />
+      <div class="mt-1.5 flex h-1 overflow-hidden rounded bg-white/5" :title="fleet.system ? 'blue = containers · amber = rest of the system' : ''">
+        <div class="h-full" style="background: #38bdf8" :style="{ width: clamp(fleet.memPercent) + '%' }" />
+        <div v-if="fleet.system" class="h-full" style="background: #f59e0b" :style="{ width: clamp(fleet.system.memPercent - fleet.memPercent) + '%' }" />
       </div>
-      <div class="mt-1 text-[10px] text-slate-500">{{ formatBytes(fleet.memUsed) }} / {{ formatBytes(fleet.memTotal) }}</div>
+      <div class="mt-1 text-[10px] text-slate-500">
+        <template v-if="fleet.system">
+          {{ formatBytes(fleet.system.memUsed) }} / {{ formatBytes(fleet.system.memTotal) }}
+          <span class="text-slate-600">· containers {{ formatBytes(fleet.memUsed) }}</span>
+        </template>
+        <template v-else>{{ formatBytes(fleet.memUsed) }} / {{ formatBytes(fleet.memTotal) }}</template>
+      </div>
     </div>
 
     <div class="rounded-lg border border-white/5 bg-ink-900 px-3 py-2">
