@@ -14,8 +14,8 @@
           :class="showGraph ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
           title="Toggle CPU/RAM graph"
           @click="toggleGraph"
-        >📈</button>
-        <button class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" title="Refresh" @click="refresh">↻</button>
+        ><Icon name="chart" class="h-4 w-4" /></button>
+        <button class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" title="Refresh" @click="refresh"><Icon name="refresh" class="h-4 w-4" /></button>
       </div>
     </header>
 
@@ -23,7 +23,7 @@
       v-if="caps.loginDisabled && !caps.demo"
       class="mb-4 rounded-md border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-300"
     >
-      ⚠️ Login is disabled — anyone who can reach homeport sees your whole fleet. Set
+      Login is disabled — anyone who can reach homeport sees your whole fleet. Set
       <code>HOMEPORT_ADMIN_PASSWORD</code> and put it behind HTTPS.
     </div>
 

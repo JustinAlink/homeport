@@ -2,7 +2,7 @@
   <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <!-- header -->
     <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <template v-if="service">
         <ServiceIcon :name="service.displayName" :icon="service.icon" :size="40" :remote="remoteIcons" />
         <div class="min-w-0">
@@ -18,7 +18,7 @@
             :disabled="busy"
             class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
             @click="control('restart')"
-          >↻ Restart</button>
+          ><Icon name="refresh" class="h-3.5 w-3.5" /> Restart</button>
           <button
             v-if="caps.control"
             :disabled="busy"
@@ -83,7 +83,7 @@
           <span v-if="restart.msg" class="text-[11px]" :class="restart.ok ? 'text-accent-light' : 'text-red-400'">{{ restart.msg }}</span>
           <span v-if="!caps.control" class="text-[11px] text-slate-600">needs the start/stop capability</span>
           <span v-else-if="restart.composeManaged" class="basis-full text-[11px] text-slate-600">
-            ⚠ compose-managed: this applies immediately, but the compose file's <code>restart:</code> wins if the stack is recreated — update it there too for a permanent change.
+            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> compose-managed: this applies immediately, but the compose file's <code>restart:</code> wins if the stack is recreated — update it there too for a permanent change.
           </span>
         </div>
 
@@ -96,7 +96,7 @@
             rel="noopener noreferrer"
             class="inline-flex items-center gap-1 rounded bg-accent/10 px-2 py-1 text-xs text-accent-light hover:bg-accent/20"
           >
-            <span v-if="d.ssl" class="text-[10px]">🔒</span>{{ d.domain }}
+            <Icon v-if="d.ssl" name="lock" class="h-3 w-3 opacity-70" />{{ d.domain }}
           </a>
           <a
             v-for="p in service.ports"

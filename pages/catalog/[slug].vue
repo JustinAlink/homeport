@@ -1,7 +1,7 @@
 <template>
   <div class="mx-auto max-w-3xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/catalog" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/catalog" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <template v-if="app">
         <ServiceIcon :name="app.name" :icon="app.icon" :size="34" />
         <div>
@@ -63,7 +63,7 @@
             />
             <p v-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
             <p v-if="portClash(input)" class="mt-1 text-[11px] text-amber-300">
-              ⚠ host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
+              <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
             </p>
           </div>
         </div>

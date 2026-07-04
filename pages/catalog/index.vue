@@ -1,7 +1,7 @@
 <template>
   <div class="mx-auto max-w-6xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">App catalog</h1>
       <span v-if="data" class="text-xs text-slate-600">{{ data.apps.length }} apps</span>
 
@@ -14,7 +14,7 @@
         >
           <span class="h-2 w-2 rounded-full" :class="sourcesHealthy ? 'bg-accent' : 'bg-red-400'" />
           {{ data ? data.sources.length : '…' }} sources
-          <span class="text-slate-600">{{ sourcesOpen ? '▴' : '▾' }}</span>
+          <Icon :name="sourcesOpen ? 'chevron-up' : 'chevron-down'" class="h-3 w-3 text-slate-600" />
         </button>
         <div
           v-if="sourcesOpen && data"
@@ -26,7 +26,7 @@
               class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5 disabled:opacity-40"
               :disabled="refreshing"
               @click="refresh"
-            >{{ refreshing ? 'Refreshing…' : '↻ Refresh' }}</button>
+            >{{ refreshing ? 'Refreshing…' : 'Refresh' }}</button>
           </div>
           <div class="space-y-1.5">
             <div
@@ -55,8 +55,8 @@
     <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
 
     <!-- skeleton grid while loading -->
-    <div v-else-if="!data" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="i in 9" :key="i" class="flex animate-pulse gap-3 rounded-lg border border-white/5 bg-ink-900 p-4">
+    <div v-else-if="!data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-for="i in 9" :key="i" class="flex animate-pulse gap-3.5 rounded-2xl border border-white/10 bg-ink-900 p-5">
         <div class="h-10 w-10 shrink-0 rounded-md bg-white/5" />
         <div class="min-w-0 flex-1 space-y-2 py-0.5">
           <div class="h-3.5 w-2/5 rounded bg-white/5" />
@@ -89,19 +89,19 @@
           v-if="categories.length > CATEGORY_LIMIT"
           class="rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-500 hover:bg-white/5"
           @click="allCategories = !allCategories"
-        >{{ allCategories ? 'less ▴' : `+${categories.length - CATEGORY_LIMIT} more ▾` }}</button>
+        >{{ allCategories ? 'show less' : `+${categories.length - CATEGORY_LIMIT} more` }}</button>
       </div>
 
       <p v-if="!filtered.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
         No apps match<template v-if="query"> “{{ query }}”</template>.
       </p>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <NuxtLink
           v-for="app in paged"
           :key="`${app.source}:${app.slug}`"
           :to="`/catalog/${app.slug}`"
-          class="group flex gap-3 rounded-lg border border-white/5 bg-ink-900 p-4 transition-all hover:-translate-y-px hover:border-accent/30 hover:shadow-lg hover:shadow-black/20"
+          class="group flex gap-3.5 rounded-2xl border border-white/10 bg-ink-900 p-5 transition-all hover:-translate-y-px hover:border-accent/30 hover:shadow-lg hover:shadow-black/10"
         >
           <div class="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-ink-950/70">
             <ServiceIcon :name="app.name" :icon="app.icon" :size="30" />
@@ -111,7 +111,7 @@
               <span class="truncate text-sm font-medium text-slate-100 group-hover:text-white">{{ app.name }}</span>
               <span
                 v-if="app.categories[0]"
-                class="ml-auto shrink-0 rounded-full border border-white/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-slate-500"
+                class="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-slate-600"
               >{{ app.categories[0] }}</span>
             </div>
             <p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{{ app.description || app.image }}</p>
@@ -125,10 +125,10 @@
       <!-- pagination -->
       <div v-if="pageCount > 1" class="mt-6 flex items-center justify-center gap-1.5 text-xs">
         <button
-          class="rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
+          class="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
           :disabled="page === 1"
           @click="go(page - 1)"
-        >‹ Prev</button>
+        ><Icon name="chevron-left" class="h-3 w-3" /> Prev</button>
         <button
           v-for="p in pageNumbers"
           :key="p.key"
@@ -138,10 +138,10 @@
           @click="p.n && go(p.n)"
         >{{ p.n || '…' }}</button>
         <button
-          class="rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
+          class="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
           :disabled="page === pageCount"
           @click="go(page + 1)"
-        >Next ›</button>
+        >Next <Icon name="chevron-right" class="h-3 w-3" /></button>
         <span class="ml-3 text-slate-600">{{ filtered.length }} apps</span>
       </div>
     </template>

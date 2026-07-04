@@ -1,7 +1,7 @@
 <template>
   <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">Settings</h1>
     </header>
 
@@ -470,10 +470,10 @@
         <div class="flex items-center gap-3">
           <button
             type="button"
-            class="rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
+            class="inline-flex items-center gap-1.5 rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
             :disabled="selfUpdating || !caps.updates && !caps.demo"
             @click="selfUpdate"
-          >⬆ Update homeport</button>
+          ><Icon name="arrow-up" class="h-3.5 w-3.5" /> Update homeport</button>
           <span v-if="!caps.updates && !caps.demo" class="text-[11px] text-slate-500">needs the “Apply image updates” capability</span>
           <span v-if="selfUpdateMsg" class="text-[11px]" :class="selfUpdateOk ? 'text-accent-light' : 'text-red-400'">{{ selfUpdateMsg }}</span>
         </div>

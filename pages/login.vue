@@ -2,7 +2,7 @@
   <div class="grid min-h-screen place-items-center px-4">
     <div class="w-full max-w-xs space-y-4 rounded-xl border border-white/5 bg-ink-900 p-6">
       <div class="text-center">
-        <div class="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-md bg-accent/15 text-lg text-accent">⚓</div>
+        <div class="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-xl bg-accent/15 text-accent"><Icon name="anchor" class="h-5 w-5" /></div>
         <h1 class="text-lg font-semibold text-slate-100">homeport</h1>
         <p class="text-xs text-slate-500">{{ needsSetup ? 'Welcome — create an admin password' : 'Sign in to view your fleet' }}</p>
       </div>

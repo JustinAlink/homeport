@@ -1,7 +1,7 @@
 <template>
   <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">Domains</h1>
       <span v-if="provider" class="font-mono text-xs text-slate-600">via {{ provider }}</span>
       <button
@@ -30,7 +30,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-1.5">
                 <span v-for="d in r.domains" :key="d" class="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent-light">
-                  <span v-if="r.ssl" class="text-[10px]">🔒</span>{{ d }}
+                  <Icon v-if="r.ssl" name="lock" class="h-3 w-3 opacity-70" />{{ d }}
                 </span>
               </div>
               <p class="mt-0.5 font-mono text-[11px] text-slate-500">→ {{ r.upstreamHost }}:{{ r.upstreamPort }}</p>

@@ -20,7 +20,7 @@
             :to="`/services/${encodeURIComponent(service.id)}`"
             class="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 text-[10px] leading-4 text-sky-300"
             title="Update available — open the service page"
-          >⬆</NuxtLink>
+          ><Icon name="arrow-up" class="mx-auto h-3 w-3" /></NuxtLink>
         </div>
         <div class="mt-0.5 truncate text-xs text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
           {{ service.image }}
@@ -39,7 +39,7 @@
           class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-300 opacity-0 transition hover:bg-white/5 group-hover:opacity-100 disabled:opacity-50"
           title="Restart"
           @click="control('restart')"
-        >↻</button>
+        ><Icon name="refresh" class="h-3 w-3" /></button>
         <button
           v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
@@ -47,7 +47,12 @@
           :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-accent/25 text-accent-light hover:bg-accent/10'"
           @click="control(isUp ? 'stop' : 'start')"
         >{{ busy ? '…' : isUp ? 'Stop' : 'Start' }}</button>
-        <StatusPill :state="service.state" :health="service.health" />
+        <span
+          v-if="service.state === 'running' && (!service.health || service.health === 'healthy')"
+          class="h-2 w-2 shrink-0 rounded-full bg-ok"
+          :title="service.health ? 'running (healthy)' : 'running'"
+        />
+        <StatusPill v-else :state="service.state" :health="service.health" />
       </div>
     </div>
 
@@ -62,7 +67,7 @@
         class="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-light hover:bg-accent/20"
       >
         <span v-if="pings[d.url]" class="h-1.5 w-1.5 rounded-full" :class="pingClass(d.url)" :title="pingTitle(d.url)" />
-        <span v-if="d.ssl" class="text-[9px]" title="SSL">🔒</span>
+        <Icon v-if="d.ssl" name="lock" class="h-2.5 w-2.5 opacity-70" title="SSL" />
         <span class="max-w-[12rem] truncate">{{ d.domain }}</span>
       </a>
       <a
@@ -76,7 +81,7 @@
     </div>
 
     <!-- metrics (running container) — sparkline links to the full detail graph -->
-    <div v-if="stat && service.state === 'running'" class="flex items-center gap-2 pl-[42px] text-[11px] text-slate-500">
+    <div v-if="stat && service.state === 'running'" class="flex items-center gap-2.5 pl-[48px] text-xs text-slate-500">
       <span class="text-slate-400">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
       <NuxtLink
         v-if="cpuHistory.length > 1"
@@ -88,10 +93,9 @@
         <span v-if="memHistory.length > 1" class="absolute inset-0"><Sparkline :data="memHistory" color="#38bdf8" /></span>
       </NuxtLink>
       <span>{{ formatBytes(stat.memBytes) }}</span>
-      <span v-if="stat.memPercent != null" class="text-slate-600">· {{ stat.memPercent }}%</span>
     </div>
     <!-- non-running / systemd status -->
-    <p v-else class="truncate pl-[42px] text-[11px] text-slate-500">{{ service.statusText }}</p>
+    <p v-else class="truncate pl-[48px] text-xs text-slate-500">{{ service.statusText }}</p>
 
     <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
   </div>

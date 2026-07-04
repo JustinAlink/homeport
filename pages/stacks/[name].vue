@@ -1,7 +1,7 @@
 <template>
   <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
     <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/stacks" class="text-slate-400 hover:text-slate-200" aria-label="Back">←</NuxtLink>
+      <NuxtLink to="/stacks" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
       <span v-if="file" class="font-mono text-xs text-slate-600">{{ file }}</span>
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
@@ -9,19 +9,19 @@
         <button
           v-if="gitInfo"
           :disabled="opRunning"
-          class="rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
+          class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
           :class="gitInfo.behind ? 'border-accent/40 bg-accent/10 text-accent-light' : 'border-white/10 text-slate-300 hover:bg-white/5'"
           :title="gitInfo.behind ? 'The repository has new commits' : 'Re-pull and redeploy from the repository'"
           @click="runAction('update')"
-        >{{ gitInfo.behind ? '⬆ Update available' : '↑ Update from Git' }}</button>
+        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ gitInfo.behind ? 'Update available' : 'Update from Git' }}</button>
         <button
           v-for="a in actions"
           :key="a.op"
           :disabled="opRunning"
-          class="rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
+          class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
           :class="a.cls"
           @click="runAction(a.op)"
-        >{{ a.label }}</button>
+        ><Icon :name="a.icon" class="h-3.5 w-3.5" /> {{ a.label }}</button>
       </div>
     </header>
 
@@ -32,13 +32,13 @@
       <span class="text-slate-600">{{ gitInfo.branch }} @ {{ gitInfo.commit }}</span>
       <span class="truncate text-slate-500" :title="gitInfo.subject">“{{ gitInfo.subject }}”</span>
       <span v-if="gitInfo.behind" class="rounded-full border border-accent/40 px-2 py-0.5 text-[10px] text-accent-light">
-        ⬆ {{ gitInfo.remoteCommit }} available
+        {{ gitInfo.remoteCommit }} available
       </span>
       <button
         class="ml-auto rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 disabled:opacity-40"
         :disabled="gitChecking"
         @click="loadGit(true)"
-      >{{ gitChecking ? 'Checking…' : '↻ Check' }}</button>
+      >{{ gitChecking ? 'Checking…' : 'Check' }}</button>
     </div>
 
     <div v-if="loadError" class="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ loadError }}</div>
@@ -151,10 +151,10 @@ async function save() {
 
 // --- actions + op streaming ---
 const actions = [
-  { op: 'up', label: '▶ Up', cls: 'border-accent/25 text-accent-light hover:bg-accent/10' },
-  { op: 'restart', label: '↻ Restart', cls: 'border-white/10 text-slate-300 hover:bg-white/5' },
-  { op: 'pull', label: '⬆ Pull & up', cls: 'border-sky-400/25 text-sky-300 hover:bg-sky-400/10' },
-  { op: 'down', label: '■ Down', cls: 'border-red-500/20 text-red-300 hover:bg-red-500/10' },
+  { op: 'up', icon: 'play', label: 'Up', cls: 'border-accent/25 text-accent-light hover:bg-accent/10' },
+  { op: 'restart', icon: 'refresh', label: 'Restart', cls: 'border-white/10 text-slate-300 hover:bg-white/5' },
+  { op: 'pull', icon: 'download', label: 'Pull & up', cls: 'border-sky-400/25 text-sky-300 hover:bg-sky-400/10' },
+  { op: 'down', icon: 'square', label: 'Down', cls: 'border-red-500/20 text-red-300 hover:bg-red-500/10' },
 ] as const
 
 const opLines = ref<string[]>([])

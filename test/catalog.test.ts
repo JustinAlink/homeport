@@ -136,3 +136,15 @@ test('normalizeCategory: merges community list inconsistencies', () => {
   assert.equal(normalizeCategory('CMS'), 'CMS')
   assert.equal(normalizeCategory('operating_system'), 'Operating System')
 })
+
+test('categories: comma-joined community strings split into separate categories', () => {
+  const doc = { templates: [{ type: 1, title: 'X', image: 'x:1', platform: 'linux', categories: ['Network,Other', 'network'] }] }
+  const { apps } = parsePortainerTemplates(doc, 's')
+  assert.deepEqual(apps[0].categories, ['Network', 'Other'])
+})
+
+test('categories: camelCase splits and known-broken aliases', () => {
+  assert.equal(normalizeCategory('WebServer'), 'Web Server')
+  assert.equal(normalizeCategory('Networkother'), 'Network') // unsplittable mash → alias
+  assert.equal(normalizeCategory('Networking'), 'Network')
+})

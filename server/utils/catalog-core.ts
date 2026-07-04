@@ -54,8 +54,18 @@ const strArr = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : 
  * ("development" vs "Development", "continuous-integration"). Normalize to
  * Title Case with spaces so filters merge; short all-caps input stays (CMS).
  */
+// Known-broken category strings that ship mashed in community lists and can't
+// be split algorithmically ('Networkother' has no casing/separator hint).
+const CATEGORY_ALIASES: Record<string, string> = {
+  networkother: 'Network',
+  networkweb: 'Network',
+  networking: 'Network',
+}
+
 export function normalizeCategory(raw: string): string {
-  const c = raw.trim()
+  const aliased = CATEGORY_ALIASES[raw.trim().toLowerCase()]
+  if (aliased) return aliased
+  const c = raw.trim().replace(/([a-z])([A-Z])/g, '$1 $2') // NetworkOther → Network Other
   if (!c) return ''
   if (c.length <= 5 && c === c.toUpperCase()) return c
   return c
@@ -65,7 +75,9 @@ export function normalizeCategory(raw: string): string {
     .join(' ')
 }
 
-const categoryArr = (v: unknown) => [...new Set(strArr(v).map(normalizeCategory).filter(Boolean))]
+// some community lists join categories with commas in ONE string ("Network,Other")
+const categoryArr = (v: unknown) =>
+  [...new Set(strArr(v).flatMap((s) => s.split(',')).map(normalizeCategory).filter(Boolean))]
 
 function sanitizeInput(raw: unknown): AppInput | null {
   const o = (raw ?? {}) as Record<string, unknown>
