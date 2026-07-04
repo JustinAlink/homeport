@@ -1,7 +1,8 @@
 import { hostname } from 'node:os'
 import { getHosts } from './hosts'
 import { getDockerFor, oneShot } from './docker'
-import { buildHelperPayload, selfUpdatePlan } from './self-update-core'
+import { HELPER_LABEL, buildHelperPayload, selfUpdatePlan } from './self-update-core'
+import { digestMatches } from './registry-core'
 
 // Self-update: find our own container (in-container hostname = short container
 // id), validate it's compose-managed, and launch the detached helper that
@@ -28,6 +29,29 @@ export async function launchSelfUpdate(): Promise<{ ok: true; helper: string } |
   const inspect = await docker.getContainer(selfId).inspect(oneShot())
   const plan = selfUpdatePlan(inspect)
   if (!plan.ok) return plan
+
+  // Already up to date? Ask the registry (best-effort — proceeds if the
+  // check is unavailable, e.g. no DISTRIBUTION permission on the proxy).
+  try {
+    const dist: any = await (docker.getImage(plan.image) as any).distribution(oneShot())
+    const remoteDigest = dist?.Descriptor?.digest
+    const repoDigests: string[] = inspect.Image ? (await docker.getImage(plan.image).inspect(oneShot())).RepoDigests ?? [] : []
+    if (remoteDigest && repoDigests.length && digestMatches(repoDigests, remoteDigest)) {
+      return { ok: false, reason: 'already up to date — the registry has no newer image' }
+    }
+  } catch {
+    // registry check unavailable — attempt the update anyway
+  }
+
+  // Remove exited helpers from previous runs (kept for debuggability).
+  try {
+    const old = await docker.listContainers({ all: true, filters: { label: [`${HELPER_LABEL}=true`] }, ...oneShot() })
+    for (const c of old) {
+      if (c.State !== 'running') await docker.getContainer(c.Id).remove({ force: false }).catch(() => {})
+    }
+  } catch {
+    // best-effort cleanup
+  }
 
   const payload = buildHelperPayload({
     image: plan.image,

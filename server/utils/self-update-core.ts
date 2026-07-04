@@ -31,13 +31,21 @@ export function buildHelperPayload(input: SelfUpdateInput) {
     Entrypoint: ['/bin/sh', '-c'],
     Cmd: [
       // pull first so the window where homeport is down is as short as possible
-      `cd /project && docker compose -p ${input.project} pull && docker compose -p ${input.project} up -d`,
+      `cd ${input.projectDir} && docker compose -p ${input.project} pull && docker compose -p ${input.project} up -d`,
     ],
     Env: env,
     Labels: { [HELPER_LABEL]: 'true' },
+    // The project dir is mounted at the SAME path it has on the host. Compose
+    // resolves relative binds (./stacks) against its cwd and sends ABSOLUTE
+    // paths to the daemon, which interprets them on the HOST — a /project
+    // mount would recreate homeport with binds pointing at host /project/*
+    // (that bug shipped in v2.3.0 and bit a real deployment).
+    WorkingDir: input.projectDir,
     HostConfig: {
-      Binds: [`${input.projectDir}:/project`],
-      AutoRemove: true,
+      Binds: [`${input.projectDir}:${input.projectDir}`],
+      // Keep the exited helper around (label-tagged) so its logs are
+      // debuggable; the next self-update removes old helpers first.
+      AutoRemove: false,
       RestartPolicy: { Name: 'no' },
     },
     NetworkingConfig: input.networks.length

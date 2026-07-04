@@ -1,8 +1,11 @@
 export type GraphRange = 'live' | '1h' | '6h' | '24h'
 
-/** Forward-fill nulls (history gaps) so a graphed line stays continuous. */
+/** Fill nulls so a graphed line stays continuous: interior gaps carry the
+ *  previous value forward; LEADING nulls (young series, e.g. right after a
+ *  feature ships) take the first real value instead of a misleading 0. */
 export function fillGaps(a: (number | null)[]): number[] {
-  let last = 0
+  const first = a.find((v) => v != null) ?? 0
+  let last = first
   return a.map((v) => (v == null ? last : (last = v)))
 }
 

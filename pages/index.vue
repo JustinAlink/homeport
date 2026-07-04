@@ -53,7 +53,7 @@
 
     <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-4" />
 
-    <div v-if="showGraph && fleet" class="mb-5">
+    <div v-if="showGraph" class="mb-5">
       <div class="mb-2 flex items-center gap-1 text-[11px]">
         <button
           v-for="r in (['live', '1h', '6h', '24h'] as const)"

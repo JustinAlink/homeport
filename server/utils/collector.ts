@@ -37,8 +37,16 @@ export async function collectOnce(): Promise<Snapshot> {
   }
 }
 
+let latest: Snapshot | null = null
+
+/** Most recent collector snapshot (null before the first tick). */
+export function getLatestSnapshot(): Snapshot | null {
+  return latest
+}
+
 const tick = guard(async () => {
   const snap = await collectOnce()
+  latest = snap
   await recordHistory(snap)
   await evaluateAlerts(snap)
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled

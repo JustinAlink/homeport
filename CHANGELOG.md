@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.3.2 — 2026-07-04
+
+- **Fix: self-update helper mangled relative bind mounts.** The helper now mounts
+  the compose project at its real host path (and works from there), so relative
+  binds like `./stacks` survive the recreate. v2.3.0's helper could re-bind them
+  to a bogus host `/project/*` path.
+- Self-update now answers **"already up to date"** instead of silently doing
+  nothing, and keeps its (label-tagged) helper containers for debugging,
+  cleaning them up on the next run.
+- **`/api/stats` serves the background collector's snapshot** when fresh (live
+  sweep on demand with `?live=1`): first paint on large fleets went from
+  many seconds to instant, and per-request Docker load dropped to zero.
+- Young history series (e.g. the new System RAM) no longer draw misleading
+  leading zeros — gaps before the first data point take the first real value.
+
 ## v2.3.1 — 2026-07-04
 
 - **Start-on-boot control**: every container's page (Overview) gets a restart-policy
