@@ -235,6 +235,14 @@ const pillCls = (s: string) =>
 
 let poll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
+  // arriving from the catalog's GitHub tab — open the from-git form prefilled
+  const q = useRoute().query
+  if (q.git) {
+    creating.value = true
+    createMode.value = 'git'
+    git.repo = String(q.git)
+    git.name = String(q.name || '')
+  }
   load()
   svcStart()
   statsStart()

@@ -55,11 +55,11 @@
     <!-- source switcher: curated/community templates vs raw Docker Hub search -->
     <div class="mb-5 flex gap-1 border-b border-white/5 text-sm">
       <button
-        v-for="t in [{ k: 'templates', label: 'Templates' }, { k: 'hub', label: 'Docker Hub' }]"
+        v-for="t in [{ k: 'templates', label: 'Templates' }, { k: 'hub', label: 'Docker Hub' }, { k: 'github', label: 'GitHub' }]"
         :key="t.k"
         class="-mb-px border-b-2 px-3 py-2"
         :class="view === t.k ? 'border-accent text-accent-light' : 'border-transparent text-slate-400 hover:text-slate-200'"
-        @click="view = t.k as 'templates' | 'hub'"
+        @click="view = t.k as 'templates' | 'hub' | 'github'"
       >{{ t.label }}</button>
     </div>
 
@@ -127,6 +127,64 @@
       </div>
       <p v-if="hubSearched && !data?.installEnabled" class="mt-4 text-xs text-slate-500">
         Creating stacks from images needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
+      </p>
+    </template>
+
+    <!-- GitHub repo search → git-backed stack -->
+    <template v-else-if="view === 'github'">
+      <div class="mb-5 flex flex-wrap items-center gap-2">
+        <input
+          v-model="ghQuery"
+          placeholder="Search GitHub repositories…"
+          class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+          @keydown.enter="searchGithub"
+        />
+        <button
+          class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+          :disabled="ghLoading || !ghQuery.trim()"
+          @click="searchGithub"
+        >{{ ghLoading ? 'Searching…' : 'Search' }}</button>
+        <select
+          v-model="ghSort"
+          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
+        >
+          <option value="match">Sort: best match</option>
+          <option value="stars">Sort: most stars</option>
+        </select>
+      </div>
+
+      <p v-if="ghError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ ghError }}</p>
+      <p v-else-if="!ghSearched" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        Search GitHub and deploy a repository as a git-backed stack — it needs a compose file at its root.
+        Updates then arrive with one click when the repo moves.
+      </p>
+      <p v-else-if="!ghResults.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        No repositories match “{{ ghQuery }}”.
+      </p>
+      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="r in ghResults"
+          :key="r.name"
+          class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+        >
+          <div class="flex items-center gap-2">
+            <Icon name="git-branch" class="h-4 w-4 shrink-0 text-slate-500" />
+            <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
+          </div>
+          <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
+          <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+            <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
+            <a :href="r.url" target="_blank" rel="noopener noreferrer" class="text-sky-300/70 hover:text-sky-300 hover:underline">github ↗</a>
+            <NuxtLink
+              v-if="data?.installEnabled"
+              :to="`/stacks?git=${encodeURIComponent(r.cloneUrl)}&name=${hubStackName(r.name)}`"
+              class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
+            >Deploy stack →</NuxtLink>
+          </div>
+        </div>
+      </div>
+      <p v-if="ghSearched && !data?.installEnabled" class="mt-4 text-xs text-slate-500">
+        Deploying repositories needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
       </p>
     </template>
 
@@ -265,11 +323,14 @@ const category = ref(String(route.query.cat ?? ''))
 const sort = ref(String(route.query.sort ?? '') === 'name' ? 'name' : 'default')
 const page = ref(Math.max(1, Number.parseInt(String(route.query.page ?? '1'), 10) || 1))
 
-const view = ref<'templates' | 'hub'>(String(route.query.tab ?? '') === 'hub' ? 'hub' : 'templates')
+const TAB_KEYS = ['templates', 'hub', 'github'] as const
+type TabKey = (typeof TAB_KEYS)[number]
+const initialTab = String(route.query.tab ?? '')
+const view = ref<TabKey>((TAB_KEYS as readonly string[]).includes(initialTab) ? (initialTab as TabKey) : 'templates')
 
 watch([query, category, sort, page, view], () => {
   const q: Record<string, string> = {}
-  if (view.value === 'hub') q.tab = 'hub'
+  if (view.value !== 'templates') q.tab = view.value
   if (query.value.trim()) q.q = query.value.trim()
   if (category.value) q.cat = category.value
   if (sort.value !== 'default') q.sort = sort.value
@@ -315,6 +376,35 @@ function formatCount(n: number): string {
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`
   return String(n)
 }
+
+// --- GitHub repo search ---
+interface GhResult { name: string; description: string; stars: number; url: string; cloneUrl: string }
+const ghQuery = ref('')
+const ghResults = ref<GhResult[]>([])
+const ghSort = ref<'match' | 'stars'>('match')
+const ghLoading = ref(false)
+const ghSearched = ref(false)
+const ghError = ref('')
+
+async function searchGithub() {
+  const q = ghQuery.value.trim()
+  if (!q) return
+  ghLoading.value = true
+  ghError.value = ''
+  try {
+    const r = await $fetch<{ results: GhResult[] }>('/api/github/search', { query: { q, sort: ghSort.value } })
+    ghResults.value = r.results
+    ghSearched.value = true
+  } catch (e: any) {
+    ghError.value = errMsg(e, 'GitHub search failed')
+  } finally {
+    ghLoading.value = false
+  }
+}
+// the sort lives server-side (different result set) — re-run an active search on change
+watch(ghSort, () => {
+  if (ghSearched.value) searchGithub()
+})
 
 /** "linuxserver/jellyfin" → a valid stack/dir name suggestion ("jellyfin"). */
 function hubStackName(repo: string): string {

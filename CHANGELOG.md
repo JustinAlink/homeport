@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.13.0 — 2026-07-05
+
+- **GitHub in the catalog**: alongside Docker Hub, a GitHub tab searches all of
+  GitHub (sortable by stars) and deploys any repository with a compose file at
+  its root as a **git-backed stack** in one click — the from-git form opens
+  prefilled, and future updates arrive with the existing one-click stack update.
+
 ## v2.12.0 — 2026-07-05
 
 - **Delete and recreate containers**: every container page gets a danger zone —
