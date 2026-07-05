@@ -451,6 +451,49 @@
         </div>
       </section>
 
+      <!-- Automatic updates -->
+      <section :id="'autoupdate'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Automatic updates</h2>
+        <p class="text-xs text-slate-500">
+          Once a day, in the hour you pick, homeport applies pending image updates to everything opted in below.
+          Managed stacks update via <code>compose pull &amp;&amp; up</code>; other containers are pulled and recreated in
+          place. homeport itself is always skipped (use Settings → About → Update). Needs
+          <em>Check for image updates</em> and <em>Apply image updates</em> enabled above. Results go to your alert channels.
+        </p>
+        <label class="flex items-center gap-2 text-sm text-slate-200">
+          <input v-model="form.autoUpdateEnabled" type="checkbox" />
+          Apply updates automatically
+        </label>
+        <div v-if="form.autoUpdateEnabled" class="space-y-3 border-l border-white/5 pl-3">
+          <label class="block text-xs text-slate-400">
+            Daily window (server-local time)
+            <select v-model.number="form.autoUpdateHour" :class="[fieldCls, 'mt-1 max-w-[10rem]']">
+              <option v-for="h in 24" :key="h - 1" :value="h - 1">{{ String(h - 1).padStart(2, '0') }}:00 – {{ String(h - 1).padStart(2, '0') }}:59</option>
+            </select>
+          </label>
+          <div class="space-y-2">
+            <p class="text-xs text-slate-500">
+              Opt-in targets — a stack/project name or a container name per row (the Updates page has one-click
+              toggles for these). A <code>hub.autoupdate=true</code> label opts a container in without listing it;
+              <code>hub.autoupdate=false</code> always opts out.
+            </p>
+            <div v-for="(t, i) in form.autoUpdateTargets" :key="i" class="flex items-center gap-2">
+              <input v-model="form.autoUpdateTargets[i]" :class="fieldCls" placeholder="stack/project or container name" />
+              <button
+                type="button"
+                class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                @click="form.autoUpdateTargets.splice(i, 1)"
+              >Remove</button>
+            </div>
+            <button
+              type="button"
+              class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+              @click="form.autoUpdateTargets.push('')"
+            >+ Add target</button>
+          </div>
+        </div>
+      </section>
+
       <!-- Appearance -->
       <section :id="'appearance'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Appearance</h2>
@@ -550,6 +593,7 @@ const sections = computed(() =>
     { id: 'systemd', label: 'Host services' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'alerts', label: 'Alerts' },
+    { id: 'autoupdate', label: 'Auto-update' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
     { id: 'about', label: 'About' },
@@ -680,6 +724,9 @@ const form = reactive({
   historyEnabled: true,
   alertsEnabled: false,
   alertUpdates: false,
+  autoUpdateEnabled: false,
+  autoUpdateHour: 4,
+  autoUpdateTargets: [] as string[],
   alertTransitions: { down: true, unhealthy: true, recovered: false },
   alertDebounceSamples: 3,
   alertCooldownSec: 3600,

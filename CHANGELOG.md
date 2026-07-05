@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.8.0 — 2026-07-05
+
+- **Scheduled automatic updates** (opt-in). Once a day, in an hour you pick,
+  homeport applies pending image updates to everything opted in: managed stacks
+  via `compose pull && up`, other containers via pull + recreate. Opt in per
+  stack/container with one-click "auto" toggles on the Updates page, the target
+  list in Settings → Auto-update, or a `hub.autoupdate=true` container label
+  (`=false` always opts out). homeport itself is always skipped. Every applied
+  (or failed) update is pushed through your alert channels and logged.
+
 ## v2.7.0 — 2026-07-05
 
 - **Update notifications**: when the update sweep finds a newer image, homeport

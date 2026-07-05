@@ -14,6 +14,8 @@ export function eventText(e: AlertEvent): string {
   const where = e.host ? ` on ${e.host}` : ''
   if (e.kind === 'recovered') return `🟢 ${e.name} recovered (${e.from} → ${e.to})${where}`
   if (e.kind === 'update') return `🔵 ${e.name}: image update available (${e.from})${where}`
+  if (e.kind === 'updated')
+    return e.to ? `🔴 ${e.name} auto-update failed — ${e.to}${where}` : `🟢 ${e.name} auto-updated${where}`
   const verb = e.kind === 'down' ? 'is down' : 'is unhealthy'
   return `${ICON[e.kind] || '⚠️'} ${e.name} ${verb} (${e.from} → ${e.to})${where}`
 }

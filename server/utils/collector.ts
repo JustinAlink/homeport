@@ -4,6 +4,7 @@ import { collectStats } from './stats'
 import { recordHistory } from './history'
 import { evaluateAlerts } from './alerts'
 import { runUpdateSweep } from './updates'
+import { maybeAutoUpdate } from './auto-update'
 import { guard } from './guard'
 
 // A periodic fleet snapshot held in a module singleton. node-server runs as a
@@ -51,6 +52,8 @@ const tick = guard(async () => {
   await evaluateAlerts(snap)
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled
   await runUpdateSweep(false)
+  // once per day in its configured hour + no-op unless autoUpdateEnabled
+  await maybeAutoUpdate()
   return snap
 })
 

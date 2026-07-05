@@ -47,6 +47,15 @@
           >stack</span>
           <span v-else-if="g.project" class="rounded-full border border-white/10 px-1.5 py-px text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
           <span class="text-xs text-slate-600">{{ g.services.length }} update{{ g.services.length > 1 ? 's' : '' }}</span>
+          <label
+            v-if="autoLoaded && caps.updates && g.project"
+            class="flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px]"
+            :class="isAuto(g.project) ? 'border-ok/40 text-ok' : 'border-white/10 text-slate-500 hover:text-slate-300'"
+            :title="autoEnabled ? 'Included in the daily automatic update' : 'Saved — takes effect once automatic updates are enabled in Settings'"
+          >
+            <input type="checkbox" class="h-3 w-3" :checked="isAuto(g.project)" @change="toggleAuto(g.project!)" />
+            auto
+          </label>
 
           <div class="ml-auto">
             <button
@@ -72,6 +81,15 @@
               <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
             </NuxtLink>
             <span v-if="rowNote[s.id]" class="shrink-0 text-[11px]" :class="rowNote[s.id].startsWith('failed') ? 'text-red-400' : 'text-slate-500'">{{ rowNote[s.id] }}</span>
+            <label
+              v-if="autoLoaded && caps.updates && !g.project"
+              class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px]"
+              :class="isAuto(s.name) ? 'border-ok/40 text-ok' : 'border-white/10 text-slate-500 hover:text-slate-300'"
+              :title="autoEnabled ? 'Included in the daily automatic update' : 'Saved — takes effect once automatic updates are enabled in Settings'"
+            >
+              <input type="checkbox" class="h-3 w-3" :checked="isAuto(s.name)" @change="toggleAuto(s.name)" />
+              auto
+            </label>
           </div>
         </div>
 
@@ -208,6 +226,32 @@ async function updateGroup(g: Group) {
   await Promise.all([svcRefresh(), updates.refresh()])
 }
 
+// --- auto-update opt-in toggles (persisted in settings.autoUpdateTargets) ---
+const autoTargets = ref<string[]>([])
+const autoEnabled = ref(false)
+const autoLoaded = ref(false)
+async function loadAuto() {
+  try {
+    const r = await $fetch<{ settings: { autoUpdateTargets?: string[]; autoUpdateEnabled?: boolean } }>('/api/settings')
+    autoTargets.value = r.settings.autoUpdateTargets ?? []
+    autoEnabled.value = !!r.settings.autoUpdateEnabled
+    autoLoaded.value = true
+  } catch {
+    // settings unreadable — just hide the toggles
+  }
+}
+const isAuto = (name: string) => autoTargets.value.includes(name)
+async function toggleAuto(name: string) {
+  const prev = autoTargets.value
+  autoTargets.value = isAuto(name) ? prev.filter((t) => t !== name) : [...prev, name]
+  try {
+    await $fetch('/api/settings', { method: 'POST', body: { autoUpdateTargets: autoTargets.value } })
+  } catch (e: any) {
+    autoTargets.value = prev
+    window.alert(errMsg(e, 'could not save the auto-update setting'))
+  }
+}
+
 // --- check now ---
 const checking = ref(false)
 async function checkNow() {
@@ -226,6 +270,7 @@ onMounted(async () => {
   svcStart()
   await loadCaps()
   loadStacks()
+  loadAuto()
   updates.refresh()
 })
 onBeforeUnmount(() => {

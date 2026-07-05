@@ -87,6 +87,10 @@ export interface HomeportConfig {
   alertsEnabled: boolean
   /** Also notify when the update sweep finds a newer image. */
   alertUpdates: boolean
+  /** Scheduled automatic updates (daily, opt-in per stack/container). */
+  autoUpdateEnabled: boolean
+  autoUpdateHour: number
+  autoUpdateTargets: string[]
   /** Which transitions to notify on. */
   alertTransitions: AlertTransitions
   /** Consecutive bad samples before an alert fires (anti-flap). */
@@ -216,6 +220,9 @@ export function getConfig(): HomeportConfig {
         ? process.env.HOMEPORT_ALERTS === 'true'
         : s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
+    autoUpdateEnabled: s.autoUpdateEnabled ?? false,
+    autoUpdateHour: Math.min(23, Math.max(0, s.autoUpdateHour ?? 4)),
+    autoUpdateTargets: s.autoUpdateTargets ?? [],
     alertTransitions: {
       down: s.alertTransitions?.down ?? true,
       unhealthy: s.alertTransitions?.unhealthy ?? true,
@@ -293,6 +300,9 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     historyEnabled: s.historyEnabled ?? true,
     alertsEnabled: s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
+    autoUpdateEnabled: s.autoUpdateEnabled ?? false,
+    autoUpdateHour: s.autoUpdateHour ?? 4,
+    autoUpdateTargets: s.autoUpdateTargets ?? [],
     alertTransitions: {
       down: s.alertTransitions?.down ?? true,
       unhealthy: s.alertTransitions?.unhealthy ?? true,

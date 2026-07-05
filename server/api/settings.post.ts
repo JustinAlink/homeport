@@ -131,6 +131,16 @@ export default defineEventHandler(async (event) => {
 
   if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
   if (body.alertUpdates !== undefined) patch.alertUpdates = !!body.alertUpdates
+  if (body.autoUpdateEnabled !== undefined) patch.autoUpdateEnabled = !!body.autoUpdateEnabled
+  if (body.autoUpdateHour !== undefined) {
+    const h = Math.floor(Number(body.autoUpdateHour))
+    if (!Number.isFinite(h) || h < 0 || h > 23) throw createError({ statusCode: 400, statusMessage: 'autoUpdateHour must be 0-23' })
+    patch.autoUpdateHour = h
+  }
+  if (body.autoUpdateTargets !== undefined) {
+    if (!Array.isArray(body.autoUpdateTargets)) throw createError({ statusCode: 400, statusMessage: 'autoUpdateTargets must be a list' })
+    patch.autoUpdateTargets = body.autoUpdateTargets.map((t: unknown) => String(t).trim()).filter(Boolean).slice(0, 500)
+  }
   if (body.alertTransitions !== undefined) {
     const t = body.alertTransitions || {}
     patch.alertTransitions = { down: !!t.down, unhealthy: !!t.unhealthy, recovered: !!t.recovered }

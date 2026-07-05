@@ -1,7 +1,7 @@
 // Pure, dependency-free alerting core: transition detection + a debounce/cooldown
 // reducer + template rendering. No fs/Docker imports, so it's unit-testable in isolation.
 
-export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update'
+export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update' | 'updated'
 
 export interface ServiceState {
   id: string
