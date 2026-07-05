@@ -1,101 +1,93 @@
 <template>
   <div
-    class="group relative flex flex-col gap-2 rounded-xl px-3 py-3 transition-colors hover:bg-white/[0.04]"
+    class="group relative rounded-xl px-3.5 py-3 transition-colors hover:bg-white/[0.04]"
     :class="{ 'opacity-60': service.state !== 'running' && service.kind === 'container' }"
   >
-    <!-- top: logo · name + subtitle · control · status -->
-    <div class="flex items-center gap-3">
-      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="36" :remote="remoteIcons" />
+    <div class="flex items-center gap-3.5">
+      <div class="relative shrink-0">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.04]">
+          <ServiceIcon :name="service.displayName" :icon="service.icon" :size="26" :remote="remoteIcons" />
+        </div>
+        <NuxtLink
+          v-if="updateAvailable"
+          :to="`/services/${encodeURIComponent(service.id)}`"
+          class="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-sky-400/90 text-ink-950"
+          title="Update available"
+        ><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.5" /></NuxtLink>
+      </div>
+
+      <!-- name + primary domain -->
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-2">
           <NuxtLink
             v-if="service.kind === 'container'"
             :to="`/services/${encodeURIComponent(service.id)}`"
             class="truncate text-sm font-medium text-slate-100 hover:text-accent-light"
-            :title="service.name"
+            :title="service.image"
           >{{ service.displayName }}</NuxtLink>
-          <span v-else class="truncate text-sm font-medium text-slate-100" :title="service.name">{{ service.displayName }}</span>
-          <NuxtLink
-            v-if="updateAvailable"
-            :to="`/services/${encodeURIComponent(service.id)}`"
-            class="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 text-[10px] leading-4 text-sky-300"
-            title="Update available — open the service page"
-          ><Icon name="arrow-up" class="mx-auto h-3 w-3" /></NuxtLink>
+          <span v-else class="truncate text-sm font-medium text-slate-100" :title="service.image">{{ service.displayName }}</span>
         </div>
-        <div class="mt-0.5 truncate text-xs text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
-          {{ service.image }}
+        <div class="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+          <template v-if="primaryDomain">
+            <span v-if="pings[primaryDomain.url]" class="h-1.5 w-1.5 shrink-0 rounded-full" :class="pingClass(primaryDomain.url)" :title="pingTitle(primaryDomain.url)" />
+            <a :href="primaryDomain.url" target="_blank" rel="noopener noreferrer" class="truncate hover:text-accent-light hover:underline">{{ primaryDomain.domain }}</a>
+            <span v-if="service.domains.length > 1" class="shrink-0 text-slate-600">+{{ service.domains.length - 1 }}</span>
+          </template>
+          <span v-else-if="service.state !== 'running'" class="truncate">{{ service.statusText }}</span>
+          <span v-else class="truncate text-slate-600">{{ service.image }}</span>
         </div>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
+
+      <!-- hover controls -->
+      <div class="flex shrink-0 items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
         <button
           v-if="caps.logs && service.kind === 'container'"
-          class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-400 opacity-0 transition hover:bg-white/5 group-hover:opacity-100"
+          class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-400 hover:bg-white/5"
           title="View logs"
           @click="showLogs = true"
         >Logs</button>
         <button
           v-if="controlEnabled && service.kind === 'container' && isUp"
           :disabled="busy"
-          class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-300 opacity-0 transition hover:bg-white/5 group-hover:opacity-100 disabled:opacity-50"
+          class="grid h-6 w-6 place-items-center rounded-md border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-50"
           title="Restart"
           @click="control('restart')"
         ><Icon name="refresh" class="h-3 w-3" /></button>
         <button
           v-if="controlEnabled && service.kind === 'container'"
           :disabled="busy"
-          class="rounded-md border px-2 py-1 text-[11px] font-medium opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
-          :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-accent/25 text-accent-light hover:bg-accent/10'"
+          class="rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50"
+          :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-ok/25 text-ok hover:bg-ok/10'"
           @click="control(isUp ? 'stop' : 'start')"
         >{{ busy ? '…' : isUp ? 'Stop' : 'Start' }}</button>
-        <span
-          v-if="service.state === 'running' && (!service.health || service.health === 'healthy')"
-          class="h-2 w-2 shrink-0 rounded-full bg-ok"
-          :title="service.health ? 'running (healthy)' : 'running'"
-        />
-        <StatusPill v-else :state="service.state" :health="service.health" />
       </div>
-    </div>
 
-    <!-- domains + ports -->
-    <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1.5 pl-[48px]">
-      <a
-        v-for="d in service.domains"
-        :key="d.domain"
-        :href="d.url"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-light hover:bg-accent/20"
-      >
-        <span v-if="pings[d.url]" class="h-1.5 w-1.5 rounded-full" :class="pingClass(d.url)" :title="pingTitle(d.url)" />
-        <Icon v-if="d.ssl" name="lock" class="h-2.5 w-2.5 opacity-70" title="SSL" />
-        <span class="max-w-[12rem] truncate">{{ d.domain }}</span>
-      </a>
-      <a
-        v-for="p in service.ports"
-        :key="p.hostPort + p.type"
-        :href="`http://${host}:${p.hostPort}`"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-300 hover:bg-white/10"
-      >:{{ p.hostPort }}</a>
-    </div>
+      <!-- usage bars (running containers) -->
+      <div v-if="stat && service.state === 'running'" class="hidden w-36 shrink-0 flex-col gap-1.5 sm:flex">
+        <div class="flex items-center gap-2">
+          <span class="w-7 text-right text-[10px] uppercase tracking-wide text-slate-600">cpu</span>
+          <div class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
+            <div class="h-full rounded-full bg-ok/80" :style="{ width: barW(stat.cpuPercent) }" />
+          </div>
+          <span class="w-10 text-right font-mono text-[10px] tabular-nums text-slate-500">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-7 text-right text-[10px] uppercase tracking-wide text-slate-600">ram</span>
+          <div class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
+            <div class="h-full rounded-full bg-sky-400/80" :style="{ width: barW(stat.memPercent) }" />
+          </div>
+          <span class="w-10 text-right font-mono text-[10px] tabular-nums text-slate-500">{{ formatBytes(stat.memBytes) }}</span>
+        </div>
+      </div>
 
-    <!-- metrics (running container) — sparkline links to the full detail graph -->
-    <div v-if="stat && service.state === 'running'" class="flex items-center gap-2.5 pl-[48px] text-xs text-slate-500">
-      <span class="text-slate-400">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
-      <NuxtLink
-        v-if="cpuHistory.length > 1"
-        :to="`/services/${encodeURIComponent(service.id)}`"
-        class="relative block h-4 w-14 rounded hover:bg-white/5"
-        title="CPU + RAM — open the service page"
-      >
-        <span class="absolute inset-0"><Sparkline :data="cpuHistory" color="#10b981" /></span>
-        <span v-if="memHistory.length > 1" class="absolute inset-0"><Sparkline :data="memHistory" color="#38bdf8" /></span>
-      </NuxtLink>
-      <span>{{ formatBytes(stat.memBytes) }}</span>
+      <!-- status: quiet dot when healthy, loud pill when exceptional -->
+      <span
+        v-if="service.state === 'running' && (!service.health || service.health === 'healthy')"
+        class="h-2 w-2 shrink-0 rounded-full bg-ok"
+        :title="service.health ? 'running (healthy)' : 'running'"
+      />
+      <StatusPill v-else :state="service.state" :health="service.health" />
     </div>
-    <!-- non-running / systemd status -->
-    <p v-else class="truncate pl-[48px] text-xs text-slate-500">{{ service.statusText }}</p>
 
     <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
   </div>
@@ -107,6 +99,9 @@ import type { Service } from '~/types/service'
 const props = defineProps<{ service: Service }>()
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const showLogs = ref(false)
+const primaryDomain = computed(() => props.service.domains[0] ?? null)
+const barW = (v: number | null | undefined) => `${Math.min(100, Math.max(2, v ?? 0))}%`
+
 const { caps } = useCapabilities()
 const updates = useUpdates()
 const updateAvailable = computed(() => updates.entryFor(props.service)?.status === 'update')
