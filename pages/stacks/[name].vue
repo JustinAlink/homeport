@@ -51,6 +51,12 @@
           :class="a.cls"
           @click="runAction(a.op)"
         ><Icon :name="a.icon" class="h-3.5 w-3.5" /> {{ a.label }}</button>
+        <button
+          :disabled="opRunning"
+          class="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+          title="compose down, then remove the stack directory (named volumes are kept)"
+          @click="deleteStack"
+        ><Icon name="x" class="h-3.5 w-3.5" /> Delete</button>
       </div>
     </header>
 
@@ -247,7 +253,12 @@ const saveOk = ref(false)
 let view: any = null
 let savedContent = ''
 
-const NEW_TEMPLATE = `services:\n  app:\n    image: nginx:alpine\n    restart: unless-stopped\n    ports:\n      - "8080:80"\n`
+// "New stack" from the Docker Hub tab seeds the template with the chosen image
+const seedImageRaw = String(route.query.image || '')
+const seedImage = /^[a-z0-9][a-z0-9._/-]*$/i.test(seedImageRaw) ? seedImageRaw : ''
+const NEW_TEMPLATE = seedImage
+  ? `services:\n  app:\n    image: ${seedImage}${seedImage.includes(':') ? '' : ':latest'}\n    restart: unless-stopped\n    # ports:\n    #   - "8080:80"\n    # volumes:\n    #   - ./data:/data\n`
+  : `services:\n  app:\n    image: nginx:alpine\n    restart: unless-stopped\n    ports:\n      - "8080:80"\n`
 
 async function setupEditor(content: string) {
   const [{ EditorView, basicSetup }, { yaml }, { oneDark }] = await Promise.all([
@@ -372,6 +383,23 @@ async function runAction(op: string) {
     attachOp(opId, op === 'update' ? () => { load(); loadGit() } : undefined)
   } catch (e: any) {
     opLines.value.push(errMsg(e, 'could not start the operation'))
+    opOk.value = false
+    opRunning.value = false
+  }
+}
+
+async function deleteStack() {
+  if (!window.confirm(`Delete stack “${name}” permanently?\nIts containers are taken down and the stack directory (compose file) is removed. Named volumes are kept.\nThis cannot be undone.`)) return
+  opLines.value = []
+  opOk.value = null
+  opRunning.value = true
+  try {
+    const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(name)}/delete`, { method: 'POST' })
+    attachOp(opId, () => {
+      if (opOk.value) setTimeout(() => navigateTo('/stacks', { replace: true }), 1200)
+    })
+  } catch (e: any) {
+    opLines.value.push(errMsg(e, 'could not start the delete'))
     opOk.value = false
     opRunning.value = false
   }

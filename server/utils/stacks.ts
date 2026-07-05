@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, statSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { getConfig } from './config'
@@ -38,6 +38,13 @@ export function listStackDirs(): { name: string; file: string }[] {
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Remove a stack's directory entirely (after compose down). Name-guarded. */
+export function deleteStackDir(name: string): void {
+  const safe = safeStackName(name)
+  if (!safe) throw new Error('invalid stack name')
+  rmSync(join(stacksDir(), safe), { recursive: true, force: true })
 }
 
 export function readStack(name: string): StackFile | null {

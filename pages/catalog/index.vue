@@ -52,7 +52,85 @@
       </div>
     </header>
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
+    <!-- source switcher: curated/community templates vs raw Docker Hub search -->
+    <div class="mb-5 flex gap-1 border-b border-white/5 text-sm">
+      <button
+        v-for="t in [{ k: 'templates', label: 'Templates' }, { k: 'hub', label: 'Docker Hub' }]"
+        :key="t.k"
+        class="-mb-px border-b-2 px-3 py-2"
+        :class="view === t.k ? 'border-accent text-accent-light' : 'border-transparent text-slate-400 hover:text-slate-200'"
+        @click="view = t.k as 'templates' | 'hub'"
+      >{{ t.label }}</button>
+    </div>
+
+    <!-- Docker Hub search -->
+    <template v-if="view === 'hub'">
+      <div class="mb-5 flex flex-wrap items-center gap-2">
+        <input
+          v-model="hubQuery"
+          placeholder="Search Docker Hub…"
+          class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+          @keydown.enter="searchHub"
+        />
+        <button
+          class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+          :disabled="hubLoading || !hubQuery.trim()"
+          @click="searchHub"
+        >{{ hubLoading ? 'Searching…' : 'Search' }}</button>
+        <select
+          v-model="hubSort"
+          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
+        >
+          <option value="match">Sort: best match</option>
+          <option value="pulls">Sort: most pulls</option>
+          <option value="stars">Sort: most stars</option>
+        </select>
+      </div>
+
+      <p v-if="hubError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ hubError }}</p>
+      <p v-else-if="!hubSearched" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        Search all of Docker Hub — a result becomes a new compose stack with the image prefilled.
+      </p>
+      <p v-else-if="!hubSorted.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        No images match “{{ hubQuery }}”.
+      </p>
+      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="r in hubSorted"
+          :key="r.name"
+          class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+        >
+          <div class="flex items-center gap-2">
+            <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
+            <span
+              v-if="r.official"
+              class="shrink-0 rounded-full border border-ok/40 px-1.5 py-px text-[10px] uppercase tracking-wider text-ok"
+            >official</span>
+          </div>
+          <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
+          <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+            <span class="inline-flex items-center gap-1" title="pulls"><Icon name="download" class="h-3 w-3" />{{ formatCount(r.pulls) }}</span>
+            <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
+            <a
+              :href="`https://hub.docker.com/r/${r.official ? '_/' + r.name : r.name}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sky-300/70 hover:text-sky-300 hover:underline"
+            >hub ↗</a>
+            <NuxtLink
+              v-if="data?.installEnabled"
+              :to="`/stacks/${hubStackName(r.name)}?new=1&image=${encodeURIComponent(r.name)}`"
+              class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
+            >New stack →</NuxtLink>
+          </div>
+        </div>
+      </div>
+      <p v-if="hubSearched && !data?.installEnabled" class="mt-4 text-xs text-slate-500">
+        Creating stacks from images needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
+      </p>
+    </template>
+
+    <div v-else-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
 
     <!-- skeleton grid while loading -->
     <div v-else-if="!data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -187,14 +265,62 @@ const category = ref(String(route.query.cat ?? ''))
 const sort = ref(String(route.query.sort ?? '') === 'name' ? 'name' : 'default')
 const page = ref(Math.max(1, Number.parseInt(String(route.query.page ?? '1'), 10) || 1))
 
-watch([query, category, sort, page], () => {
+const view = ref<'templates' | 'hub'>(String(route.query.tab ?? '') === 'hub' ? 'hub' : 'templates')
+
+watch([query, category, sort, page, view], () => {
   const q: Record<string, string> = {}
+  if (view.value === 'hub') q.tab = 'hub'
   if (query.value.trim()) q.q = query.value.trim()
   if (category.value) q.cat = category.value
   if (sort.value !== 'default') q.sort = sort.value
   if (page.value > 1) q.page = String(page.value)
   router.replace({ query: q })
 })
+
+// --- Docker Hub search ---
+interface HubResult { name: string; description: string; stars: number; pulls: number; official: boolean }
+const hubQuery = ref('')
+const hubResults = ref<HubResult[]>([])
+const hubSort = ref<'match' | 'pulls' | 'stars'>('match')
+const hubLoading = ref(false)
+const hubSearched = ref(false)
+const hubError = ref('')
+
+async function searchHub() {
+  const q = hubQuery.value.trim()
+  if (!q) return
+  hubLoading.value = true
+  hubError.value = ''
+  try {
+    const r = await $fetch<{ results: HubResult[] }>('/api/hub/search', { query: { q } })
+    hubResults.value = r.results
+    hubSearched.value = true
+  } catch (e: any) {
+    hubError.value = errMsg(e, 'Docker Hub search failed')
+  } finally {
+    hubLoading.value = false
+  }
+}
+
+const hubSorted = computed(() => {
+  const list = [...hubResults.value]
+  if (hubSort.value === 'pulls') list.sort((a, b) => b.pulls - a.pulls)
+  else if (hubSort.value === 'stars') list.sort((a, b) => b.stars - a.stars)
+  return list
+})
+
+function formatCount(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`
+  return String(n)
+}
+
+/** "linuxserver/jellyfin" → a valid stack/dir name suggestion ("jellyfin"). */
+function hubStackName(repo: string): string {
+  const last = repo.split('/').pop() || repo
+  return last.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63) || 'app'
+}
 
 async function load(refresh = false) {
   try {

@@ -4,7 +4,7 @@ import { getHosts } from '../utils/hosts'
 import { splitServiceId } from '../utils/service-id'
 import { demoControl } from '../utils/demo'
 
-const ACTIONS = ['start', 'stop', 'restart'] as const
+const ACTIONS = ['start', 'stop', 'restart', 'remove'] as const
 type Action = (typeof ACTIONS)[number]
 
 // Start/stop/restart a container. Disabled unless HOMEPORT_ALLOW_CONTROL=true.
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Controls are disabled (set HOMEPORT_ALLOW_CONTROL=true).' })
   }
 
-  const body = await readBody<{ id?: string; action?: Action }>(event)
+  const body = await readBody<{ id?: string; action?: Action; volumes?: boolean }>(event)
   const id = body?.id
   const action = body?.action
   if (!id || !action || !ACTIONS.includes(action)) {
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     const { hostId, containerId } = splitServiceId(id)
     const host = getHosts().find((h) => h.id === hostId)
     if (!host) throw new Error('unknown host')
-    await controlContainerFor(host, containerId, action)
+    await controlContainerFor(host, containerId, action, { volumes: !!body?.volumes })
     return { ok: true }
   } catch (err: any) {
     throw createError({ statusCode: 502, statusMessage: `Could not ${action} container: ${err?.message || err}` })

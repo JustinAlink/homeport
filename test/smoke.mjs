@@ -85,13 +85,15 @@ try {
 
   for (const [path, marker] of PAGES) {
     await page.goto(BASE + path, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1200)
-    const text = (await page.locator('main').innerText().catch(() => '')).toLowerCase()
-    if (!text.includes(marker.toLowerCase())) {
-      problems.push(`${path}: expected to see "${marker}"`)
-    } else {
-      console.log(`ok ${path}`)
+    // poll for the marker — pages with remote fetches (catalog sources) can be slow
+    let seen = false
+    for (let i = 0; i < 30 && !seen; i++) {
+      await page.waitForTimeout(500)
+      const text = (await page.locator('main').innerText().catch(() => '')).toLowerCase()
+      seen = text.includes(marker.toLowerCase())
     }
+    if (!seen) problems.push(`${path}: expected to see "${marker}"`)
+    else console.log(`ok ${path}`)
   }
 
   // the service page's tabs are where setup-order bugs bite — click them all

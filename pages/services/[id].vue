@@ -138,6 +138,44 @@
           <LineGraph v-if="series[0].data.length > 1" :series="series" :height="160" :interval-sec="range === 'live' ? 7 : 60" />
           <p v-else class="text-xs text-slate-600">collecting data…</p>
         </div>
+
+        <!-- danger zone: recreate + delete -->
+        <div v-if="caps.control && service.kind === 'container'" class="rounded-lg border border-red-500/15 bg-ink-900 p-4">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-red-300/80">Danger zone</p>
+          <p v-if="composeProject && stackManaged" class="mb-3 text-[11px] leading-relaxed text-slate-500">
+            Part of the managed stack “{{ composeProject }}” — a deleted or recreated container comes back on the
+            stack's next <code>up</code>. For a permanent change, use the
+            <NuxtLink :to="`/stacks/${composeProject}`" class="text-accent-light hover:underline">stack page</NuxtLink>.
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              :disabled="applying || deleting"
+              class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+              @click="recreate"
+            ><Icon name="refresh" class="h-3.5 w-3.5" :class="applying ? 'animate-spin' : ''" /> {{ applying ? 'Recreating…' : 'Recreate' }}</button>
+            <span class="text-[11px] text-slate-600">stop and recreate with the same image and settings — for containers in a wedged state</span>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-3 border-t border-white/5 pt-3">
+            <button
+              :disabled="applying || deleting"
+              class="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+              @click="deleteContainer"
+            ><Icon name="x" class="h-3.5 w-3.5" /> {{ deleting ? 'Deleting…' : 'Delete container' }}</button>
+            <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <input v-model="deleteVolumes" type="checkbox" class="h-3 w-3" />
+              also delete its anonymous volumes
+            </label>
+          </div>
+          <div v-if="dangerSteps.length" class="mt-3 border-t border-white/5 pt-3">
+            <div v-for="(s, i) in dangerSteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
+              <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
+              <span class="text-slate-300">{{ s.step }}</span>
+              <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
+            </div>
+            <p v-if="redirecting" class="mt-1 animate-pulse text-xs text-accent-light">container recreated — opening its new page…</p>
+            <NuxtLink v-else-if="newPage" :to="newPage" class="mt-1 inline-block text-xs text-accent-light hover:underline">Open the recreated container →</NuxtLink>
+          </div>
+        </div>
       </section>
 
       <!-- LOGS -->
@@ -450,6 +488,50 @@ const series = computed(() => {
   ]
 })
 
+// --- danger zone: recreate + delete ---
+const deleting = ref(false)
+const deleteVolumes = ref(false)
+const dangerSteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
+
+async function recreate() {
+  if (!window.confirm(`Recreate “${service.value?.displayName}” in place? It restarts with the same image and settings.`)) return
+  applying.value = true
+  dangerSteps.value = []
+  try {
+    const r = await $fetch<{ steps: typeof dangerSteps.value; newId?: string }>('/api/recreate', { method: 'POST', body: { id } })
+    dangerSteps.value = r.steps
+    await refresh()
+    if (r.newId) {
+      const sep = id.indexOf('::')
+      const hostPrefix = sep >= 0 ? id.slice(0, sep) : 'default'
+      newPage.value = `/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}`
+      if (r.steps.every((s) => s.ok)) {
+        redirecting.value = true
+        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+      }
+    }
+  } catch (e: any) {
+    dangerSteps.value = e?.data?.data?.steps || []
+    window.alert(errMsg(e, 'Recreate failed'))
+  } finally {
+    applying.value = false
+  }
+}
+
+async function deleteContainer() {
+  const name = service.value?.displayName
+  if (!window.confirm(`Delete “${name}” permanently?${deleteVolumes.value ? ' Its anonymous volumes are removed too.' : ''}\nThis cannot be undone.`)) return
+  deleting.value = true
+  try {
+    await $fetch('/api/control', { method: 'POST', body: { id, action: 'remove', volumes: deleteVolumes.value } })
+    await navigateTo('/', { replace: true })
+  } catch (e: any) {
+    window.alert(errMsg(e, 'Delete failed'))
+  } finally {
+    deleting.value = false
+  }
+}
+
 // --- controls ---
 const busy = ref<'' | 'start' | 'stop' | 'restart'>('')
 async function control(action: 'start' | 'stop' | 'restart') {
@@ -488,8 +570,9 @@ async function checkStackManaged() {
   }
   stackChecked.value = true
 }
+// resolved on load — the Overview danger zone, Update and Environment tabs all use it
 watch(
-  () => (tab.value === 'update' || tab.value === 'env') && !!service.value && capsLoaded.value,
+  () => !!service.value && capsLoaded.value,
   (on) => { if (on && !stackChecked.value) checkStackManaged() },
   { immediate: true },
 )

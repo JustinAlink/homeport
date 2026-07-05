@@ -798,7 +798,7 @@ const suggestedSources = computed(() => KNOWN_SOURCES.filter((s) => !form.catalo
 // Tiered capability toggles + the socket-proxy permissions each one needs.
 const capabilityToggles = [
   { key: 'logsEnabled', lock: 'logsEnabled', env: 'HOMEPORT_LOGS', label: 'Container logs viewer', hint: 'read-tier — already covered by CONTAINERS=1 (on by default)' },
-  { key: 'allowControl', lock: 'allowControl', env: 'HOMEPORT_ALLOW_CONTROL', label: 'Start / stop / restart buttons', hint: 'needs POST=1 on the socket proxy' },
+  { key: 'allowControl', lock: 'allowControl', env: 'HOMEPORT_ALLOW_CONTROL', label: 'Start / stop / restart / recreate / delete', hint: 'container lifecycle — needs POST=1 on the socket proxy' },
   { key: 'updateCheckEnabled', lock: 'updateCheckEnabled', env: 'HOMEPORT_UPDATE_CHECK', label: 'Check for image updates', hint: 'needs DISTRIBUTION=1 (read-only registry digests)' },
   { key: 'allowUpdates', lock: 'allowUpdates', env: 'HOMEPORT_ALLOW_UPDATES', label: 'Apply image updates (pull + recreate)', hint: 'needs IMAGES=1 POST=1' },
   { key: 'allowStacks', lock: 'allowStacks', env: 'HOMEPORT_ALLOW_STACKS', label: 'Compose stack management', hint: 'needs POST=1 CONTAINERS=1 IMAGES=1 NETWORKS=1 VOLUMES=1 + a mounted stacks dir' },

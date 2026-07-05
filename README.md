@@ -33,11 +33,11 @@ homeport reads it all live:
 - **Updates view** — one page listing every container with a newer image, grouped by stack: *Pull & up* for managed stacks, one-click recreate for the rest — and opt-in **scheduled automatic updates** (daily, per stack/container, results to your alert channels).
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
-- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords.
+- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords — plus a **Docker Hub search tab** (pull/star counts, sortable) that turns any image into a new stack.
 - **Git-backed stacks** — deploy a stack straight from a GitHub/Gitea/GitLab repo and update it with one click when the repo moves (fetch → reset → rebuild → redeploy, streamed live). Private repos use a per-stack access token, stored server-side only.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
-- **Optional start/stop** controls (off by default — read-only unless you opt in).
+- **Optional lifecycle controls** (off by default — read-only unless you opt in): start/stop/restart, recreate-in-place, and delete (containers and whole stacks).
 - **Backup & restore** — download everything homeport persists as one JSON file, restore it on a fresh install.
 - **In-app settings page** — pick your reverse proxy, set the Docker connection (local or remote-over-SSH, with host-key pinning), add/remove extra hosts, and toggle controls, uptime, systemd, and remote logos — all without editing env. (Env vars still win when set.)
 
@@ -295,7 +295,7 @@ by compose project:
   |---|---|---|---|
   | Status dashboard | — | on | `CONTAINERS=1 INFO=1 EVENTS=1 PING=1` |
   | Logs viewer | `HOMEPORT_LOGS` | on | nothing extra (read tier) |
-  | Start/stop/restart | `HOMEPORT_ALLOW_CONTROL` | off | `POST=1` |
+  | Start/stop/restart + recreate/delete | `HOMEPORT_ALLOW_CONTROL` | off | `POST=1` |
   | Update checks | `HOMEPORT_UPDATE_CHECK` | off | `DISTRIBUTION=1` |
   | Apply updates + env editing | `HOMEPORT_ALLOW_UPDATES` | off | `IMAGES=1 POST=1` |
   | Compose stacks | `HOMEPORT_ALLOW_STACKS` | off | `POST=1 IMAGES=1 NETWORKS=1 VOLUMES=1` |

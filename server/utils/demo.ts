@@ -47,7 +47,12 @@ const UNMANAGED_GROUPS = new Set(['legacy-app'])
 
 // In-memory overrides so demo start/stop/restart actually toggle a card's state.
 const demoOverrides: Record<string, 'running' | 'exited'> = {}
-export function demoControl(id: string, action: 'start' | 'stop' | 'restart') {
+const demoRemoved = new Set<string>()
+export function demoControl(id: string, action: 'start' | 'stop' | 'restart' | 'remove') {
+  if (action === 'remove') {
+    demoRemoved.add(id)
+    return
+  }
   demoOverrides[id] = action === 'stop' ? 'exited' : 'running'
 }
 
@@ -390,6 +395,21 @@ export function demoSetRestartPolicy(id: string, policy: string) {
   return { ok: true, policy }
 }
 
+export function demoStackDelete(name: string): string {
+  return startOp(`delete ${name}`, async (emit) => {
+    await new Promise((r) => setTimeout(r, 400))
+    if (!demoStackContent.has(name)) {
+      emit('demo: the built-in demo stacks cannot be deleted — create one first, then delete it')
+      return false
+    }
+    emit(`$ docker compose -p ${name} down`)
+    await new Promise((r) => setTimeout(r, 500))
+    emit(`removed stack directory /stacks/${name}`)
+    demoStackContent.delete(name)
+    return true
+  })
+}
+
 export function demoStackAction(name: string, op: string): string {
   // run a scripted op through the real registry so SSE streaming is identical
   const lines =
@@ -486,11 +506,13 @@ function demoSystemd(): Service[] {
 export function demoServices(): ServicesResponse {
   const hosts = getHosts()
   const multi = hosts.length > 1
-  const containers = seeds.map((s, i) => {
-    const sv = toService(s, i)
-    if (multi) sv.host = hosts[i % hosts.length].name
-    return sv
-  })
+  const containers = seeds
+    .map((s, i) => {
+      const sv = toService(s, i)
+      if (multi) sv.host = hosts[i % hosts.length].name
+      return sv
+    })
+    .filter((sv) => !demoRemoved.has(sv.id))
   const services = [...containers, ...(getConfig().systemdEnabled ? demoSystemd() : [])]
   return {
     services,

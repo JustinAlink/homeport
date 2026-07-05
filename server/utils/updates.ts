@@ -168,6 +168,11 @@ export async function applyEnvChange(host: HostConfig, containerId: string, env:
   return swapContainer(host, containerId, { pull: false, env })
 }
 
+/** Plain recreate: same image, same config — for containers in a weird state. */
+export async function recreateContainer(host: HostConfig, containerId: string): Promise<{ steps: ApplyStep[]; newId: string }> {
+  return swapContainer(host, containerId, { pull: false })
+}
+
 /** Shared stop → rename → create → start → remove machinery (rollback = rename back). */
 async function swapContainer(
   host: HostConfig,

@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.12.0 — 2026-07-05
+
+- **Delete and recreate containers**: every container page gets a danger zone —
+  recreate-in-place (same image and settings, for wedged containers) and delete,
+  with an opt-in for removing anonymous volumes. Managed-stack containers get an
+  honest note that the stack's next `up` brings them back.
+- **Delete stacks**: managed stacks get a Delete action — `compose down`, then
+  the stack directory (and its git token) is removed, streamed live like every
+  other stack operation. Named volumes are always kept.
+- **Docker Hub in the catalog**: a new Hub tab searches all of Docker Hub with
+  pull/star counts (sortable by either) and official-image badges — one click
+  turns any image into a new compose stack with the editor prefilled.
+
 ## v2.11.0 — 2026-07-05
 
 - **CI and release automation**: every push and PR runs tests, the production
