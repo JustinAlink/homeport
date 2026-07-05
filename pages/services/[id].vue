@@ -207,16 +207,29 @@
           <p v-if="updateEntry?.status === 'update' && composeProject && stackChecked && !stackManaged" class="mt-2 text-[11px] text-slate-500">
             part of the “{{ composeProject }}” compose project (not managed by homeport) — updating pulls the image and
             recreates this container in place with its current settings.
+            <NuxtLink
+              v-if="projectSiblings > 1"
+              :to="`/stacks/${composeProject}`"
+              class="text-accent-light hover:underline"
+            >Update the whole project at once →</NuxtLink>
           </p>
         </div>
 
         <div v-if="applySteps.length" class="rounded-lg border border-white/5 bg-ink-900 p-4">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Update steps</p>
           <div v-for="(s, i) in applySteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
-            <span>{{ s.ok ? '✅' : '❌' }}</span>
+            <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
             <span class="text-slate-300">{{ s.step }}</span>
             <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
           </div>
+          <p v-if="redirecting" class="mt-2 animate-pulse text-xs text-accent-light">
+            container recreated — opening its new page…
+          </p>
+          <NuxtLink
+            v-else-if="newPage"
+            :to="newPage"
+            class="mt-2 inline-block text-xs text-accent-light hover:underline"
+          >Open the updated container →</NuxtLink>
         </div>
       </section>
     </template>
@@ -224,6 +237,11 @@
 </template>
 
 <script setup lang="ts">
+import type { Service } from '~/types/service'
+
+// remount when the id param changes (an applied update navigates to the new container id)
+definePageMeta({ key: (route) => route.fullPath })
+
 const route = useRoute()
 const id = decodeURIComponent(String(route.params.id))
 
@@ -232,7 +250,19 @@ const stats = useStats()
 const { caps, loaded: capsLoaded, load: loadCaps } = useCapabilities()
 const updates = useUpdates()
 
-const service = computed(() => data.value?.services.find((s) => s.id === id))
+const applying = ref(false)
+const newPage = ref('') // route of the recreated container once an update lands
+const redirecting = ref(false)
+
+// While an update recreates the container it briefly vanishes from the live
+// list (old renamed away, new not up yet) — keep rendering the last-seen data
+// instead of flashing "service not found".
+const liveService = computed(() => data.value?.services.find((s) => s.id === id))
+const lastSeen = ref<Service>()
+watchEffect(() => {
+  if (liveService.value) lastSeen.value = liveService.value
+})
+const service = computed(() => liveService.value ?? (applying.value || newPage.value ? lastSeen.value : undefined))
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const hostName = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const isUp = computed(() => service.value?.state === 'running' || service.value?.state === 'restarting')
@@ -367,6 +397,9 @@ const updatesEnabled = computed(() => updates.enabled.value)
 // compose-managed containers update through their stack — but only when homeport
 // actually manages that stack; foreign projects fall back to a direct recreate
 const composeProject = computed(() => (service.value?.kind === 'container' ? service.value?.project : null))
+const projectSiblings = computed(
+  () => (data.value?.services ?? []).filter((s) => s.project && s.project === composeProject.value).length,
+)
 const stackChecked = ref(false)
 const stackManaged = ref(false)
 async function checkStackManaged() {
@@ -419,19 +452,28 @@ async function checkNow() {
   }
 }
 
-const applying = ref(false)
 const applySteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
 async function apply() {
   if (!window.confirm(`Update “${service.value?.displayName}” to the latest image? The container will be recreated.`)) return
   applying.value = true
   applySteps.value = []
   try {
-    const r = await $fetch<{ steps: typeof applySteps.value }>('/api/updates/apply', {
+    const r = await $fetch<{ steps: typeof applySteps.value; newId?: string }>('/api/updates/apply', {
       method: 'POST',
       body: { id, image: service.value?.image },
     })
     applySteps.value = r.steps
     await Promise.all([refresh(), updates.refresh()])
+    if (r.newId) {
+      const sep = id.indexOf('::')
+      const hostPrefix = sep >= 0 ? id.slice(0, sep) : 'default'
+      newPage.value = `/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}`
+      if (r.steps.every((s) => s.ok)) {
+        // clean update — follow the container to its new id
+        redirecting.value = true
+        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+      }
+    }
   } catch (e: any) {
     applySteps.value = e?.data?.data?.steps || []
     window.alert(errMsg(e, 'Update failed'))

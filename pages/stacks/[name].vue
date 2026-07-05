@@ -5,24 +5,30 @@
       <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
       <span v-if="file" class="font-mono text-xs text-slate-600">{{ file }}</span>
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
-      <span v-if="notManaged && stackSvcs.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
+      <span v-if="notManaged && rows.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
       <div v-if="notManaged" class="ml-auto flex items-center gap-2">
-        <template v-if="caps.control && stackSvcs.length">
+        <button
+          v-if="caps.updates && updatable.length"
+          :disabled="updRunning || !!bulkBusy"
+          class="inline-flex items-center gap-1.5 rounded-md border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-xs text-sky-300 hover:bg-sky-400/20 disabled:opacity-40"
+          @click="updateAll"
+        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ updRunning ? 'Updating…' : `Update all (${updatable.length})` }}</button>
+        <template v-if="caps.control && rows.length">
           <button
             v-if="stackSvcs.some((s) => s.state !== 'running' && s.state !== 'restarting')"
-            :disabled="!!bulkBusy"
+            :disabled="!!bulkBusy || updRunning"
             class="inline-flex items-center gap-1.5 rounded-md border border-accent/25 px-2.5 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
             @click="bulk('start')"
           ><Icon name="play" class="h-3.5 w-3.5" /> {{ bulkBusy === 'start' ? 'Starting…' : 'Start all' }}</button>
           <button
             v-if="anyRunning"
-            :disabled="!!bulkBusy"
+            :disabled="!!bulkBusy || updRunning"
             class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
             @click="bulk('restart')"
           ><Icon name="refresh" class="h-3.5 w-3.5" :class="bulkBusy === 'restart' ? 'animate-spin' : ''" /> {{ bulkBusy === 'restart' ? 'Restarting…' : 'Restart all' }}</button>
           <button
             v-if="anyRunning"
-            :disabled="!!bulkBusy"
+            :disabled="!!bulkBusy || updRunning"
             class="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
             @click="bulk('stop')"
           ><Icon name="square" class="h-3.5 w-3.5" /> {{ bulkBusy === 'stop' ? 'Stopping…' : 'Stop all' }}</button>
@@ -69,7 +75,7 @@
     <!-- unmanaged compose project: no compose file here, but the containers are real -->
     <template v-if="notManaged">
       <div v-if="!svcData" class="py-20 text-center text-slate-500">Loading…</div>
-      <div v-else-if="!stackSvcs.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+      <div v-else-if="!rows.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
         No stack or running compose project named “{{ name }}” was found.
         <NuxtLink to="/stacks" class="text-accent-light hover:underline">Back to stacks</NuxtLink>
       </div>
@@ -82,6 +88,15 @@
         </span>
       </div>
       <p v-if="bulkMsg" class="mb-4 whitespace-pre-line text-xs" :class="bulkOk ? 'text-accent-light' : 'text-red-400'">{{ bulkMsg }}</p>
+
+      <!-- whole-project update progress -->
+      <div v-if="updLines.length || updRunning" class="mb-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
+        <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
+          <span class="h-1.5 w-1.5 rounded-full" :class="updRunning ? 'animate-pulse bg-amber-400' : 'bg-ok'" />
+          {{ updRunning ? 'updating containers…' : 'update finished' }}
+        </div>
+        <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ updLines.join('\n') }}</pre>
+      </div>
     </template>
 
     <!-- editor -->
@@ -108,26 +123,35 @@
     </div>
 
     <!-- services in this stack (compose project) -->
-    <section v-if="stackSvcs.length" class="mt-6">
+    <section v-if="rows.length" class="mt-6">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-        Services <span class="ml-1 font-normal normal-case text-slate-600">{{ runningCount }}/{{ stackSvcs.length }} running</span>
+        Services <span class="ml-1 font-normal normal-case text-slate-600">{{ runningCount }}/{{ rows.length }} running</span>
       </h2>
       <div class="space-y-1.5">
         <NuxtLink
-          v-for="s in stackSvcs"
+          v-for="s in rows"
           :key="s.id"
           :to="`/services/${encodeURIComponent(s.id)}`"
           class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-900 px-4 py-2.5 transition-colors hover:border-accent/30"
         >
           <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
           <div class="min-w-0 flex-1">
-            <span class="block truncate text-sm text-slate-200">{{ s.displayName }}</span>
+            <span class="flex items-center gap-2 truncate text-sm text-slate-200">
+              {{ s.displayName }}
+              <span
+                v-if="updates.entryFor(s)?.status === 'update'"
+                class="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 py-px text-[10px] text-sky-300"
+              >update</span>
+            </span>
             <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
           </div>
-          <span v-if="stats[s.id]" class="hidden shrink-0 font-mono text-[11px] text-slate-500 sm:block">
-            CPU {{ stats[s.id].cpuPercent ?? '—' }}% · RAM {{ formatBytes(stats[s.id].memBytes) }}
-          </span>
-          <StatusPill :state="s.state" :health="s.health" />
+          <span v-if="!liveIds.has(s.id)" class="shrink-0 animate-pulse text-[11px] text-amber-300">recreating…</span>
+          <template v-else>
+            <span v-if="stats[s.id]" class="hidden shrink-0 font-mono text-[11px] text-slate-500 sm:block">
+              CPU {{ stats[s.id].cpuPercent ?? '—' }}% · RAM {{ formatBytes(stats[s.id].memBytes) }}
+            </span>
+            <StatusPill :state="s.state" :health="s.health" />
+          </template>
         </NuxtLink>
       </div>
     </section>
@@ -135,6 +159,8 @@
 </template>
 
 <script setup lang="ts">
+import type { Service } from '~/types/service'
+
 const route = useRoute()
 const name = String(route.params.name)
 const isNew = ref(String(route.query.new || '') === '1')
@@ -147,9 +173,44 @@ const notManaged = ref(false) // no stack dir for this name — unmanaged compos
 const { data: svcData, refresh: svcRefresh, start: svcStart, stop: svcStop } = useServices()
 const { stats, start: statsStart, stop: statsStop } = useStats()
 const { caps, load: loadCaps } = useCapabilities()
+const updates = useUpdates()
 const stackSvcs = computed(() => (svcData.value?.services ?? []).filter((s) => s.project === name))
 const runningCount = computed(() => stackSvcs.value.filter((s) => s.state === 'running' || s.state === 'restarting').length)
 const anyRunning = computed(() => runningCount.value > 0)
+
+// Containers vanish from the live list for a few seconds while an update
+// recreates them — keep showing the last-seen set so the page doesn't collapse
+// into "this project doesn't exist" mid-operation.
+const seenSvcs = ref<Service[]>([])
+watchEffect(() => {
+  if (stackSvcs.value.length) seenSvcs.value = stackSvcs.value
+})
+const rows = computed(() => (stackSvcs.value.length ? stackSvcs.value : seenSvcs.value))
+const liveIds = computed(() => new Set(stackSvcs.value.map((s) => s.id)))
+
+// whole-project update: recreate every container that has a newer image
+const updatable = computed(() => rows.value.filter((s) => updates.entryFor(s)?.status === 'update'))
+const updLines = ref<string[]>([])
+const updRunning = ref(false)
+async function updateAll() {
+  const targets = [...updatable.value]
+  if (!targets.length) return
+  if (!window.confirm(`Update ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}” to the latest images? Each is pulled and recreated in place.`)) return
+  updRunning.value = true
+  updLines.value = []
+  for (const s of targets) {
+    updLines.value.push(`${s.displayName}: pulling and recreating…`)
+    try {
+      await $fetch('/api/updates/apply', { method: 'POST', body: { id: s.id, image: s.image } })
+      updLines.value[updLines.value.length - 1] = `${s.displayName}: updated`
+    } catch (e: any) {
+      updLines.value[updLines.value.length - 1] = `${s.displayName}: FAILED — ${errMsg(e, 'update failed')}`
+    }
+    await svcRefresh()
+  }
+  updRunning.value = false
+  await Promise.all([svcRefresh(), updates.refresh()])
+}
 
 // bulk container controls for unmanaged projects (no compose file to run ops with)
 const bulkBusy = ref<'' | 'start' | 'stop' | 'restart'>('')
@@ -348,6 +409,7 @@ onMounted(() => {
   loadCaps()
   svcStart()
   statsStart()
+  updates.refresh()
   if (!isNew.value) loadGit()
   // arriving from "Clone & deploy" — attach to the in-flight clone op
   const opId = String(useRoute().query.op || '')

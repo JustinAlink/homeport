@@ -27,8 +27,9 @@ export default defineEventHandler(async (event) => {
   if (!host) throw createError({ statusCode: 404, statusMessage: 'Unknown host' })
 
   try {
-    const steps = await applyUpdate(host, containerId)
-    return { ok: true, steps }
+    const { steps, newId } = await applyUpdate(host, containerId)
+    // the container gets a new id — the client follows it to the fresh page
+    return { ok: true, steps, newId }
   } catch (err: any) {
     throw createError({
       statusCode: 502,

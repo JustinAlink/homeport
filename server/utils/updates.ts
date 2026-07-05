@@ -137,7 +137,7 @@ export const runUpdateSweep = guard(async (force = false) => {
 })
 
 /** Apply an image update to a standalone container: pull → recreate → swap. */
-export async function applyUpdate(host: HostConfig, containerId: string): Promise<ApplyStep[]> {
+export async function applyUpdate(host: HostConfig, containerId: string): Promise<{ steps: ApplyStep[]; newId: string }> {
   const docker = getDockerFor(host)
   const steps: ApplyStep[] = []
   const fail = (msg: string) => {
@@ -198,8 +198,10 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
   }
 
   // 3. create + start the replacement (rollback = rename back + restart)
+  let newId = ''
   try {
     const created = await docker.createContainer({ name: plan.name, ...plan.config } as any)
+    newId = created.id
     for (const [net, epCfg] of Object.entries(plan.extraNetworks)) {
       try {
         await docker.getNetwork(net).connect({ Container: created.id, EndpointConfig: epCfg })
@@ -230,5 +232,15 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
     steps.push({ step: 'remove old', ok: false, detail: `leftover container "${backupName}": ${e?.message}` })
   }
 
-  return steps
+  // reflect the applied update in the cache right away (badges clear without
+  // waiting for the next 24h sweep)
+  const map = load()
+  const k = keyOf(host.id, image)
+  const entry = map[k]
+  if (entry?.remoteDigest) {
+    map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
+    persist()
+  }
+
+  return { steps, newId }
 }

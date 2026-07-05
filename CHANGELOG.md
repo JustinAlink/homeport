@@ -22,6 +22,15 @@
 - **Terminal failures explain themselves**: a WebSocket that never opens now
   says so and points at reverse-proxy WebSocket support (NPM "Websockets
   Support"); an exec blocked by the Docker socket proxy points at `EXEC=1`.
+- **Updates no longer orphan the page.** A direct update recreates the container
+  under a new id — the service page now keeps rendering through the recreate
+  (no "service not found" flash) and follows to the new container's page when
+  the update lands cleanly. Stack pages keep their rows visible (marked
+  "recreating…") instead of claiming the project vanished.
+- **Whole-project updates**: stack pages show an "update" badge per container,
+  and unmanaged projects get an **Update all** button that pulls + recreates
+  every outdated container in turn with live progress. Applied updates clear
+  their badge immediately instead of waiting for the next daily check.
 
 ## v2.4.0 — 2026-07-05
 
