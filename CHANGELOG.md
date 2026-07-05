@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.6.0 — 2026-07-05
+
+- **Updates view**: a dedicated page (sidebar → Updates, with a pending-count
+  badge) listing every container with a newer image, grouped by compose
+  project. Managed stacks get **Pull & up** with live output; unmanaged
+  projects and standalone containers get one-click **Update (all)** with
+  per-container progress. Images that failed their registry check are listed
+  with the reason.
+- **Capability probe**: Settings → Capabilities can now ask the Docker socket
+  proxy what it actually allows (harmless probes against nonexistent targets —
+  a 403 means blocked, reaching the daemon means allowed). Each capability
+  toggle shows a green/red/amber verdict with the missing proxy permission
+  named, so "the button exists but 403s when clicked" can't happen silently.
+
 ## v2.5.0 — 2026-07-05
 
 **Unmanaged compose projects are first-class now.**

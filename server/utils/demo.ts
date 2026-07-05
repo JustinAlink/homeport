@@ -365,6 +365,10 @@ export function demoStackAction(name: string, op: string): string {
     seeds.forEach((s, i) => {
       if (s.group === name) demoOverrides[`demo-${i}`] = op === 'down' ? 'exited' : 'running'
     })
+    // a pull/update deploys fresh images — clear the group's update badges
+    if (op === 'pull' || op === 'update') {
+      for (const s of seeds) if (s.group === name) demoUpdateState[`default|${s.image}`] = 'current'
+    }
     return true
   })
 }

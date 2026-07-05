@@ -225,6 +225,18 @@
           homeport is read-only by default. Each capability is its own opt-in; the hint shows what the
           docker-socket-proxy must allow for it.
         </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            :disabled="probing"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
+            @click="runCapProbe"
+          >{{ probing ? 'Probing…' : 'Probe proxy permissions' }}</button>
+          <span class="text-[11px] text-slate-600">
+            checks what the Docker socket (proxy) actually allows — a toggle can be on here and still 403 at the proxy
+          </span>
+          <span v-if="probeErr" class="basis-full text-[11px] text-red-400">{{ probeErr }}</span>
+        </div>
         <div class="space-y-2.5">
           <label
             v-for="c in capabilityToggles"
@@ -235,6 +247,13 @@
             <input v-model="(form as any)[c.key]" type="checkbox" class="mt-0.5" />
             <span>
               {{ c.label }}
+              <span
+                v-for="v in probeChips(c.key)"
+                :key="v.host"
+                class="ml-2 inline-block rounded-full border px-1.5 py-px align-[1px] text-[10px]"
+                :class="v.cls"
+                :title="v.title"
+              >{{ v.text }}</span>
               <span class="block text-[11px] text-slate-500">
                 {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code> — locked</template>
               </span>
@@ -687,6 +706,53 @@ interface ChannelRow {
 
 function addChannel() {
   form.alertChannels.push({ name: '', url: '', preset: 'discord', template: '' })
+}
+
+// --- socket-proxy permission probe ---
+// maps settings toggle keys → capability names in the probe response
+const PROBE_CAP_OF: Record<string, string> = {
+  allowControl: 'control',
+  updateCheckEnabled: 'updateCheck',
+  allowUpdates: 'updates',
+  allowStacks: 'stacks',
+  allowTerminal: 'terminal',
+}
+interface ProbeHost { name: string; probes: Record<string, string>; caps: Record<string, string> }
+const probing = ref(false)
+const probeErr = ref('')
+const probeHosts = ref<ProbeHost[]>([])
+async function runCapProbe() {
+  probing.value = true
+  probeErr.value = ''
+  try {
+    const r = await $fetch<{ hosts: ProbeHost[] }>('/api/test/capabilities', { method: 'POST' })
+    probeHosts.value = r.hosts
+  } catch (e: any) {
+    probeErr.value = errMsg(e, 'probe failed')
+  } finally {
+    probing.value = false
+  }
+}
+function probeChips(key: string) {
+  const cap = PROBE_CAP_OF[key]
+  if (!cap || !probeHosts.value.length) return []
+  return probeHosts.value.map((h) => {
+    const v = h.caps[cap] ?? 'unknown'
+    const missing = Object.entries(h.probes)
+      .filter(([, verdict]) => verdict === 'blocked')
+      .map(([p]) => p.toUpperCase())
+    return {
+      host: h.name,
+      text: (probeHosts.value.length > 1 ? `${h.name}: ` : 'proxy: ') + v,
+      title: v === 'blocked' ? `blocked at the socket proxy — missing: ${missing.join(', ')}=1` : '',
+      cls:
+        v === 'allowed'
+          ? 'border-ok/40 text-ok'
+          : v === 'blocked'
+            ? 'border-red-500/40 text-red-300'
+            : 'border-amber-400/40 text-amber-300',
+    }
+  })
 }
 
 const proxyTesting = ref(false)

@@ -40,6 +40,10 @@
         >
           <Icon :name="item.icon" class="h-[18px] w-[18px] shrink-0" />
           {{ item.label }}
+          <span
+            v-if="item.badge"
+            class="ml-auto rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 py-px text-[10px] text-sky-300"
+          >{{ item.badge }}</span>
         </NuxtLink>
       </nav>
 
@@ -74,16 +78,28 @@ const route = useRoute()
 const drawer = ref(false)
 const { caps } = useCapabilities()
 const theme = useTheme()
+const updates = useUpdates()
 
 const bare = computed(() => route.path === '/login')
+
+const updateCount = computed(
+  () => Object.values(updates.entries.value).filter((e) => e.status === 'update').length,
+)
 
 const items = computed(() => [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
   ...(caps.value.stacks ? [{ to: '/stacks', label: 'Stacks', icon: 'stacks' }] : []),
+  ...(caps.value.updateCheck || caps.value.updates
+    ? [{ to: '/updates', label: 'Updates', icon: 'arrow-up', badge: updateCount.value || undefined }]
+    : []),
   { to: '/catalog', label: 'Catalog', icon: 'catalog' },
   ...(caps.value.proxyAdmin ? [{ to: '/domains', label: 'Domains', icon: 'globe' }] : []),
   { to: '/settings', label: 'Settings', icon: 'sliders' },
 ])
+
+onMounted(() => {
+  if (!bare.value) updates.refresh()
+})
 
 function isActive(to: string) {
   if (to === '/') return route.path === '/' || route.path.startsWith('/services')
