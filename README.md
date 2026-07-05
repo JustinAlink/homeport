@@ -28,8 +28,9 @@ homeport reads it all live:
 - **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
 - **systemd** — optionally shows host systemd services alongside containers.
 - **Resource stats** — live CPU + memory per container with **sparklines** (click through to the service page's full CPU/RAM graph), per-stack totals, a **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range — including **whole-machine CPU/RAM** (containers vs. everything else), read straight from procfs with no extra mounts.
-- **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce and webhook channels (Discord / Slack / ntfy / custom).
-- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
+- **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce, webhook channels (Discord / Slack / ntfy / custom) **and an email (SMTP) channel** — plus optional **update-available notifications**.
+- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, an **environment editor** (edit vars, recreate in place — secrets are write-only), one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
+- **Updates view** — one page listing every container with a newer image, grouped by stack: *Pull & up* for managed stacks, one-click recreate for the rest — and opt-in **scheduled automatic updates** (daily, per stack/container, results to your alert channels).
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
 - **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords.
@@ -37,6 +38,7 @@ homeport reads it all live:
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
 - **Optional start/stop** controls (off by default — read-only unless you opt in).
+- **Backup & restore** — download everything homeport persists as one JSON file, restore it on a fresh install.
 - **In-app settings page** — pick your reverse proxy, set the Docker connection (local or remote-over-SSH, with host-key pinning), add/remove extra hosts, and toggle controls, uptime, systemd, and remote logos — all without editing env. (Env vars still win when set.)
 
 It's a *status hub first*: read-only out of the box, with management — controls, logs,
@@ -141,6 +143,7 @@ Zero-config by default; add labels to any container to customize its card:
 | `hub.icon` | An emoji/character shown before the name |
 | `hub.hide` | `true` to hide it from the dashboard |
 | `hub.noalert` | `true` to exclude it from alerting |
+| `hub.autoupdate` | `true` opts the container into scheduled automatic updates; `false` always opts out |
 
 ## Reverse-proxy support
 
@@ -253,10 +256,33 @@ the page.
   button verifies each channel. Alert state + a recent-events log persist under
   `${HOMEPORT_DATA_DIR}/alerts/` so a homeport restart doesn't re-page every down service.
   Exclude a container with the `hub.noalert=true` label. Enable with `HOMEPORT_ALERTS=true`
-  (or the settings toggle).
+  (or the settings toggle). An **email (SMTP) channel** can be configured alongside webhooks
+  (implicit TLS or STARTTLS, optional auth — settings-only, no env needed), and an optional
+  toggle also notifies when the daily update check finds a **newer image** (once per digest).
 
 > Single container, single process: one collector runs per deployment. All of this degrades
 > gracefully to in-memory if `HOMEPORT_DATA_DIR` isn't writable.
+
+## Updates & auto-update
+
+![updates view](docs/updates.png)
+
+With **update checks** enabled, homeport asks each image's registry for its current digest
+(through the Docker daemon — no registry credentials to configure) about once a day and
+badges anything outdated. The **Updates** page (sidebar, with a pending count) groups them
+by compose project:
+
+- **Managed stacks** (in homeport's stacks dir) update with **Pull & up** — the compose way.
+- **Unmanaged projects & standalone containers** update via pull + recreate-in-place
+  (watchtower-style, config preserved, with rollback). The page follows the container to
+  its new id afterwards.
+- **Scheduled automatic updates** (opt-in, off by default): pick a daily hour and opt
+  targets in with the "auto" toggles on the Updates page, the target list in settings, or
+  a `hub.autoupdate=true` label. Managed stacks pull & up, the rest recreate; homeport
+  itself is always skipped (it has its own **self-update** in Settings → About). Every
+  applied or failed update is reported through your alert channels.
+  The hour is the container's local time — set `TZ` on the homeport container if that
+  should mean *your* local time.
 
 ## Security
 
@@ -271,10 +297,14 @@ the page.
   | Logs viewer | `HOMEPORT_LOGS` | on | nothing extra (read tier) |
   | Start/stop/restart | `HOMEPORT_ALLOW_CONTROL` | off | `POST=1` |
   | Update checks | `HOMEPORT_UPDATE_CHECK` | off | `DISTRIBUTION=1` |
-  | Apply updates | `HOMEPORT_ALLOW_UPDATES` | off | `IMAGES=1 POST=1` |
+  | Apply updates + env editing | `HOMEPORT_ALLOW_UPDATES` | off | `IMAGES=1 POST=1` |
   | Compose stacks | `HOMEPORT_ALLOW_STACKS` | off | `POST=1 IMAGES=1 NETWORKS=1 VOLUMES=1` |
   | Web terminal | `HOMEPORT_ALLOW_TERMINAL` | off | `EXEC=1 POST=1` |
   | Proxy management | `HOMEPORT_ALLOW_PROXY_ADMIN` | off | none (talks to your proxy, not Docker) |
+- **Settings → Capabilities → “Probe proxy permissions”** checks what the socket proxy
+  actually allows, per capability — so a toggle that would 403 at the proxy shows red
+  before you ever click its button.
+- Failed logins are **rate-limited** per client (escalating lockouts + a flat delay).
 - The reverse-proxy config is mounted **read-only**.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.
@@ -310,10 +340,18 @@ with read-only contents access). Tokens are stored server-side under the data di
 permissions, sent to git as a per-invocation header (never written into `.git/config`), scrubbed
 from all streamed output, and never returned to the browser.
 
+## Backup & restore
+
+**Settings → Backup** downloads everything homeport persists — settings, hosts, alert
+channels, proxy credentials, the admin password hash and stack git tokens — as one JSON
+file, and restores it on any homeport (settings are replaced wholesale). The file contains
+secrets: store it like a password. Compose files in the stacks dir aren't included — keep
+those in git (or use git-backed stacks and they already are).
+
 ## Roadmap
 
-- Email/SMTP alert channel (webhooks ship today)
 - More reverse-proxy providers (the `DomainProvider` interface keeps these small — PRs welcome)
+- Have an idea? [Open an issue](../../issues) — small, focused features fit this project best.
 
 ## License
 

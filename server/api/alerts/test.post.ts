@@ -5,9 +5,9 @@ import type { AlertEvent } from '../../utils/notifiers'
 // Fire a synthetic alert through every configured channel and report per-channel
 // results — powers the "Send test" button in settings. Does NOT touch the log.
 export default defineEventHandler(async () => {
-  const channels = getConfig().alertChannels
-  if (!channels.length) {
-    throw createError({ statusCode: 400, statusMessage: 'No webhook channels configured.' })
+  const cfg = getConfig()
+  if (!cfg.alertChannels.length && !(cfg.smtpHost && cfg.smtpFrom && cfg.smtpTo)) {
+    throw createError({ statusCode: 400, statusMessage: 'No webhook channels or email (SMTP) configured.' })
   }
   const event: AlertEvent = {
     id: 'test::homeport',

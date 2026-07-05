@@ -57,6 +57,14 @@ export interface SettingsHost {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  /** Email (SMTP) alert channel. */
+  smtpHost?: string
+  smtpPort?: number
+  smtpSecure?: boolean
+  smtpUser?: string
+  smtpPass?: string
+  smtpFrom?: string
+  smtpTo?: string
   npmApiUrl?: string
   npmApiIdentity?: string
   npmApiSecret?: string

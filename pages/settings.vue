@@ -439,13 +439,34 @@
               </button>
               <button
                 type="button"
-                :disabled="testing || !form.alertChannels.length"
+                :disabled="testing || (!form.alertChannels.length && !form.smtpHost)"
                 class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
                 @click="sendTest"
               >
                 {{ testing ? 'Sending…' : 'Send test' }}
               </button>
               <span v-if="testMsg" class="text-[11px]" :class="testOk ? 'text-accent-light' : 'text-red-400'">{{ testMsg }}</span>
+            </div>
+          </div>
+
+          <!-- email (SMTP) channel -->
+          <div class="space-y-2">
+            <p class="text-xs text-slate-500">
+              Email channel (SMTP) — leave the server empty to disable. Uses implicit TLS when “TLS from the start”
+              is checked (port 465), otherwise STARTTLS is used when the server offers it (587). “Send test” covers it.
+            </p>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input v-model="form.smtpHost" :class="fieldCls" placeholder="smtp.example.com" />
+              <div class="flex items-center gap-3">
+                <input v-model.number="form.smtpPort" type="number" min="1" max="65535" :class="[fieldCls, 'max-w-[7rem]']" placeholder="587" />
+                <label class="flex items-center gap-1.5 text-xs text-slate-300">
+                  <input v-model="form.smtpSecure" type="checkbox" /> TLS from the start (465)
+                </label>
+              </div>
+              <input v-model="form.smtpUser" :class="fieldCls" placeholder="username (optional)" autocomplete="off" />
+              <input v-model="form.smtpPass" type="password" :class="fieldCls" placeholder="password (optional)" autocomplete="new-password" />
+              <input v-model="form.smtpFrom" :class="fieldCls" placeholder="from — homeport@example.com" />
+              <input v-model="form.smtpTo" :class="fieldCls" placeholder="to — you@example.com (comma for more)" />
             </div>
           </div>
         </div>
@@ -749,6 +770,13 @@ const form = reactive({
   historyEnabled: true,
   alertsEnabled: false,
   alertUpdates: false,
+  smtpHost: '',
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: '',
+  smtpPass: '',
+  smtpFrom: '',
+  smtpTo: '',
   autoUpdateEnabled: false,
   autoUpdateHour: 4,
   autoUpdateTargets: [] as string[],
@@ -929,8 +957,20 @@ async function sendTest() {
   testing.value = true
   testMsg.value = ''
   try {
-    // persist current channels first so the server tests what's on screen
-    await $fetch('/api/settings', { method: 'POST', body: { alertChannels: form.alertChannels } })
+    // persist current channels + smtp first so the server tests what's on screen
+    await $fetch('/api/settings', {
+      method: 'POST',
+      body: {
+        alertChannels: form.alertChannels,
+        smtpHost: form.smtpHost,
+        smtpPort: form.smtpPort,
+        smtpSecure: form.smtpSecure,
+        smtpUser: form.smtpUser,
+        smtpPass: form.smtpPass,
+        smtpFrom: form.smtpFrom,
+        smtpTo: form.smtpTo,
+      },
+    })
     const r = await $fetch<{ ok: boolean; channels: { name: string; ok: boolean; error?: string }[] }>('/api/alerts/test', {
       method: 'POST',
     })

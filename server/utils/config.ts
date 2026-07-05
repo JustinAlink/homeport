@@ -87,6 +87,14 @@ export interface HomeportConfig {
   alertsEnabled: boolean
   /** Also notify when the update sweep finds a newer image. */
   alertUpdates: boolean
+  /** Email (SMTP) alert channel — active when host/from/to are set. */
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUser: string
+  smtpPass: string
+  smtpFrom: string
+  smtpTo: string
   /** Scheduled automatic updates (daily, opt-in per stack/container). */
   autoUpdateEnabled: boolean
   autoUpdateHour: number
@@ -220,6 +228,13 @@ export function getConfig(): HomeportConfig {
         ? process.env.HOMEPORT_ALERTS === 'true'
         : s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
+    smtpHost: s.smtpHost ?? '',
+    smtpPort: s.smtpPort ?? 587,
+    smtpSecure: s.smtpSecure ?? false,
+    smtpUser: s.smtpUser ?? '',
+    smtpPass: s.smtpPass ?? '',
+    smtpFrom: s.smtpFrom ?? '',
+    smtpTo: s.smtpTo ?? '',
     autoUpdateEnabled: s.autoUpdateEnabled ?? false,
     autoUpdateHour: Math.min(23, Math.max(0, s.autoUpdateHour ?? 4)),
     autoUpdateTargets: s.autoUpdateTargets ?? [],
@@ -303,6 +318,13 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     autoUpdateEnabled: s.autoUpdateEnabled ?? false,
     autoUpdateHour: s.autoUpdateHour ?? 4,
     autoUpdateTargets: s.autoUpdateTargets ?? [],
+    smtpHost: s.smtpHost ?? '',
+    smtpPort: s.smtpPort ?? 587,
+    smtpSecure: s.smtpSecure ?? false,
+    smtpUser: s.smtpUser ?? '',
+    smtpPass: s.smtpPass ?? '',
+    smtpFrom: s.smtpFrom ?? '',
+    smtpTo: s.smtpTo ?? '',
     alertTransitions: {
       down: s.alertTransitions?.down ?? true,
       unhealthy: s.alertTransitions?.unhealthy ?? true,

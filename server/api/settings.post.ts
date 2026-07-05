@@ -131,6 +131,15 @@ export default defineEventHandler(async (event) => {
 
   if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
   if (body.alertUpdates !== undefined) patch.alertUpdates = !!body.alertUpdates
+  for (const k of ['smtpHost', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpTo'] as const) {
+    if (body[k] !== undefined) patch[k] = String(body[k] ?? '').trim()
+  }
+  if (body.smtpPort !== undefined) {
+    const p2 = Math.floor(Number(body.smtpPort))
+    if (!Number.isFinite(p2) || p2 < 1 || p2 > 65535) throw createError({ statusCode: 400, statusMessage: 'smtpPort must be 1-65535' })
+    patch.smtpPort = p2
+  }
+  if (body.smtpSecure !== undefined) patch.smtpSecure = !!body.smtpSecure
   if (body.autoUpdateEnabled !== undefined) patch.autoUpdateEnabled = !!body.autoUpdateEnabled
   if (body.autoUpdateHour !== undefined) {
     const h = Math.floor(Number(body.autoUpdateHour))

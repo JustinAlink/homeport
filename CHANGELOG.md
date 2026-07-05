@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.10.0 — 2026-07-05
+
+- **Email (SMTP) alert channel**: alerts (and update notifications) can go to
+  email alongside webhooks — implicit TLS (465) or STARTTLS (587), optional
+  auth, multiple recipients, covered by the Send-test button. Configured
+  entirely in Settings → Alerts; a deliberately tiny built-in SMTP client, no
+  new dependencies.
+- **Docs**: README rewritten to cover everything since v2.4.0 — the Updates
+  view, scheduled auto-update (+ `hub.autoupdate` label), environment editor,
+  backup & restore, capability probe, login rate-limiting — with fresh
+  screenshots.
+
 ## v2.9.0 — 2026-07-05
 
 - **Backup & restore** (Settings → Backup): one JSON file with everything

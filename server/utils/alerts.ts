@@ -94,7 +94,11 @@ export async function dispatch(event: AlertEvent, record = true): Promise<{ name
     log.push(event)
     if (log.length > LOG_CAP) log.splice(0, log.length - LOG_CAP)
   }
-  const notifiers = getNotifiers(getConfig().alertChannels)
+  const cfg = getConfig()
+  const notifiers = getNotifiers(
+    cfg.alertChannels,
+    cfg.smtpHost ? { host: cfg.smtpHost, port: cfg.smtpPort, secure: cfg.smtpSecure, user: cfg.smtpUser || undefined, pass: cfg.smtpPass || undefined, from: cfg.smtpFrom, to: cfg.smtpTo } : null,
+  )
   const results = await Promise.all(
     notifiers.map(async (n) => {
       try {
