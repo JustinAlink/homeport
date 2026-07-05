@@ -97,7 +97,7 @@ const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
 const systemHistory = stats.systemHistory
-const showGraph = ref(false)
+const showGraph = ref(true) // on by default — '0' in storage hides it
 
 // Fleet graph range. 'live' = the in-memory rolling buffer; ranges load history.
 const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host', '1h')
@@ -139,7 +139,7 @@ onMounted(() => {
   pings.start()
   useCapabilities().load()
   useUpdates().refresh()
-  if (localStorage.getItem('hp:graph') === '1') showGraph.value = true
+  if (localStorage.getItem('hp:graph') === '0') showGraph.value = false
 })
 onBeforeUnmount(() => {
   stop()
