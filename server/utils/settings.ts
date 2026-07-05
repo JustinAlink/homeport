@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, constants } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { WebhookChannel } from './notifiers/types'
+import type { RegistryCred } from './registry-core'
 
 // UI-configurable settings, persisted to a JSON file in HOMEPORT_DATA_DIR.
 // Env vars (read in config.ts) take precedence over these — they "lock" a field.
@@ -19,6 +20,8 @@ export interface PersistedSettings {
   logsEnabled?: boolean
   updateCheckEnabled?: boolean
   allowUpdates?: boolean
+  /** Registry logins for checking/pulling private images (e.g. ghcr.io). */
+  registryCreds?: RegistryCred[]
   allowStacks?: boolean
   /** Extra app-catalog template source URLs (native or Portainer format). */
   catalogUrls?: string[]

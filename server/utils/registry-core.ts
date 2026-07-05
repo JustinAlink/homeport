@@ -51,6 +51,16 @@ export function parseImageRef(image: string): ImageRef {
   return { registry, repo, tag, digestPinned }
 }
 
+/**
+ * A bare image *ID* — the container's image lost its repo:tag (e.g. `docker pull`
+ * replaced `:latest` and the old tag was pruned), so the daemon reports it as a
+ * plain digest. There's no repository to query, so it can't be update-checked;
+ * the daemon 500s with "no manifest found for full image ID". Treat as local.
+ */
+export function isBareImageId(image: string): boolean {
+  return /^(sha256:)?[0-9a-f]{64}$/.test(image.trim())
+}
+
 /** Does any local RepoDigest match the registry's current digest for this repo? */
 export function digestMatches(repoDigests: string[] | undefined, remoteDigest: string): boolean {
   if (!repoDigests?.length || !remoteDigest) return false
@@ -58,6 +68,41 @@ export function digestMatches(repoDigests: string[] | undefined, remoteDigest: s
     const at = d.indexOf('@')
     return at >= 0 && d.slice(at + 1) === remoteDigest
   })
+}
+
+/** A stored login for one registry host, used to check/pull private images. */
+export interface RegistryCred {
+  registry: string // host as the daemon sees it: ghcr.io, docker.io, registry.example.com:5000
+  username: string
+  token: string // password or personal-access-token
+}
+
+/** dockerode `authconfig` shape — base64'd into the X-Registry-Auth header. */
+export interface DockerAuthConfig {
+  username: string
+  password: string
+  serveraddress: string
+}
+
+/** Canonicalise a registry host so a cred matches parseImageRef()'s `registry`. */
+export function normalizeRegistry(input: string): string {
+  const r = (input || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  if (!r || r === 'index.docker.io' || r === 'registry-1.docker.io' || r === 'docker.io' || r === 'hub.docker.com')
+    return 'docker.io'
+  return r
+}
+
+/** The dockerode authconfig for an image, or undefined when no cred matches. */
+export function authForImage(image: string, creds: RegistryCred[] | undefined): DockerAuthConfig | undefined {
+  if (!creds?.length) return undefined
+  const { registry } = parseImageRef(image)
+  const cred = creds.find((c) => normalizeRegistry(c.registry) === registry)
+  if (!cred?.token) return undefined
+  return {
+    username: cred.username || '',
+    password: cred.token,
+    serveraddress: registry === 'docker.io' ? 'https://index.docker.io/v1/' : registry,
+  }
 }
 
 export type UpdateStatus = 'current' | 'update' | 'local' | 'pinned' | 'error'

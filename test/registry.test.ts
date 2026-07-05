@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
 
 const dir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
@@ -25,6 +25,17 @@ test('parseImageRef: user repos, tags, registries, ports, digests', () => {
   })
   assert.equal(parseImageRef('nginx@sha256:abc123').digestPinned, true)
   assert.deepEqual(parseImageRef('lscr.io/linuxserver/sonarr:4.0.9').repo, 'linuxserver/sonarr')
+})
+
+// ---- isBareImageId ----
+
+test('isBareImageId: bare digests are unqueryable, refs are not', () => {
+  const sha = 'bd42573ed96e5671a1c279d97c29874aff5793bb66e38c8a9b98f827ac1ab526'
+  assert.equal(isBareImageId(`sha256:${sha}`), true)
+  assert.equal(isBareImageId(sha), true)
+  assert.equal(isBareImageId('ghcr.io/justinalink/junipergray-web:latest'), false)
+  assert.equal(isBareImageId('nginx'), false)
+  assert.equal(isBareImageId('user/app@sha256:' + sha), false) // digest-pinned ref, not a bare id
 })
 
 // ---- digestMatches ----

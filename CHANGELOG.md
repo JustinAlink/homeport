@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.13.1 — 2026-07-05
+
+- **Fix: untagged images no longer break update checks.** A container whose
+  image lost its tag (a manual `docker pull` moved `:latest` and the old tag
+  was pruned — the daemon then reports a bare `sha256:` id) has no repository
+  to query; it's now treated as locally-built instead of erroring every sweep.
+- Registry 401s during update checks get an actionable message (private
+  package / wrong reference) instead of raw daemon output.
+
 ## v2.13.0 — 2026-07-05
 
 - **GitHub in the catalog**: alongside Docker Hub, a GitHub tab searches all of

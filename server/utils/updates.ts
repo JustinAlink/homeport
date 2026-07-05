@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path'
 import { getConfig } from './config'
 import { getHosts, type HostConfig } from './hosts'
 import { getDockerFor, listContainersFor, oneShot } from './docker'
-import { parseImageRef, digestMatches, pickDueChecks, type UpdateEntry } from './registry-core'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
@@ -72,6 +72,7 @@ export function getUpdateMap(): Record<string, UpdateEntry> {
 async function checkImage(host: HostConfig, image: string, now: number): Promise<UpdateEntry> {
   const ref = parseImageRef(image)
   if (ref.digestPinned) return { status: 'pinned', checkedAt: now }
+  if (isBareImageId(image)) return { status: 'local', checkedAt: now } // untagged image — no repo to query
 
   const docker = getDockerFor(host)
   try {
@@ -104,6 +105,9 @@ function friendlyCheckError(e: any): string {
   const raw = (e?.message || String(e || '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   if (/403/.test(raw) && /forbidden|administrative rules/i.test(raw)) {
     return 'Docker socket-proxy blocked the registry check. Add DISTRIBUTION=1 to the socket-proxy to enable update checks.'
+  }
+  if (/401/.test(raw) && /unauthorized|no such image/i.test(raw)) {
+    return 'Registry denied the check (401). The image is private or the name is wrong — homeport checks anonymously, so make the package public or verify the image reference.'
   }
   return raw.length > 200 ? raw.slice(0, 200) + '…' : raw || 'check failed'
 }

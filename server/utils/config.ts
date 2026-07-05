@@ -4,6 +4,7 @@
 
 import { readSettings, type PersistedSettings } from './settings'
 import type { WebhookChannel } from './notifiers/types'
+import { normalizeRegistry, type RegistryCred } from './registry-core'
 
 export interface AlertTransitions {
   down: boolean
@@ -53,6 +54,8 @@ export interface HomeportConfig {
   updateCheckIntervalH: number
   /** Allow applying image updates: pull + recreate (needs IMAGES=1 POST=1). Off by default. */
   allowUpdates: boolean
+  /** Registry logins used to check/pull private images (e.g. a GHCR token). */
+  registryCreds: RegistryCred[]
   /** Compose stack management from a mounted stacks dir (needs broad proxy perms). Off by default. */
   allowStacks: boolean
   /** Directory of compose stacks (each subdir = one stack). */
