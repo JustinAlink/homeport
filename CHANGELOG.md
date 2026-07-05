@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.15.0 — 2026-07-06
+
+- Re-cut of **v2.14.0** (private registry logins, below) — its release run hung
+  building multi-arch images under QEMU. The publish workflow now uses native
+  per-arch runners and merges the digests into one manifest, so this is the
+  version that actually ships to GHCR. No application changes since v2.14.0.
+
 ## v2.14.0 — 2026-07-06
 
 - **Private registry logins.** homeport can now check *and* update private
