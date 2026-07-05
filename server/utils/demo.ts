@@ -38,7 +38,12 @@ const seeds: Seed[] = [
   { name: 'watchtower', image: 'containrrr/watchtower:1.7.1', group: 'downloads', state: 'restarting', statusText: 'Restarting (1) 4 seconds ago' },
   // backups
   { name: 'restic-backup', image: 'mazzolino/restic:1.6.0', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
+  // an "unmanaged" compose project: runs on the host, but no stack dir in /stacks
+  { name: 'legacy-app', image: 'legacy/app:1.0', group: 'legacy-app', statusText: 'Up 3 months', ports: [9000] },
 ]
+
+// Compose projects without a stack dir — shown read-only on the stacks pages.
+const UNMANAGED_GROUPS = new Set(['legacy-app'])
 
 // In-memory overrides so demo start/stop/restart actually toggle a card's state.
 const demoOverrides: Record<string, 'running' | 'exited'> = {}
@@ -149,7 +154,7 @@ export function demoUpdates(): Record<string, any> {
   const out: Record<string, any> = {}
   seeds.forEach((s, i) => {
     const key = `default|${s.image}`
-    const seeded = i === 0 || i === 8 ? 'update' : 'current'
+    const seeded = i === 0 || i === 8 || UNMANAGED_GROUPS.has(s.group) ? 'update' : 'current'
     const status = demoUpdateState[key] ?? seeded
     out[key] = {
       status,
@@ -238,7 +243,7 @@ function synthCompose(group: string): string {
 }
 
 export function demoStackList() {
-  const groups = [...new Set(seeds.map((s) => s.group))]
+  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => !UNMANAGED_GROUPS.has(g))
   const stacks = groups.map((g) => {
     const members = seeds.map((s, i) => ({ s, i })).filter(({ s }) => s.group === g)
     const running = members.filter(({ s, i }) => (demoOverrides[`demo-${i}`] || s.state || 'running') === 'running').length
@@ -256,6 +261,7 @@ export function demoStackList() {
 }
 
 export function demoStackRead(name: string) {
+  if (UNMANAGED_GROUPS.has(name)) return null
   if (![...new Set(seeds.map((s) => s.group))].includes(name) && !demoStackContent.has(name)) return null
   return { name, file: 'compose.yaml', content: demoStackContent.get(name) ?? synthCompose(name) }
 }

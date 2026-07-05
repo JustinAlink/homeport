@@ -124,12 +124,17 @@
 
       <template v-if="data.unmanaged.length">
         <h2 class="mb-2 mt-8 text-sm font-semibold uppercase tracking-wider text-slate-500">Unmanaged compose projects</h2>
-        <p class="mb-2 text-xs text-slate-600">Running compose projects without a directory in {{ data.dir }} — visible, but not editable here.</p>
+        <p class="mb-2 text-xs text-slate-600">Running compose projects without a directory in {{ data.dir }} — their compose files aren't editable here, but you can still view and control their containers.</p>
         <div class="space-y-1.5">
-          <div v-for="u in data.unmanaged" :key="u.name" class="flex items-center gap-3 rounded-md border border-white/5 bg-ink-900/60 px-4 py-2">
+          <NuxtLink
+            v-for="u in data.unmanaged"
+            :key="u.name"
+            :to="`/stacks/${encodeURIComponent(u.name)}`"
+            class="flex items-center gap-3 rounded-md border border-white/5 bg-ink-900/60 px-4 py-2 transition-colors hover:border-accent/30"
+          >
             <span class="text-sm text-slate-300">{{ u.name }}</span>
             <span class="ml-auto text-xs text-slate-600">{{ u.running }}/{{ u.total }} running</span>
-          </div>
+          </NuxtLink>
         </div>
       </template>
     </template>

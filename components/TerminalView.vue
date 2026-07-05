@@ -1,14 +1,18 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex items-center gap-2 px-1 pb-2 text-xs">
+    <div class="flex flex-wrap items-center gap-2 px-1 pb-2 text-xs">
       <span class="flex items-center gap-1.5 text-slate-500">
         <span class="h-1.5 w-1.5 rounded-full" :class="statusDot" />{{ statusText }}
       </span>
       <button
-        v-if="status === 'closed'"
+        v-if="status === 'closed' || status === 'failed'"
         class="rounded border border-white/10 px-2 py-1 text-slate-300 hover:bg-white/5"
         @click="connect"
       >Reconnect</button>
+      <span v-if="status === 'failed'" class="basis-full text-[11px] leading-relaxed text-amber-300/90">
+        The WebSocket connection never opened. If homeport sits behind a reverse proxy, WebSocket upgrades must be
+        allowed for this host — in Nginx Proxy Manager, edit the homeport proxy host and enable “Websockets Support”.
+      </span>
     </div>
     <div ref="el" class="min-h-0 flex-1 overflow-hidden rounded-md border border-white/5 bg-[#0b0f14] p-2" />
   </div>
@@ -18,9 +22,13 @@
 const props = defineProps<{ id: string; name: string }>()
 
 const el = ref<HTMLElement | null>(null)
-const status = ref<'connecting' | 'open' | 'closed'>('connecting')
-const statusText = computed(() => ({ connecting: 'connecting…', open: 'connected', closed: 'disconnected' })[status.value])
-const statusDot = computed(() => ({ connecting: 'bg-amber-400', open: 'bg-accent', closed: 'bg-red-400' })[status.value])
+const status = ref<'connecting' | 'open' | 'closed' | 'failed'>('connecting')
+const statusText = computed(
+  () => ({ connecting: 'connecting…', open: 'connected', closed: 'disconnected', failed: 'connection failed' })[status.value],
+)
+const statusDot = computed(
+  () => ({ connecting: 'bg-amber-400', open: 'bg-accent', closed: 'bg-red-400', failed: 'bg-red-400' })[status.value],
+)
 
 let term: any = null
 let fit: any = null
@@ -50,7 +58,9 @@ async function connect() {
   ws = new WebSocket(`${proto}//${location.host}/api/terminal?id=${encodeURIComponent(props.id)}&name=${encodeURIComponent(props.name)}`)
   ws.binaryType = 'arraybuffer'
 
+  let opened = false
   ws.onopen = () => {
+    opened = true
     status.value = 'open'
     sendResize()
     term.focus()
@@ -58,8 +68,10 @@ async function connect() {
   ws.onmessage = (e) => {
     term.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data))
   }
-  ws.onclose = () => (status.value = 'closed')
-  ws.onerror = () => (status.value = 'closed')
+  // a close before open = the upgrade itself was refused (auth, capability, or
+  // a reverse proxy without websocket support) — surface that, don't just sit there
+  ws.onclose = () => (status.value = opened ? 'closed' : 'failed')
+  ws.onerror = () => { if (!opened) status.value = 'failed' }
 
   term.onData((data: string) => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'input', data }))

@@ -5,6 +5,7 @@ import { getHosts, type HostConfig } from './hosts'
 import { getDockerFor, listContainersFor, oneShot } from './docker'
 import { parseImageRef, digestMatches, pickDueChecks, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
+import { listStackDirs } from './stacks'
 import { guard } from './guard'
 
 // Image update detection + apply.
@@ -158,10 +159,13 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
     step('inspect', false, e?.message)
   }
 
-  // Compose-managed containers must be updated through their stack — recreating
-  // one here would desync it from `docker compose` (label/hash drift, orphaning).
+  // Compose-managed containers whose stack homeport manages must be updated
+  // through the stack — recreating one here would desync it from what a later
+  // `compose pull && up` deploys. Projects homeport has no compose file for
+  // (started elsewhere) get the direct recreate: labels are copied over, so
+  // compose keeps recognizing the container.
   const project = inspect.Config?.Labels?.['com.docker.compose.project']
-  if (project) {
+  if (project && getConfig().allowStacks && listStackDirs().some((d) => d.name === project)) {
     const cname = String(inspect.Name || '').replace(/^\//, '')
     throw fail(`${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`)
   }

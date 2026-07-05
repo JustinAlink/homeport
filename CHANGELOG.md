@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.5.0 — 2026-07-05
+
+**Unmanaged compose projects are first-class now.**
+
+- **Fix: updating a compose-managed container no longer dead-ends in "Unknown
+  stack".** Containers from compose projects homeport has no stack directory for
+  (started elsewhere on the host) can now be updated directly — pull + recreate
+  in place, labels preserved. The "update via stack" hand-off only appears when
+  homeport actually manages that stack.
+- **Stack pages for unmanaged projects**: opening a compose project without a
+  stack dir shows its containers with live stats, start/restart/stop-all
+  controls, and an explanation of how to make it fully managed — instead of an
+  "Unknown stack" error.
+- **Dashboard stack names are links** — click a group name to open its stack
+  page; the row still collapses the group. Unmanaged rows on the stacks page are
+  clickable too, and every stack page now lists its services.
+- **Service page controls rebuilt**: a proper segmented Restart / Stop group
+  (filled Start button when the container is down) with aligned icons and busy
+  states, replacing the old mismatched buttons.
+- **Terminal failures explain themselves**: a WebSocket that never opens now
+  says so and points at reverse-proxy WebSocket support (NPM "Websockets
+  Support"); an exec blocked by the Docker socket proxy points at `EXEC=1`.
+
 ## v2.4.0 — 2026-07-05
 
 **The big UI/UX revamp.**

@@ -5,7 +5,30 @@
       <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
       <span v-if="file" class="font-mono text-xs text-slate-600">{{ file }}</span>
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
-      <div class="ml-auto flex items-center gap-2">
+      <span v-if="notManaged && stackSvcs.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
+      <div v-if="notManaged" class="ml-auto flex items-center gap-2">
+        <template v-if="caps.control && stackSvcs.length">
+          <button
+            v-if="stackSvcs.some((s) => s.state !== 'running' && s.state !== 'restarting')"
+            :disabled="!!bulkBusy"
+            class="inline-flex items-center gap-1.5 rounded-md border border-accent/25 px-2.5 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
+            @click="bulk('start')"
+          ><Icon name="play" class="h-3.5 w-3.5" /> {{ bulkBusy === 'start' ? 'Starting…' : 'Start all' }}</button>
+          <button
+            v-if="anyRunning"
+            :disabled="!!bulkBusy"
+            class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+            @click="bulk('restart')"
+          ><Icon name="refresh" class="h-3.5 w-3.5" :class="bulkBusy === 'restart' ? 'animate-spin' : ''" /> {{ bulkBusy === 'restart' ? 'Restarting…' : 'Restart all' }}</button>
+          <button
+            v-if="anyRunning"
+            :disabled="!!bulkBusy"
+            class="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+            @click="bulk('stop')"
+          ><Icon name="square" class="h-3.5 w-3.5" /> {{ bulkBusy === 'stop' ? 'Stopping…' : 'Stop all' }}</button>
+        </template>
+      </div>
+      <div v-else class="ml-auto flex items-center gap-2">
         <button
           v-if="gitInfo"
           :disabled="opRunning"
@@ -41,10 +64,28 @@
       >{{ gitChecking ? 'Checking…' : 'Check' }}</button>
     </div>
 
-    <div v-if="loadError" class="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ loadError }}</div>
+    <div v-if="loadError && !notManaged" class="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ loadError }}</div>
+
+    <!-- unmanaged compose project: no compose file here, but the containers are real -->
+    <template v-if="notManaged">
+      <div v-if="!svcData" class="py-20 text-center text-slate-500">Loading…</div>
+      <div v-else-if="!stackSvcs.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        No stack or running compose project named “{{ name }}” was found.
+        <NuxtLink to="/stacks" class="text-accent-light hover:underline">Back to stacks</NuxtLink>
+      </div>
+      <div v-else class="mb-4 rounded-lg border border-white/5 bg-ink-900 p-4 text-sm text-slate-400">
+        This compose project is running on the host, but its compose file lives outside homeport's stacks directory —
+        so it can't be edited or compose-updated from here. You can still control and update its containers below.
+        <span class="mt-1 block text-xs text-slate-600">
+          To manage it fully, mount the folder holding its compose file into homeport's stacks directory
+          (e.g. <code class="text-slate-500">-v /path/to/projects:/stacks</code> — each subfolder with a compose file becomes an editable stack).
+        </span>
+      </div>
+      <p v-if="bulkMsg" class="mb-4 whitespace-pre-line text-xs" :class="bulkOk ? 'text-accent-light' : 'text-red-400'">{{ bulkMsg }}</p>
+    </template>
 
     <!-- editor -->
-    <div class="rounded-lg border border-white/10 bg-[#0b0f14]">
+    <div v-if="!notManaged" class="rounded-lg border border-white/10 bg-[#0b0f14]">
       <div ref="editorEl" class="max-h-[55vh] min-h-[16rem] overflow-auto text-[13px]" />
       <div class="flex items-center gap-3 border-t border-white/5 px-3 py-2">
         <button
@@ -65,6 +106,31 @@
       </div>
       <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
     </div>
+
+    <!-- services in this stack (compose project) -->
+    <section v-if="stackSvcs.length" class="mt-6">
+      <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+        Services <span class="ml-1 font-normal normal-case text-slate-600">{{ runningCount }}/{{ stackSvcs.length }} running</span>
+      </h2>
+      <div class="space-y-1.5">
+        <NuxtLink
+          v-for="s in stackSvcs"
+          :key="s.id"
+          :to="`/services/${encodeURIComponent(s.id)}`"
+          class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-900 px-4 py-2.5 transition-colors hover:border-accent/30"
+        >
+          <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
+          <div class="min-w-0 flex-1">
+            <span class="block truncate text-sm text-slate-200">{{ s.displayName }}</span>
+            <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
+          </div>
+          <span v-if="stats[s.id]" class="hidden shrink-0 font-mono text-[11px] text-slate-500 sm:block">
+            CPU {{ stats[s.id].cpuPercent ?? '—' }}% · RAM {{ formatBytes(stats[s.id].memBytes) }}
+          </span>
+          <StatusPill :state="s.state" :health="s.health" />
+        </NuxtLink>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -75,6 +141,42 @@ const isNew = ref(String(route.query.new || '') === '1')
 
 const file = ref('')
 const loadError = ref('')
+const notManaged = ref(false) // no stack dir for this name — unmanaged compose project view
+
+// live services belonging to this compose project (both managed + unmanaged views)
+const { data: svcData, refresh: svcRefresh, start: svcStart, stop: svcStop } = useServices()
+const { stats, start: statsStart, stop: statsStop } = useStats()
+const { caps, load: loadCaps } = useCapabilities()
+const stackSvcs = computed(() => (svcData.value?.services ?? []).filter((s) => s.project === name))
+const runningCount = computed(() => stackSvcs.value.filter((s) => s.state === 'running' || s.state === 'restarting').length)
+const anyRunning = computed(() => runningCount.value > 0)
+
+// bulk container controls for unmanaged projects (no compose file to run ops with)
+const bulkBusy = ref<'' | 'start' | 'stop' | 'restart'>('')
+const bulkMsg = ref('')
+const bulkOk = ref(true)
+async function bulk(action: 'start' | 'stop' | 'restart') {
+  const targets = stackSvcs.value.filter((s) =>
+    s.kind === 'container' && (action === 'start' ? s.state !== 'running' && s.state !== 'restarting' : s.state === 'running' || s.state === 'restarting'),
+  )
+  if (!targets.length) return
+  const verb = action === 'stop' ? 'Stop' : action === 'restart' ? 'Restart' : ''
+  if (verb && !window.confirm(`${verb} ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}”?`)) return
+  bulkBusy.value = action
+  bulkMsg.value = ''
+  const errors: string[] = []
+  for (const s of targets) {
+    try {
+      await $fetch('/api/control', { method: 'POST', body: { id: s.id, action } })
+    } catch (e: any) {
+      errors.push(`${s.displayName}: ${errMsg(e, 'failed')}`)
+    }
+  }
+  bulkBusy.value = ''
+  bulkOk.value = !errors.length
+  bulkMsg.value = errors.length ? errors.join('\n') : ''
+  svcRefresh()
+}
 const editorEl = ref<HTMLElement | null>(null)
 const dirty = ref(false)
 const saving = ref(false)
@@ -122,7 +224,14 @@ async function load() {
     savedContent = s.content
     await setupEditor(s.content)
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    const code = e?.statusCode ?? e?.response?.status
+    if (code === 401) return navigateTo('/login')
+    // 404 = no stack dir; 403 = stacks disabled — either way, fall back to the
+    // unmanaged-project view driven by the live container list
+    if (code === 404 || code === 403) {
+      notManaged.value = true
+      return
+    }
     loadError.value = errMsg(e, 'Could not load this stack')
   }
 }
@@ -236,6 +345,9 @@ async function loadGit(force = false) {
 
 onMounted(() => {
   load()
+  loadCaps()
+  svcStart()
+  statsStart()
   if (!isNew.value) loadGit()
   // arriving from "Clone & deploy" — attach to the in-flight clone op
   const opId = String(useRoute().query.op || '')
@@ -247,6 +359,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   es?.close()
   view?.destroy()
+  svcStop()
+  statsStop()
 })
 
 useHead({ title: `${name} — stacks — homeport` })

@@ -9,24 +9,41 @@
           <h1 class="truncate text-xl font-semibold text-slate-100">{{ service.displayName }}</h1>
           <p class="truncate font-mono text-xs text-slate-500">{{ service.image }}</p>
         </div>
-        <div class="ml-auto flex items-center gap-2">
+        <div class="ml-auto flex items-center gap-3">
           <span v-if="updateEntry?.status === 'update'" class="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[11px] text-sky-300">
             update available
           </span>
-          <button
-            v-if="caps.control && isUp"
-            :disabled="busy"
-            class="rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
-            @click="control('restart')"
-          ><Icon name="refresh" class="h-3.5 w-3.5" /> Restart</button>
-          <button
-            v-if="caps.control"
-            :disabled="busy"
-            class="rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-50"
-            :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-accent/25 text-accent-light hover:bg-accent/10'"
-            @click="control(isUp ? 'stop' : 'start')"
-          >{{ busy ? '…' : isUp ? 'Stop' : 'Start' }}</button>
           <StatusPill :state="service.state" :health="service.health" />
+          <div v-if="caps.control" class="flex items-center overflow-hidden rounded-lg border border-white/10 bg-ink-900 shadow-sm">
+            <template v-if="isUp">
+              <button
+                :disabled="!!busy"
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
+                @click="control('restart')"
+              >
+                <Icon name="refresh" class="h-3.5 w-3.5" :class="busy === 'restart' ? 'animate-spin' : ''" />
+                {{ busy === 'restart' ? 'Restarting…' : 'Restart' }}
+              </button>
+              <div class="h-5 w-px bg-white/10" />
+              <button
+                :disabled="!!busy"
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/15 hover:text-red-200 disabled:opacity-40"
+                @click="control('stop')"
+              >
+                <Icon name="square" class="h-3.5 w-3.5" />
+                {{ busy === 'stop' ? 'Stopping…' : 'Stop' }}
+              </button>
+            </template>
+            <button
+              v-else
+              :disabled="!!busy"
+              class="inline-flex items-center gap-1.5 bg-accent px-3.5 py-2 text-xs font-semibold text-on-accent transition-colors hover:bg-accent-light disabled:opacity-40"
+              @click="control('start')"
+            >
+              <Icon name="play" class="h-3.5 w-3.5" />
+              {{ busy === 'start' ? 'Starting…' : 'Start' }}
+            </button>
+          </div>
         </div>
       </template>
     </header>
@@ -174,19 +191,23 @@
             >{{ checking ? 'Checking…' : 'Check now' }}</button>
             <template v-if="updateEntry?.status === 'update'">
               <NuxtLink
-                v-if="composeProject"
+                v-if="stackManaged"
                 :to="`/stacks/${composeProject}`"
                 class="rounded-md border border-sky-400/30 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-400/10"
               >Update via stack “{{ composeProject }}” →</NuxtLink>
               <button
-                v-else-if="caps.updates"
+                v-else-if="caps.updates && (!composeProject || stackChecked)"
                 :disabled="applying"
                 class="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
                 @click="apply"
               >{{ applying ? 'Updating…' : 'Update now' }}</button>
-              <span v-else class="text-[11px] text-slate-500">applying updates is disabled (Settings → Capabilities)</span>
+              <span v-else-if="!caps.updates" class="text-[11px] text-slate-500">applying updates is disabled (Settings → Capabilities)</span>
             </template>
           </div>
+          <p v-if="updateEntry?.status === 'update' && composeProject && stackChecked && !stackManaged" class="mt-2 text-[11px] text-slate-500">
+            part of the “{{ composeProject }}” compose project (not managed by homeport) — updating pulls the image and
+            recreates this container in place with its current settings.
+          </p>
         </div>
 
         <div v-if="applySteps.length" class="rounded-lg border border-white/5 bg-ink-900 p-4">
@@ -208,7 +229,7 @@ const id = decodeURIComponent(String(route.params.id))
 
 const { data, loading, refresh, start, stop } = useServices()
 const stats = useStats()
-const { caps, load: loadCaps } = useCapabilities()
+const { caps, loaded: capsLoaded, load: loadCaps } = useCapabilities()
 const updates = useUpdates()
 
 const service = computed(() => data.value?.services.find((s) => s.id === id))
@@ -327,24 +348,45 @@ const series = computed(() => {
 })
 
 // --- controls ---
-const busy = ref(false)
+const busy = ref<'' | 'start' | 'stop' | 'restart'>('')
 async function control(action: 'start' | 'stop' | 'restart') {
   if (action === 'stop' && !window.confirm(`Stop “${service.value?.displayName}”?`)) return
-  busy.value = true
+  busy.value = action
   try {
     await $fetch('/api/control', { method: 'POST', body: { id, action } })
     await refresh()
   } catch (e: any) {
     window.alert(errMsg(e, 'Action failed'))
   } finally {
-    busy.value = false
+    busy.value = ''
   }
 }
 
 // --- update tab ---
 const updatesEnabled = computed(() => updates.enabled.value)
-// compose-managed containers update through their stack, not standalone recreate
+// compose-managed containers update through their stack — but only when homeport
+// actually manages that stack; foreign projects fall back to a direct recreate
 const composeProject = computed(() => (service.value?.kind === 'container' ? service.value?.project : null))
+const stackChecked = ref(false)
+const stackManaged = ref(false)
+async function checkStackManaged() {
+  if (!composeProject.value || !caps.value.stacks) {
+    stackChecked.value = true
+    return
+  }
+  try {
+    const r = await $fetch<{ stacks: { name: string }[] }>('/api/stacks')
+    stackManaged.value = (r.stacks ?? []).some((s) => s.name === composeProject.value)
+  } catch {
+    stackManaged.value = false // stacks unavailable — direct update is the only path
+  }
+  stackChecked.value = true
+}
+watch(
+  () => tab.value === 'update' && !!service.value && capsLoaded.value,
+  (on) => { if (on && !stackChecked.value) checkStackManaged() },
+  { immediate: true },
+)
 const updateEntry = computed(() => (service.value ? updates.entryFor(service.value) : undefined))
 const updateLabel = computed(() => {
   switch (updateEntry.value?.status) {

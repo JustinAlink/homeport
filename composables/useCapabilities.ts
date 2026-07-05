@@ -39,5 +39,5 @@ export function useCapabilities() {
     }
   }
 
-  return { caps, load }
+  return { caps, loaded, load }
 }

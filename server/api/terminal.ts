@@ -68,7 +68,11 @@ export default defineWebSocketHandler({
       stream.on('end', () => peer.close())
       stream.on('error', () => peer.close())
     } catch (err: any) {
-      peer.send(`\r\ncould not open a shell: ${err?.message || err}\r\n`)
+      const msg = String(err?.message || err)
+      peer.send(`\r\ncould not open a shell: ${msg}\r\n`)
+      if (/403|forbidden/i.test(msg)) {
+        peer.send('\x1b[90mhint: exec is blocked at the Docker socket proxy — it needs EXEC=1 (and POST=1) in its environment.\x1b[0m\r\n')
+      }
       peer.close()
     }
   },

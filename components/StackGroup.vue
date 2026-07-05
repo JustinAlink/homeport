@@ -1,6 +1,6 @@
 <template>
   <section class="mb-6 break-inside-avoid rounded-2xl border border-white/10 bg-ink-900 p-4 shadow-sm">
-    <button class="group mb-2 flex w-full items-center gap-3 px-1.5 text-left" @click="toggle">
+    <div class="group mb-2 flex w-full cursor-pointer items-center gap-3 px-1.5 text-left" @click="toggle">
       <svg
         class="h-3 w-3 shrink-0 text-slate-500 transition-transform"
         :class="collapsed ? '-rotate-90' : ''"
@@ -9,7 +9,18 @@
       >
         <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <h2 class="text-[13px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">
+      <!-- groups backed by a compose project link to the stack page; the rest of the row toggles collapse -->
+      <NuxtLink
+        v-if="project"
+        :to="`/stacks/${encodeURIComponent(project)}`"
+        class="inline-flex items-center gap-1 text-[13px] font-semibold uppercase tracking-wider text-slate-400 hover:text-accent-light"
+        title="Open this stack"
+        @click.stop
+      >
+        {{ name }}
+        <Icon name="chevron-right" class="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+      </NuxtLink>
+      <h2 v-else class="text-[13px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">
         {{ name }}
       </h2>
       <span class="text-xs text-slate-600">{{ running }}/{{ services.length }}</span>
@@ -18,7 +29,7 @@
         <span class="text-slate-600">CPU</span> {{ totals.cpu }}%
         <span class="ml-2 text-slate-600">RAM</span> {{ formatBytes(totals.mem) }}
       </span>
-    </button>
+    </div>
 
     <div v-show="!collapsed" class="flex flex-col gap-2.5">
       <ServiceCard v-for="s in services" :key="s.id" :service="s" />
@@ -33,6 +44,13 @@ const props = defineProps<{ name: string; services: Service[] }>()
 const { stats } = useStats()
 
 const running = computed(() => props.services.filter((s) => s.state === 'running').length)
+
+// The compose project behind this group, when the whole group agrees on one —
+// that's what makes the name a meaningful link to /stacks/<project>.
+const project = computed(() => {
+  const p = props.services[0]?.project
+  return p && props.services.every((s) => s.project === p) ? p : null
+})
 
 const totals = computed(() => {
   let cpu = 0
