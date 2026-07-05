@@ -46,6 +46,23 @@ function write(patch: AuthFile): AuthFile {
   return next
 }
 
+/** Raw auth file for backup export (hash + session secret — treat as sensitive). */
+export function exportAuthFile(): AuthFile {
+  return { ...read() }
+}
+
+/** Replace the auth file wholesale (backup restore). Invalidates existing sessions. */
+export function restoreAuthFile(data: AuthFile): void {
+  const next: AuthFile = {}
+  if (typeof data.passwordHash === 'string') next.passwordHash = data.passwordHash
+  if (typeof data.sessionSecret === 'string') next.sessionSecret = data.sessionSecret
+  if (typeof data.authSkipped === 'boolean') next.authSkipped = data.authSkipped
+  const dir = process.env.HOMEPORT_DATA_DIR || '/data'
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(file(), JSON.stringify(next, null, 2), { mode: 0o600 })
+  cache = next
+}
+
 /** Is an admin password configured (env or persisted)? */
 export function hasPassword(): boolean {
   return !!envPassword() || !!read().passwordHash

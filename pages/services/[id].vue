@@ -152,6 +152,78 @@
         <p v-else class="text-sm text-slate-500">The container isn't running — start it to open a shell.</p>
       </section>
 
+      <!-- ENVIRONMENT -->
+      <section v-else-if="tab === 'env'" class="max-w-2xl space-y-4">
+        <div v-if="composeProject && stackManaged" class="rounded-lg border border-white/5 bg-ink-900 p-4 text-sm text-slate-400">
+          This container belongs to the managed stack “{{ composeProject }}” — set its environment in the compose file,
+          so the change survives redeploys.
+          <NuxtLink :to="`/stacks/${composeProject}`" class="text-accent-light hover:underline">Open the stack →</NuxtLink>
+        </div>
+        <template v-else>
+          <p v-if="composeProject && stackChecked" class="rounded-lg border border-amber-500/15 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-300/90">
+            Part of the “{{ composeProject }}” compose project (not managed by homeport): changes apply now, but a future
+            <code>docker compose up</code> from its original compose file recreates the container with the old environment —
+            mirror the change there too.
+          </p>
+          <div v-if="!envLoaded" class="py-8 text-center text-sm text-slate-500">Loading…</div>
+          <p v-else-if="envError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ envError }}</p>
+          <template v-else>
+            <div class="space-y-2">
+              <div v-for="(row, i) in envRows" :key="i" class="flex items-center gap-2">
+                <input
+                  v-model="row.key"
+                  placeholder="NAME"
+                  spellcheck="false"
+                  class="w-2/5 rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+                />
+                <input
+                  v-model="row.value"
+                  :type="row.secret ? 'password' : 'text'"
+                  :placeholder="row.keep ? 'unchanged — type to replace' : ''"
+                  spellcheck="false"
+                  class="flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+                  @input="row.keep = false"
+                />
+                <button
+                  type="button"
+                  class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                  @click="envRows.splice(i, 1)"
+                >Remove</button>
+              </div>
+              <button
+                type="button"
+                class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+                @click="envRows.push({ key: '', value: '', keep: false, secret: false })"
+              >+ Add variable</button>
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                :disabled="applying"
+                class="rounded-md bg-accent px-4 py-2 text-xs font-semibold text-on-accent hover:bg-accent-light disabled:opacity-40"
+                @click="applyEnv"
+              >{{ applying ? 'Recreating…' : 'Apply & recreate' }}</button>
+              <button
+                type="button"
+                :disabled="applying"
+                class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 disabled:opacity-40"
+                @click="reloadEnv"
+              >Discard changes</button>
+              <span class="text-[11px] text-slate-600">applying stops the container and recreates it with the new environment</span>
+            </div>
+            <div v-if="envSteps.length" class="rounded-lg border border-white/5 bg-ink-900 p-4">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Recreate steps</p>
+              <div v-for="(s, i) in envSteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
+                <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
+                <span class="text-slate-300">{{ s.step }}</span>
+                <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
+              </div>
+              <p v-if="redirecting" class="mt-2 animate-pulse text-xs text-accent-light">container recreated — opening its new page…</p>
+              <NuxtLink v-else-if="newPage" :to="newPage" class="mt-2 inline-block text-xs text-accent-light hover:underline">Open the updated container →</NuxtLink>
+            </div>
+          </template>
+        </template>
+      </section>
+
       <!-- DOMAINS -->
       <section v-else-if="tab === 'domains'" class="max-w-xl space-y-4">
         <p class="text-sm text-slate-400">
@@ -267,12 +339,13 @@ const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const hostName = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const isUp = computed(() => service.value?.state === 'running' || service.value?.state === 'restarting')
 
-type Tab = 'overview' | 'logs' | 'terminal' | 'domains' | 'update'
+type Tab = 'overview' | 'logs' | 'terminal' | 'env' | 'domains' | 'update'
 const tab = ref<Tab>('overview')
 const tabs = computed(() => [
   { key: 'overview' as Tab, label: 'Overview' },
   ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs' }] : []),
   ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal' }] : []),
+  ...(caps.value.updates ? [{ key: 'env' as Tab, label: 'Environment' }] : []),
   ...(caps.value.proxyAdmin ? [{ key: 'domains' as Tab, label: 'Domains' }] : []),
   ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
 ])
@@ -416,7 +489,7 @@ async function checkStackManaged() {
   stackChecked.value = true
 }
 watch(
-  () => tab.value === 'update' && !!service.value && capsLoaded.value,
+  () => (tab.value === 'update' || tab.value === 'env') && !!service.value && capsLoaded.value,
   (on) => { if (on && !stackChecked.value) checkStackManaged() },
   { immediate: true },
 )
@@ -477,6 +550,65 @@ async function apply() {
   } catch (e: any) {
     applySteps.value = e?.data?.data?.steps || []
     window.alert(errMsg(e, 'Update failed'))
+  } finally {
+    applying.value = false
+  }
+}
+
+// --- environment tab ---
+interface EnvRow { key: string; value: string; keep: boolean; secret: boolean }
+const envRows = ref<EnvRow[]>([])
+const envLoaded = ref(false)
+const envError = ref('')
+const envSteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
+
+async function loadEnv() {
+  envError.value = ''
+  try {
+    const r = await $fetch<{ env: { key: string; value: string | null; secret: boolean }[] }>('/api/env', { query: { id } })
+    envRows.value = r.env.map((e) => ({ key: e.key, value: e.value ?? '', keep: e.value === null, secret: e.secret }))
+  } catch (e: any) {
+    envError.value = errMsg(e, 'could not read the environment')
+  }
+  envLoaded.value = true
+}
+function reloadEnv() {
+  envLoaded.value = false
+  envSteps.value = []
+  loadEnv()
+}
+watch(
+  () => tab.value === 'env' && !!service.value && !stackManaged.value,
+  (on) => { if (on && !envLoaded.value) loadEnv() },
+  { immediate: true },
+)
+
+async function applyEnv() {
+  if (!window.confirm(`Recreate “${service.value?.displayName}” with the edited environment?`)) return
+  applying.value = true
+  envSteps.value = []
+  try {
+    const r = await $fetch<{ steps: typeof envSteps.value; newId?: string }>('/api/env', {
+      method: 'POST',
+      body: { id, env: envRows.value.map((row) => ({ key: row.key.trim(), value: row.keep ? null : row.value })) },
+    })
+    envSteps.value = r.steps
+    await refresh()
+    if (r.newId) {
+      const sep = id.indexOf('::')
+      const hostPrefix = sep >= 0 ? id.slice(0, sep) : 'default'
+      newPage.value = `/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}`
+      if (r.steps.every((s) => s.ok)) {
+        redirecting.value = true
+        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+      }
+    } else {
+      reloadEnv() // demo / same id — re-read what's now in place
+      envSteps.value = r.steps
+    }
+  } catch (e: any) {
+    envSteps.value = e?.data?.data?.steps || []
+    window.alert(errMsg(e, 'Environment change failed'))
   } finally {
     applying.value = false
   }

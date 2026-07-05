@@ -175,6 +175,36 @@ export function demoApplyUpdate(image: string) {
   ]
 }
 
+// ---- demo env editor ----
+const demoEnvStore = new Map<string, { key: string; value: string | null; secret: boolean }[]>()
+export function demoEnv(id: string) {
+  if (!demoEnvStore.has(id)) {
+    demoEnvStore.set(id, [
+      { key: 'TZ', value: 'Europe/Amsterdam', secret: false },
+      { key: 'PUID', value: '1000', secret: false },
+      { key: 'PGID', value: '1000', secret: false },
+      { key: 'DB_PASSWORD', value: null, secret: true },
+    ])
+  }
+  return demoEnvStore.get(id)!
+}
+export function demoEnvApply(id: string, env: { key: string; value: string | null }[]) {
+  const prev = new Map(demoEnv(id).map((e) => [e.key, e]))
+  demoEnvStore.set(
+    id,
+    env.map(({ key, value }) => {
+      const secret = /pass|secret|token|key/i.test(key)
+      return { key, value: value === null ? (prev.get(key)?.value ?? null) : secret ? null : value, secret }
+    }),
+  )
+  return [
+    { step: 'inspect', ok: true },
+    { step: 'stop + rename old', ok: true },
+    { step: 'create + start new', ok: true },
+    { step: 'remove old', ok: true },
+  ]
+}
+
 // ---- demo proxy admin (in-memory route store seeded from demo domains) ----
 
 import type { AdminRoute, NewRoute, ProxyAdmin } from './proxy-admin/types'

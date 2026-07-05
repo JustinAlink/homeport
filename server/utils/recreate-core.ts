@@ -14,12 +14,13 @@ export interface CreatePlan {
  * (binds, ports, restart policy, resources…); network endpoints keep their
  * aliases minus the auto-generated short-id one.
  */
-export function buildCreatePayload(inspect: any, image: string): CreatePlan {
+export function buildCreatePayload(inspect: any, image: string, overrides?: { env?: string[] }): CreatePlan {
   const name = String(inspect?.Name || '').replace(/^\//, '')
   if (!name) throw new Error('inspect data has no container name')
 
   const shortId = String(inspect?.Id || '').slice(0, 12)
   const cfg = { ...(inspect?.Config || {}) }
+  if (overrides?.env) cfg.Env = overrides.env
 
   const endpoints: Record<string, any> = {}
   const networks = inspect?.NetworkSettings?.Networks || {}

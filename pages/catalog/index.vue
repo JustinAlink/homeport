@@ -71,13 +71,21 @@
         (Settings → Capabilities), since an installed app becomes a normal stack.
       </p>
 
-      <!-- search + category filter -->
+      <!-- search + sort + category filter -->
       <div class="mb-5 flex flex-wrap items-center gap-2">
         <input
           v-model="query"
           placeholder="Search apps…"
           class="w-56 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
         />
+        <select
+          v-model="sort"
+          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
+          title="Sort order"
+        >
+          <option value="default">Sort: source order</option>
+          <option value="name">Sort: name A–Z</option>
+        </select>
         <button
           v-for="c in visibleCategories"
           :key="c.name"
@@ -168,11 +176,25 @@ const PAGE_SIZE = 24
 
 const data = ref<CatalogResponse | null>(null)
 const error = ref('')
-const query = ref('')
-const category = ref('')
 const refreshing = ref(false)
 const sourcesOpen = ref(false)
-const page = ref(1)
+
+// filters live in the URL (?q&cat&sort&page) so links/back-button/refresh keep them
+const route = useRoute()
+const router = useRouter()
+const query = ref(String(route.query.q ?? ''))
+const category = ref(String(route.query.cat ?? ''))
+const sort = ref(String(route.query.sort ?? '') === 'name' ? 'name' : 'default')
+const page = ref(Math.max(1, Number.parseInt(String(route.query.page ?? '1'), 10) || 1))
+
+watch([query, category, sort, page], () => {
+  const q: Record<string, string> = {}
+  if (query.value.trim()) q.q = query.value.trim()
+  if (category.value) q.cat = category.value
+  if (sort.value !== 'default') q.sort = sort.value
+  if (page.value > 1) q.page = String(page.value)
+  router.replace({ query: q })
+})
 
 async function load(refresh = false) {
   try {
@@ -228,10 +250,17 @@ const filtered = computed(() => {
   })
 })
 
-// pagination — reset to page 1 whenever the filter changes
-watch([query, category], () => (page.value = 1))
-const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PAGE_SIZE)))
-const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
+const sorted = computed(() =>
+  sort.value === 'name' ? [...filtered.value].sort((a, b) => a.name.localeCompare(b.name)) : filtered.value,
+)
+
+// pagination — reset to page 1 whenever the filter changes; clamp when it shrinks
+watch([query, category, sort], () => (page.value = 1))
+const pageCount = computed(() => Math.max(1, Math.ceil(sorted.value.length / PAGE_SIZE)))
+watch(pageCount, (n) => {
+  if (page.value > n) page.value = n
+})
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
 
 function go(p: number) {
   page.value = Math.min(Math.max(1, p), pageCount.value)

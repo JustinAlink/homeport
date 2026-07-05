@@ -38,9 +38,12 @@
             <label class="mb-1 block text-xs text-slate-400">Stack name</label>
             <input
               v-model="stackName"
-              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+              class="w-full rounded-md border bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+              :class="attempted && !stackNameValid ? 'border-red-400/60' : 'border-white/10'"
             />
-            <p class="mt-1 text-[11px] text-slate-600">Becomes the directory + compose project name.</p>
+            <p class="mt-1 text-[11px]" :class="attempted && !stackNameValid ? 'text-red-400' : 'text-slate-600'">
+              {{ attempted && !stackNameValid ? 'letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
+            </p>
           </div>
 
           <div v-for="input in visibleInputs" :key="input.name">
@@ -59,9 +62,11 @@
               v-model="values[input.name]"
               :type="/password|secret|token/i.test(input.name) ? 'password' : 'text'"
               :placeholder="input.default"
-              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+              class="w-full rounded-md border bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+              :class="attempted && isMissing(input) ? 'border-red-400/60' : 'border-white/10'"
             />
-            <p v-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
+            <p v-if="attempted && isMissing(input)" class="mt-1 text-[11px] text-red-400">required</p>
+            <p v-else-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
             <p v-if="portClash(input)" class="mt-1 text-[11px] text-amber-300">
               <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
             </p>
@@ -98,9 +103,12 @@
           {{ opRunning ? 'installing…' : opOk ? 'installed' : 'failed' }}
         </div>
         <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
-        <div v-if="opOk" class="mt-3 flex gap-2 text-xs">
-          <NuxtLink to="/" class="rounded-md border border-accent/30 px-3 py-1.5 text-accent-light hover:bg-accent/10">View on dashboard</NuxtLink>
-          <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Edit stack</NuxtLink>
+        <div v-if="opOk" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span v-if="following" class="animate-pulse text-slate-400">waiting for the app to come up — opening its page…</span>
+          <template v-else>
+            <NuxtLink to="/" class="rounded-md border border-accent/30 px-3 py-1.5 text-accent-light hover:bg-accent/10">View on dashboard</NuxtLink>
+            <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Edit stack</NuxtLink>
+          </template>
         </div>
       </div>
     </template>
@@ -184,6 +192,13 @@ function portClash(input: AppInputRow): string {
   return publishedPorts.value.get(n) ?? ''
 }
 
+// --- inline validation (mirrors the server's checks, but before the round-trip) ---
+const attempted = ref(false)
+const stackNameValid = computed(() => /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(stackName.value.trim()))
+const isMissing = (input: AppInputRow) =>
+  !!input.required && !input.select && !String(values[input.name] ?? '').trim() && !input.default
+const formValid = computed(() => stackNameValid.value && !visibleInputs.value.some(isMissing))
+
 // --- install + op streaming ---
 const installing = ref(false)
 const installError = ref('')
@@ -191,9 +206,33 @@ const installedAs = ref('')
 const opLines = ref<string[]>([])
 const opRunning = ref(false)
 const opOk = ref<boolean | null>(null)
+const following = ref(false)
 let es: EventSource | null = null
 
+// after a successful install, follow the containers to their new home
+async function followInstall() {
+  following.value = true
+  for (let i = 0; i < 10; i++) {
+    try {
+      const svc = await $fetch<ServicesResponse>('/api/services')
+      const mine = svc.services.filter((s) => s.project === installedAs.value)
+      if (mine.length) {
+        return navigateTo(mine.length === 1 ? `/services/${encodeURIComponent(mine[0].id)}` : `/stacks/${installedAs.value}`)
+      }
+    } catch {
+      // transient — keep polling
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+  following.value = false // never showed up — leave the manual links
+}
+
 async function install() {
+  attempted.value = true
+  if (!formValid.value) {
+    installError.value = 'Fill the highlighted fields first.'
+    return
+  }
   installing.value = true
   installError.value = ''
   opLines.value = []
@@ -215,6 +254,7 @@ async function install() {
           opOk.value = msg.ok
           opRunning.value = false
           es?.close()
+          if (msg.ok) followInstall()
         }
       } catch {}
     }

@@ -39,6 +39,20 @@ export function readToken(name: string): string | null {
   }
 }
 
+/** All stored stack tokens (backup export — sensitive). */
+export function listTokens(): Record<string, string> {
+  const out: Record<string, string> = {}
+  try {
+    for (const name of readdirSync(tokensDir())) {
+      const t = readToken(name)
+      if (t) out[name] = t
+    }
+  } catch {
+    // no tokens dir yet
+  }
+  return out
+}
+
 export function deleteToken(name: string): void {
   try {
     rmSync(tokenFile(name), { force: true })

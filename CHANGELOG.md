@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.9.0 — 2026-07-05
+
+- **Backup & restore** (Settings → Backup): one JSON file with everything
+  homeport persists — settings, hosts, alert channels, proxy credentials, the
+  admin password hash and stack git tokens. Restoring replaces settings
+  wholesale; treat the file like a password, it contains secrets.
+- **Environment editor**: a new Environment tab on every container page (needs
+  the updates capability). Edit, add or delete variables and apply — the
+  container is recreated in place with the same image and settings, and the
+  page follows it to its new id. Secret-looking values are write-only: you can
+  replace them but never read them back. Managed-stack containers are pointed
+  at their compose file instead; unmanaged compose containers get an honest
+  warning that a future `compose up` from the original file wins.
+- **Catalog polish**: search/category/sort/page live in the URL (shareable,
+  survives refresh and back), a sort control (source order / name), inline
+  validation on the install form, and after a successful install the catalog
+  follows the app to its new service page as soon as it comes up.
+
 ## v2.8.0 — 2026-07-05
 
 - **Scheduled automatic updates** (opt-in). Once a day, in an hour you pick,

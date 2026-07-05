@@ -87,6 +87,14 @@ export function writeSettings(patch: PersistedSettings): PersistedSettings {
   return next
 }
 
+/** Replace the whole persisted settings object (backup restore) — no merge. */
+export function replaceSettings(next: PersistedSettings): void {
+  const dir = dataDir()
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(settingsFile(), JSON.stringify(next, null, 2))
+  cache = next
+}
+
 export function settingsWritable(): boolean {
   try {
     if (existsSync(settingsFile())) {

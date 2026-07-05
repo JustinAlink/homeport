@@ -160,6 +160,20 @@ export const runUpdateSweep = guard(async (force = false) => {
 
 /** Apply an image update to a standalone container: pull → recreate → swap. */
 export async function applyUpdate(host: HostConfig, containerId: string): Promise<{ steps: ApplyStep[]; newId: string }> {
+  return swapContainer(host, containerId, { pull: true })
+}
+
+/** Recreate a container in place with a new environment (same image, no pull). */
+export async function applyEnvChange(host: HostConfig, containerId: string, env: string[]): Promise<{ steps: ApplyStep[]; newId: string }> {
+  return swapContainer(host, containerId, { pull: false, env })
+}
+
+/** Shared stop → rename → create → start → remove machinery (rollback = rename back). */
+async function swapContainer(
+  host: HostConfig,
+  containerId: string,
+  opts: { pull: boolean; env?: string[] },
+): Promise<{ steps: ApplyStep[]; newId: string }> {
   const docker = getDockerFor(host)
   const steps: ApplyStep[] = []
   const fail = (msg: string) => {
@@ -189,25 +203,31 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
   const project = inspect.Config?.Labels?.['com.docker.compose.project']
   if (project && getConfig().allowStacks && listStackDirs().some((d) => d.name === project)) {
     const cname = String(inspect.Name || '').replace(/^\//, '')
-    throw fail(`${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`)
+    throw fail(
+      opts.pull
+        ? `${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`
+        : `${cname} is part of the "${project}" compose stack — edit the environment in its compose file (Stacks → ${project}).`,
+    )
   }
 
   const image = inspect.Config?.Image
   const wasRunning = !!inspect.State?.Running
-  const plan = buildCreatePayload(inspect, image)
+  const plan = buildCreatePayload(inspect, image, opts.env ? { env: opts.env } : undefined)
   const backupName = `${plan.name}-old-${Date.now()}`
 
-  // 1. pull the fresh image
-  try {
-    await new Promise<void>((resolve, reject) => {
-      docker.pull(image, (err: any, stream: any) => {
-        if (err) return reject(err)
-        docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()))
+  // 1. pull the fresh image (updates only — env edits keep the current image)
+  if (opts.pull) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        docker.pull(image, (err: any, stream: any) => {
+          if (err) return reject(err)
+          docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()))
+        })
       })
-    })
-    step('pull', true, image)
-  } catch (e: any) {
-    step('pull', false, e?.message)
+      step('pull', true, image)
+    } catch (e: any) {
+      step('pull', false, e?.message)
+    }
   }
 
   // 2. stop + rename the old container out of the way
@@ -254,14 +274,16 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
     steps.push({ step: 'remove old', ok: false, detail: `leftover container "${backupName}": ${e?.message}` })
   }
 
-  // reflect the applied update in the cache right away (badges clear without
-  // waiting for the next 24h sweep)
-  const map = load()
-  const k = keyOf(host.id, image)
-  const entry = map[k]
-  if (entry?.remoteDigest) {
-    map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
-    persist()
+  // reflect an applied update in the cache right away (badges clear without
+  // waiting for the next 24h sweep) — env-only recreates change no image
+  if (opts.pull) {
+    const map = load()
+    const k = keyOf(host.id, image)
+    const entry = map[k]
+    if (entry?.remoteDigest) {
+      map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
+      persist()
+    }
   }
 
   return { steps, newId }

@@ -494,6 +494,30 @@
         </div>
       </section>
 
+      <!-- Backup & restore -->
+      <section :id="'backup'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Backup</h2>
+        <p class="text-xs text-slate-500">
+          Everything homeport persists — settings, hosts, alert channels, proxy credentials, the admin password hash
+          and stack git tokens — in one JSON file. <strong class="text-amber-300/90">It contains secrets; store it like a password.</strong>
+          Compose files in the stacks directory aren't included (they live outside the data dir — keep those in git).
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            @click="downloadBackup"
+          >Download backup</button>
+          <button
+            type="button"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            @click="restoreInput?.click()"
+          >Restore from file…</button>
+          <input ref="restoreInput" type="file" accept="application/json,.json" class="hidden" @change="restoreBackup" />
+          <span v-if="backupMsg" class="basis-full text-[11px]" :class="backupOk ? 'text-accent-light' : 'text-red-400'">{{ backupMsg }}</span>
+        </div>
+      </section>
+
       <!-- Appearance -->
       <section :id="'appearance'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Appearance</h2>
@@ -594,6 +618,7 @@ const sections = computed(() =>
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'alerts', label: 'Alerts' },
     { id: 'autoupdate', label: 'Auto-update' },
+    { id: 'backup', label: 'Backup' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
     { id: 'about', label: 'About' },
@@ -809,6 +834,63 @@ function probeChips(key: string) {
             : 'border-amber-400/40 text-amber-300',
     }
   })
+}
+
+// --- backup & restore ---
+const restoreInput = ref<HTMLInputElement | null>(null)
+const backupMsg = ref('')
+const backupOk = ref(true)
+
+async function downloadBackup() {
+  backupMsg.value = ''
+  try {
+    const r = await fetch('/api/backup')
+    if (!r.ok) throw new Error(`export failed (${r.status})`)
+    const blob = await r.blob()
+    const name = r.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'homeport-backup.json'
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(a.href)
+    backupOk.value = true
+    backupMsg.value = 'Backup downloaded — it contains secrets, store it safely.'
+  } catch (e: any) {
+    backupOk.value = false
+    backupMsg.value = errMsg(e, 'could not export a backup')
+  }
+}
+
+async function restoreBackup(ev: Event) {
+  const file = (ev.target as HTMLInputElement).files?.[0]
+  ;(ev.target as HTMLInputElement).value = '' // allow re-picking the same file
+  if (!file) return
+  backupMsg.value = ''
+  let parsed: any
+  try {
+    parsed = JSON.parse(await file.text())
+  } catch {
+    backupOk.value = false
+    backupMsg.value = 'That file is not valid JSON.'
+    return
+  }
+  if (parsed?.format !== 'homeport-backup') {
+    backupOk.value = false
+    backupMsg.value = 'That file is not a homeport backup.'
+    return
+  }
+  const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString() : 'unknown date'
+  if (!window.confirm(`Replace ALL settings with the backup from ${when}?${parsed.demo ? '\n(Note: this backup was exported from a demo instance.)' : ''}\nIf it includes a different admin password/session secret, you will be logged out.`)) return
+  try {
+    const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number }>('/api/backup', { method: 'POST', body: parsed })
+    backupOk.value = true
+    backupMsg.value = `Restored (git tokens: ${r.gitTokens}${r.authRestored ? ', auth file replaced' : ''}). Reloading…`
+    // a restored session secret invalidates this session — a reload lands wherever auth says
+    setTimeout(() => window.location.reload(), 1500)
+  } catch (e: any) {
+    backupOk.value = false
+    backupMsg.value = errMsg(e, 'restore failed')
+  }
 }
 
 const proxyTesting = ref(false)
