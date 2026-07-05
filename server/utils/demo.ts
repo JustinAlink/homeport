@@ -175,6 +175,20 @@ export function demoApplyUpdate(image: string) {
   ]
 }
 
+// ---- demo activity feed ----
+export function demoActivity() {
+  const now = Date.now()
+  const H = 3600_000
+  return [
+    { id: 'default|jellyfin/jellyfin:10.9.6', name: 'jellyfin', host: 'demo', kind: 'update', from: 'jellyfin/jellyfin:10.9.6', to: 'sha256:cdcd', at: now - 0.4 * H },
+    { id: 'auto|demo|stack media', name: 'stack media', host: 'demo', kind: 'updated', from: 'auto-update', to: '', at: now - 5 * H },
+    { id: 'demo-12', name: 'restic-backup', kind: 'recovered', from: 'exited', to: 'running', at: now - 9 * H },
+    { id: 'demo-12', name: 'restic-backup', kind: 'down', from: 'running', to: 'exited', at: now - 11 * H },
+    { id: 'demo-5', name: 'umami-db', kind: 'unhealthy', from: 'healthy', to: 'unhealthy', at: now - 26 * H },
+    { id: 'demo-5', name: 'umami-db', kind: 'recovered', from: 'unhealthy', to: 'healthy', at: now - 25.7 * H },
+  ].sort((a, b) => b.at - a.at)
+}
+
 // ---- demo env editor ----
 const demoEnvStore = new Map<string, { key: string; value: string | null; secret: boolean }[]>()
 export function demoEnv(id: string) {

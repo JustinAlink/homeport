@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.11.0 — 2026-07-05
+
+- **CI and release automation**: every push and PR runs tests, the production
+  build and a full-page smoke test in GitHub Actions; pushing a `v*` tag now
+  builds the multi-arch image, publishes it to GHCR and creates the GitHub
+  Release from this changelog — no manual publishing steps left.
+- **Smoke test** (`npm run smoke`): boots the built app in demo mode, logs in,
+  visits every page and clicks through every service tab, failing on any page
+  error, console error or 5xx.
+- **Activity page**: one chronological feed of everything that happened —
+  service state changes, update notifications, auto-update results and server
+  operations — filterable, in the sidebar.
+
 ## v2.10.0 — 2026-07-05
 
 - **Email (SMTP) alert channel**: alerts (and update notifications) can go to

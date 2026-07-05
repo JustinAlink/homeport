@@ -28,10 +28,13 @@ feature has a demo path, and PRs for new features should include one.
 ```bash
 npm test                    # node --test over test/*.test.ts
 npm run build               # production build must stay clean
+npm run smoke               # boots the demo build and visits every page
+                            # (once: npx playwright install chromium)
 ```
 
-- There is **no CI** — GitHub Actions is deliberately disabled on this repo.
-  Run the suite locally before pushing; PRs are verified by the maintainer.
+- **CI** runs all three on every push and PR (`.github/workflows/ci.yml`);
+  pushing a `v*` tag builds + publishes the multi-arch image to GHCR and
+  creates the GitHub Release from the CHANGELOG (`release.yml`).
 - Pure logic lives in `*-core.ts` modules with **no runtime relative imports**
   (node's test runner can't resolve extensionless paths) and gets unit tests.
   Anything touching fs/network/Docker wraps a core module.

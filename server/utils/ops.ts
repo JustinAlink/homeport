@@ -60,6 +60,14 @@ export function startOp(title: string, run: (emit: (line: string) => void) => Pr
   return id
 }
 
+/** Recent operations (running + briefly-kept finished), newest first — for the activity view. */
+export function listOps(): { id: string; title: string; done: boolean; ok: boolean | null; startedAt: number; finishedAt: number }[] {
+  prune()
+  return [...ops.values()]
+    .map(({ id, title, done, ok, startedAt, finishedAt }) => ({ id, title, done, ok, startedAt, finishedAt }))
+    .sort((a, b) => b.startedAt - a.startedAt)
+}
+
 export function getOp(id: string): Op | undefined {
   return ops.get(id)
 }

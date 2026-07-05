@@ -93,6 +93,7 @@ const items = computed(() => [
     ? [{ to: '/updates', label: 'Updates', icon: 'arrow-up', badge: updateCount.value || undefined }]
     : []),
   { to: '/catalog', label: 'Catalog', icon: 'catalog' },
+  { to: '/activity', label: 'Activity', icon: 'clock' },
   ...(caps.value.proxyAdmin ? [{ to: '/domains', label: 'Domains', icon: 'globe' }] : []),
   { to: '/settings', label: 'Settings', icon: 'sliders' },
 ])
