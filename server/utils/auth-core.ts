@@ -30,3 +30,35 @@ export function constantEquals(a: string, b: string): boolean {
 }
 
 export const MIN_PASSWORD_LENGTH = 6
+
+// --- login rate limiting (pure state machine; the endpoint owns the Map) ---
+//
+// A few attempts are free; from FREE_FAILS onward each failure locks the key
+// out, doubling from LOCK_BASE_MS up to LOCK_MAX_MS. A success — or QUIET_MS
+// without attempts — clears the slate.
+
+export const FREE_FAILS = 5
+export const LOCK_BASE_MS = 30_000
+export const LOCK_MAX_MS = 15 * 60_000
+export const QUIET_MS = 60 * 60_000
+
+export interface LoginRate {
+  fails: number
+  lastAt: number
+  lockedUntil: number
+}
+
+/** ms until this key may try again (0 = allowed). Expired/quiet state counts as fresh. */
+export function lockRemaining(state: LoginRate | undefined, now: number): number {
+  if (!state || now - state.lastAt > QUIET_MS) return 0
+  return Math.max(0, state.lockedUntil - now)
+}
+
+/** Record a failed attempt and return the new state. */
+export function recordFailure(state: LoginRate | undefined, now: number): LoginRate {
+  const fresh = !state || now - state.lastAt > QUIET_MS
+  const fails = (fresh ? 0 : state!.fails) + 1
+  const over = fails - FREE_FAILS
+  const lockedUntil = over >= 0 ? now + Math.min(LOCK_BASE_MS * 2 ** over, LOCK_MAX_MS) : 0
+  return { fails, lastAt: now, lockedUntil }
+}

@@ -85,6 +85,8 @@ export interface HomeportConfig {
   historyMaxSeries: number
   /** Per-service alerting on down/unhealthy/recovered transitions. Off by default. */
   alertsEnabled: boolean
+  /** Also notify when the update sweep finds a newer image. */
+  alertUpdates: boolean
   /** Which transitions to notify on. */
   alertTransitions: AlertTransitions
   /** Consecutive bad samples before an alert fires (anti-flap). */
@@ -213,6 +215,7 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALERTS') !== undefined
         ? process.env.HOMEPORT_ALERTS === 'true'
         : s.alertsEnabled ?? false,
+    alertUpdates: s.alertUpdates ?? false,
     alertTransitions: {
       down: s.alertTransitions?.down ?? true,
       unhealthy: s.alertTransitions?.unhealthy ?? true,
@@ -289,6 +292,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     collectorInterval: s.collectorInterval ?? 30,
     historyEnabled: s.historyEnabled ?? true,
     alertsEnabled: s.alertsEnabled ?? false,
+    alertUpdates: s.alertUpdates ?? false,
     alertTransitions: {
       down: s.alertTransitions?.down ?? true,
       unhealthy: s.alertTransitions?.unhealthy ?? true,

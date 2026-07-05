@@ -35,6 +35,7 @@ export interface PersistedSettings {
   historyEnabled?: boolean
   /** Per-service alerting. */
   alertsEnabled?: boolean
+  alertUpdates?: boolean
   alertTransitions?: { down?: boolean; unhealthy?: boolean; recovered?: boolean }
   alertDebounceSamples?: number
   alertCooldownSec?: number

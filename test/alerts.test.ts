@@ -124,3 +124,10 @@ test('webhook buildBody: presets shape the payload', () => {
   const custom = buildBody({ name: 'c', url: 'x', preset: 'custom', template: '{"msg":"{{name}} {{to}}"}' }, e)
   assert.deepEqual(JSON.parse(custom.body), { msg: 'web exited' })
 })
+
+test('eventText: update kind reads as an update, not a failure', () => {
+  const text = eventText({ id: 'default|ghcr.io/x/y:latest', name: 'jellyfin', host: 'vps', kind: 'update', from: 'ghcr.io/x/y:latest', to: 'sha256:abc', at: 0 })
+  assert.match(text, /jellyfin/)
+  assert.match(text, /image update available/)
+  assert.match(text, /on vps/)
+})

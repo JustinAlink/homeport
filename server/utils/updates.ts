@@ -6,6 +6,7 @@ import { getDockerFor, listContainersFor, oneShot } from './docker'
 import { parseImageRef, digestMatches, pickDueChecks, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
+import { dispatch } from './alerts'
 import { guard } from './guard'
 
 // Image update detection + apply.
@@ -114,22 +115,43 @@ export const runUpdateSweep = guard(async (force = false) => {
   const now = Date.now()
   const intervalMs = cfg.updateCheckIntervalH * 3600 * 1000
   const map = load()
+  const notify: { key: string; image: string; names: string; host: HostConfig; entry: UpdateEntry }[] = []
 
   for (const host of getHosts()) {
-    let images: string[]
+    let containers: Awaited<ReturnType<typeof listContainersFor>>
     try {
-      images = [...new Set((await listContainersFor(host)).map((c) => c.image))]
+      containers = await listContainersFor(host)
     } catch {
       continue // host down — skip
     }
+    const images = [...new Set(containers.map((c) => c.image))]
     const keys = images.map((i) => keyOf(host.id, i))
     const cacheView: Record<string, UpdateEntry | undefined> = {}
     keys.forEach((k, i) => (cacheView[images[i]] = map[k]))
 
     const due = force ? images : pickDueChecks(images, cacheView, now, intervalMs, BATCH_PER_SWEEP)
     for (const image of due) {
-      map[keyOf(host.id, image)] = await checkImage(host, image, now)
+      const key = keyOf(host.id, image)
+      const entry = await checkImage(host, image, now)
+      entry.notifiedDigest = map[key]?.notifiedDigest // survives re-checks
+      map[key] = entry
+      if (
+        cfg.alertsEnabled &&
+        cfg.alertUpdates &&
+        entry.status === 'update' &&
+        entry.remoteDigest &&
+        entry.notifiedDigest !== entry.remoteDigest
+      ) {
+        const names = containers.filter((c) => c.image === image).map((c) => c.name).join(', ')
+        notify.push({ key, image, names: names || image, host, entry })
+      }
     }
+  }
+
+  // one notification per newly-seen digest — never repeated on later sweeps
+  for (const n of notify) {
+    await dispatch({ id: n.key, name: n.names, host: n.host.name, kind: 'update', from: n.image, to: n.entry.remoteDigest!, at: now })
+    n.entry.notifiedDigest = n.entry.remoteDigest
   }
 
   cache = map

@@ -130,6 +130,7 @@ export default defineEventHandler(async (event) => {
   if (body.historyEnabled !== undefined) patch.historyEnabled = !!body.historyEnabled
 
   if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
+  if (body.alertUpdates !== undefined) patch.alertUpdates = !!body.alertUpdates
   if (body.alertTransitions !== undefined) {
     const t = body.alertTransitions || {}
     patch.alertTransitions = { down: !!t.down, unhealthy: !!t.unhealthy, recovered: !!t.recovered }

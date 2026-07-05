@@ -378,6 +378,14 @@
             <label class="flex items-center gap-1.5"><input v-model="form.alertTransitions.recovered" type="checkbox" /> Recovered</label>
           </div>
 
+          <label class="flex items-start gap-2 text-sm text-slate-200">
+            <input v-model="form.alertUpdates" type="checkbox" class="mt-0.5" />
+            <span>
+              Notify when image updates are found
+              <span class="block text-[11px] text-slate-500">one message per new image digest, sent when the daily check (or “Check now”) discovers it — needs update checks enabled</span>
+            </span>
+          </label>
+
           <div class="grid grid-cols-2 gap-3">
             <label class="block text-xs text-slate-400">
               Debounce (samples)
@@ -671,6 +679,7 @@ const form = reactive({
   collectorInterval: 30,
   historyEnabled: true,
   alertsEnabled: false,
+  alertUpdates: false,
   alertTransitions: { down: true, unhealthy: true, recovered: false },
   alertDebounceSamples: 3,
   alertCooldownSec: 3600,

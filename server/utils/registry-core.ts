@@ -68,6 +68,8 @@ export interface UpdateEntry {
   remoteDigest?: string
   checkedAt: number
   error?: string
+  /** Last remoteDigest an "update available" notification went out for. */
+  notifiedDigest?: string
 }
 
 /**

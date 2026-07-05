@@ -4,7 +4,7 @@ import type { AlertEvent, WebhookChannel } from './types'
 // unit-testable in isolation. {{placeholder}} substitution mirrors alerts-core's
 // renderTemplate (kept local to avoid a runtime cross-import).
 
-const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢' }
+const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵' }
 
 const render = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
@@ -13,6 +13,7 @@ const render = (tpl: string, vars: Record<string, string>) =>
 export function eventText(e: AlertEvent): string {
   const where = e.host ? ` on ${e.host}` : ''
   if (e.kind === 'recovered') return `🟢 ${e.name} recovered (${e.from} → ${e.to})${where}`
+  if (e.kind === 'update') return `🔵 ${e.name}: image update available (${e.from})${where}`
   const verb = e.kind === 'down' ? 'is down' : 'is unhealthy'
   return `${ICON[e.kind] || '⚠️'} ${e.name} ${verb} (${e.from} → ${e.to})${where}`
 }

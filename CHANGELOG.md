@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.7.0 — 2026-07-05
+
+- **Update notifications**: when the update sweep finds a newer image, homeport
+  can push it through your existing alert channels (Discord / Slack / ntfy /
+  webhook) — one message per new digest, never repeated on later sweeps.
+  Opt-in: Settings → Alerts → "Notify when image updates are found".
+- **Event stream self-heals**: if the Docker events feed dies (socket-proxy
+  restart, host blip), homeport now reattaches with backoff and refreshes the
+  dashboard on recovery, instead of silently going stale until the next poll.
+- **Login rate-limiting**: 5 free attempts per client, then escalating lockouts
+  (30s doubling up to 15min, HTTP 429 with the wait time) plus a flat delay on
+  every wrong guess.
+
 ## v2.6.0 — 2026-07-05
 
 - **Updates view**: a dedicated page (sidebar → Updates, with a pending-count
