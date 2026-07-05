@@ -68,7 +68,7 @@
 
     <div v-else>
       <p v-if="!groups.length" class="py-20 text-center text-slate-500">No services match “{{ q }}”.</p>
-      <div class="columns-1 gap-6 lg:columns-2 2xl:columns-3">
+      <div class="columns-1 gap-6 xl:columns-2">
         <StackGroup v-for="g in groups" :key="g.name" :name="g.name" :services="g.services" />
 
         <section v-if="unmatched.length" class="mb-4 break-inside-avoid">
@@ -103,10 +103,12 @@ const showGraph = ref(true) // on by default — '0' in storage hides it
 const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host', '1h')
 const { range: sysRange, past: systemPast, load: loadSystemHistory } = useHistoryRange('host-system', '1h')
 watch(graphRange, (r) => (sysRange.value = r))
-watch(showGraph, () => {
+function loadGraphHistory() {
   loadFleetHistory()
   loadSystemHistory()
-})
+}
+watch(showGraph, loadGraphHistory)
+onMounted(loadGraphHistory)
 
 const fleetSeries = computed(() => {
   const src = graphRange.value === 'live' ? fleetHistory.value : fleetPast.value ?? { cpu: [], mem: [] }

@@ -20,7 +20,7 @@
       </span>
     </button>
 
-    <div v-show="!collapsed" class="flex flex-col gap-1.5">
+    <div v-show="!collapsed" class="flex flex-col gap-2.5">
       <ServiceCard v-for="s in services" :key="s.id" :service="s" />
     </div>
   </section>
