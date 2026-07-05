@@ -136,6 +136,43 @@ const envNum = (k: string) => {
   return Number.isFinite(n) ? n : undefined
 }
 
+/**
+ * Parse HOMEPORT_REGISTRY_AUTH — comma-separated `registry=user:token` entries,
+ * e.g. `ghcr.io=justinalink:ghp_xxx,docker.io=me:dckr_xxx`. Tokens hold no ':'.
+ */
+function parseRegistryAuthEnv(raw: string): RegistryCred[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const eq = entry.indexOf('=')
+      if (eq < 0) return null
+      const rawReg = entry.slice(0, eq).trim()
+      const registry = rawReg ? normalizeRegistry(rawReg) : ''
+      const rest = entry.slice(eq + 1)
+      const colon = rest.indexOf(':')
+      const username = colon >= 0 ? rest.slice(0, colon) : ''
+      const token = colon >= 0 ? rest.slice(colon + 1) : rest
+      return registry && token ? { registry, username, token } : null
+    })
+    .filter((c): c is RegistryCred => c !== null)
+}
+
+/** Registry logins from settings, normalised + defensively typed. */
+function settingsRegistryCreds(s: PersistedSettings): RegistryCred[] {
+  return (s.registryCreds ?? [])
+    .map((c) => {
+      const raw = String(c?.registry ?? '').trim()
+      return {
+        registry: raw ? normalizeRegistry(raw) : '',
+        username: String(c?.username ?? ''),
+        token: String(c?.token ?? ''),
+      }
+    })
+    .filter((c) => c.registry && c.token)
+}
+
 export function getConfig(): HomeportConfig {
   const s = readSettings()
   const dockerHostFromSettings = s.dockerMode === 'ssh' ? s.dockerHost || '' : ''
@@ -178,6 +215,10 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALLOW_UPDATES') !== undefined
         ? process.env.HOMEPORT_ALLOW_UPDATES === 'true'
         : !!s.allowUpdates,
+    registryCreds:
+      envStr('HOMEPORT_REGISTRY_AUTH') !== undefined
+        ? parseRegistryAuthEnv(envStr('HOMEPORT_REGISTRY_AUTH')!)
+        : settingsRegistryCreds(s),
     allowStacks:
       envStr('HOMEPORT_ALLOW_STACKS') !== undefined
         ? process.env.HOMEPORT_ALLOW_STACKS === 'true'
@@ -271,6 +312,7 @@ export function getEnvLocks() {
     logsEnabled: envStr('HOMEPORT_LOGS') !== undefined,
     updateCheckEnabled: envStr('HOMEPORT_UPDATE_CHECK') !== undefined,
     allowUpdates: envStr('HOMEPORT_ALLOW_UPDATES') !== undefined,
+    registryCreds: envStr('HOMEPORT_REGISTRY_AUTH') !== undefined,
     allowStacks: envStr('HOMEPORT_ALLOW_STACKS') !== undefined,
     catalogUrls: envStr('HOMEPORT_CATALOG_URLS') !== undefined,
     allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
@@ -306,6 +348,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     logsEnabled: s.logsEnabled ?? true,
     updateCheckEnabled: !!s.updateCheckEnabled,
     allowUpdates: !!s.allowUpdates,
+    registryCreds: settingsRegistryCreds(s),
     allowStacks: !!s.allowStacks,
     catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal: !!s.allowTerminal,

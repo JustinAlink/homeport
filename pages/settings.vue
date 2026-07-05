@@ -515,6 +515,36 @@
         </div>
       </section>
 
+      <!-- Registry credentials (private images) -->
+      <section v-if="form.updateCheckEnabled || form.allowUpdates" :id="'registries'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Registry credentials</h2>
+        <p class="text-xs text-slate-500">
+          Logins for checking and pulling <strong>private</strong> images (e.g. your own
+          <code>ghcr.io</code> packages). Without these, homeport checks registries anonymously and private
+          images fail with a <code>401</code>. For GHCR use a token with <code>read:packages</code> (add
+          <code>write:packages</code> only if you also apply updates). Stored in <code>settings.json</code> on the
+          data volume — set its file permissions accordingly.
+        </p>
+        <p v-if="locked.registryCreds" class="text-xs text-slate-500">Set by <code>HOMEPORT_REGISTRY_AUTH</code> — locked.</p>
+        <template v-else>
+          <div v-for="(c, i) in form.registryCreds" :key="i" class="flex flex-wrap items-center gap-2">
+            <input v-model="c.registry" :class="[fieldCls, 'min-w-[9rem] flex-1']" placeholder="registry host (e.g. ghcr.io)" />
+            <input v-model="c.username" :class="[fieldCls, 'min-w-[8rem] flex-1']" placeholder="username" autocomplete="off" />
+            <input v-model="c.token" type="password" :class="[fieldCls, 'min-w-[10rem] flex-1']" placeholder="token / password" autocomplete="new-password" />
+            <button
+              type="button"
+              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              @click="form.registryCreds.splice(i, 1)"
+            >Remove</button>
+          </div>
+          <button
+            type="button"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            @click="form.registryCreds.push({ registry: '', username: '', token: '' })"
+          >+ Add registry login</button>
+        </template>
+      </section>
+
       <!-- Backup & restore -->
       <section :id="'backup'" class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Backup</h2>
@@ -639,6 +669,7 @@ const sections = computed(() =>
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'alerts', label: 'Alerts' },
     { id: 'autoupdate', label: 'Auto-update' },
+    ...(form.updateCheckEnabled || form.allowUpdates ? [{ id: 'registries', label: 'Registry credentials' }] : []),
     { id: 'backup', label: 'Backup' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
@@ -759,6 +790,7 @@ const form = reactive({
   logsEnabled: true,
   updateCheckEnabled: false,
   allowUpdates: false,
+  registryCreds: [] as RegistryCredRow[],
   allowStacks: false,
   catalogUrls: [] as string[],
   allowTerminal: false,
@@ -811,6 +843,12 @@ interface ChannelRow {
   url: string
   preset: 'discord' | 'slack' | 'ntfy' | 'custom'
   template?: string
+}
+
+interface RegistryCredRow {
+  registry: string
+  username: string
+  token: string
 }
 
 function addChannel() {
@@ -1036,6 +1074,11 @@ onMounted(async () => {
       url: c.url ?? '',
       preset: c.preset ?? 'discord',
       template: c.template ?? '',
+    }))
+    form.registryCreds = (r.settings.registryCreds ?? []).map((c: Partial<RegistryCredRow>) => ({
+      registry: c.registry ?? '',
+      username: c.username ?? '',
+      token: c.token ?? '',
     }))
     locked.value = r.locked
     writable.value = r.writable

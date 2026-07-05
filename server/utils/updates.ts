@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path'
 import { getConfig } from './config'
 import { getHosts, type HostConfig } from './hosts'
 import { getDockerFor, listContainersFor, oneShot } from './docker'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, type UpdateEntry } from './registry-core'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, authForImage, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
@@ -80,7 +80,8 @@ async function checkImage(host: HostConfig, image: string, now: number): Promise
     const repoDigests: string[] = local?.RepoDigests || []
     if (!repoDigests.length) return { status: 'local', checkedAt: now } // built locally — nothing to compare
 
-    const dist: any = await (docker.getImage(image) as any).distribution(oneShot())
+    const authconfig = authForImage(image, getConfig().registryCreds)
+    const dist: any = await (docker.getImage(image) as any).distribution({ ...oneShot(), authconfig })
     const remoteDigest: string = dist?.Descriptor?.digest || ''
     if (!remoteDigest) return { status: 'error', checkedAt: now, error: 'registry returned no digest' }
 
@@ -227,11 +228,12 @@ async function swapContainer(
   // 1. pull the fresh image (updates only — env edits keep the current image)
   if (opts.pull) {
     try {
+      const authconfig = authForImage(image, getConfig().registryCreds)
       await new Promise<void>((resolve, reject) => {
-        docker.pull(image, (err: any, stream: any) => {
+        docker.pull(image, {}, (err: any, stream: any) => {
           if (err) return reject(err)
           docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()))
-        })
+        }, authconfig)
       })
       step('pull', true, image)
     } catch (e: any) {

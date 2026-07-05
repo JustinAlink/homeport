@@ -1,6 +1,7 @@
 import { writeSettings, settingsWritable, type PersistedSettings, type SettingsHost } from '../utils/settings'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
+import { normalizeRegistry, type RegistryCred } from '../utils/registry-core'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'custom']
@@ -20,6 +21,18 @@ function sanitizeChannels(input: unknown): WebhookChannel[] {
       return { name: str(o.name) || preset, url, preset, template: str(o.template) || undefined }
     })
     .filter((c) => c.url)
+}
+
+function sanitizeRegistryCreds(input: unknown): RegistryCred[] {
+  if (!Array.isArray(input)) throw createError({ statusCode: 400, statusMessage: 'registryCreds must be an array' })
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  return input
+    .map((c): RegistryCred => {
+      const o = (c ?? {}) as Record<string, unknown>
+      const raw = str(o.registry)
+      return { registry: raw ? normalizeRegistry(raw) : '', username: str(o.username), token: str(o.token) }
+    })
+    .filter((c) => c.registry && c.token)
 }
 
 function sanitizeHosts(input: unknown): SettingsHost[] {
@@ -102,6 +115,7 @@ export default defineEventHandler(async (event) => {
   if (body.logsEnabled !== undefined) patch.logsEnabled = !!body.logsEnabled
   if (body.updateCheckEnabled !== undefined) patch.updateCheckEnabled = !!body.updateCheckEnabled
   if (body.allowUpdates !== undefined) patch.allowUpdates = !!body.allowUpdates
+  if (body.registryCreds !== undefined) patch.registryCreds = sanitizeRegistryCreds(body.registryCreds)
   if (body.allowStacks !== undefined) patch.allowStacks = !!body.allowStacks
   if (body.catalogUrls !== undefined) {
     if (!Array.isArray(body.catalogUrls))

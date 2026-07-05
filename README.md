@@ -268,9 +268,12 @@ the page.
 ![updates view](docs/updates.png)
 
 With **update checks** enabled, homeport asks each image's registry for its current digest
-(through the Docker daemon — no registry credentials to configure) about once a day and
-badges anything outdated. The **Updates** page (sidebar, with a pending count) groups them
-by compose project:
+(through the Docker daemon) about once a day and badges anything outdated. Public images need
+no credentials; for **private** ones (e.g. your own `ghcr.io` packages) add a login under
+**Settings → Registry credentials** (or `HOMEPORT_REGISTRY_AUTH`) — a GHCR token with
+`read:packages` is enough to check, `write:packages` to also apply. Without a matching login,
+private images report a `401` and are skipped. The **Updates** page (sidebar, with a pending
+count) groups them by compose project:
 
 - **Managed stacks** (in homeport's stacks dir) update with **Pull & up** — the compose way.
 - **Unmanaged projects & standalone containers** update via pull + recreate-in-place
@@ -298,6 +301,7 @@ by compose project:
   | Start/stop/restart + recreate/delete | `HOMEPORT_ALLOW_CONTROL` | off | `POST=1` |
   | Update checks | `HOMEPORT_UPDATE_CHECK` | off | `DISTRIBUTION=1` |
   | Apply updates + env editing | `HOMEPORT_ALLOW_UPDATES` | off | `IMAGES=1 POST=1` |
+  | Private registry logins | `HOMEPORT_REGISTRY_AUTH` | none | — (used for check + pull) |
   | Compose stacks | `HOMEPORT_ALLOW_STACKS` | off | `POST=1 IMAGES=1 NETWORKS=1 VOLUMES=1` |
   | Web terminal | `HOMEPORT_ALLOW_TERMINAL` | off | `EXEC=1 POST=1` |
   | Proxy management | `HOMEPORT_ALLOW_PROXY_ADMIN` | off | none (talks to your proxy, not Docker) |

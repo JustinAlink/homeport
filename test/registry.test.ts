@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
 
 const dir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
@@ -36,6 +36,33 @@ test('isBareImageId: bare digests are unqueryable, refs are not', () => {
   assert.equal(isBareImageId('ghcr.io/justinalink/junipergray-web:latest'), false)
   assert.equal(isBareImageId('nginx'), false)
   assert.equal(isBareImageId('user/app@sha256:' + sha), false) // digest-pinned ref, not a bare id
+})
+
+// ---- registry auth ----
+
+test('normalizeRegistry: docker.io aliases collapse, hosts pass through', () => {
+  assert.equal(normalizeRegistry('docker.io'), 'docker.io')
+  assert.equal(normalizeRegistry('index.docker.io'), 'docker.io')
+  assert.equal(normalizeRegistry('registry-1.docker.io'), 'docker.io')
+  assert.equal(normalizeRegistry(''), 'docker.io')
+  assert.equal(normalizeRegistry('https://ghcr.io/'), 'ghcr.io')
+  assert.equal(normalizeRegistry('GHCR.IO'), 'ghcr.io')
+  assert.equal(normalizeRegistry('registry.example.com:5000'), 'registry.example.com:5000')
+})
+
+test('authForImage: matches by registry, maps docker.io serveraddress, else undefined', () => {
+  const creds = [
+    { registry: 'ghcr.io', username: 'justinalink', token: 'ghp_abc' },
+    { registry: 'docker.io', username: 'me', token: 'dckr_xyz' },
+  ]
+  assert.deepEqual(authForImage('ghcr.io/justinalink/junipergray-web:latest', creds), {
+    username: 'justinalink',
+    password: 'ghp_abc',
+    serveraddress: 'ghcr.io',
+  })
+  assert.equal(authForImage('nginx', creds)?.serveraddress, 'https://index.docker.io/v1/')
+  assert.equal(authForImage('ghcr.io/other/app', []), undefined) // no creds
+  assert.equal(authForImage('lscr.io/linuxserver/sonarr', creds), undefined) // no match
 })
 
 // ---- digestMatches ----

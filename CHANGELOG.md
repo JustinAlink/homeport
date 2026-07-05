@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.14.0 — 2026-07-06
+
+- **Private registry logins.** homeport can now check *and* update private
+  images (e.g. your own `ghcr.io` packages) — previously every check went out
+  anonymously and private images failed with a `401`. Add a registry / username
+  / token under **Settings → Registry credentials** (shown once an update
+  capability is on), or set `HOMEPORT_REGISTRY_AUTH=ghcr.io=user:token,…`. The
+  matching login is sent as `X-Registry-Auth` on both the daemon digest check
+  and the pull during an apply. A GHCR token needs `read:packages` to check,
+  `write:packages` to also apply. Tokens live in `settings.json` on the data
+  volume (same as the other secrets) — include it in your backups' safekeeping.
+
 ## v2.13.1 — 2026-07-05
 
 - **Fix: untagged images no longer break update checks.** A container whose
