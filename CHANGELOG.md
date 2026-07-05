@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.4.0 — 2026-07-05
+
+**The big UI/UX revamp.**
+
+- **Light theme** alongside dark, with a sidebar toggle (dark / light / follow-OS),
+  no-flash boot, powered by a full design-token system.
+- **Left sidebar navigation** replaces the crowded per-page header buttons; mobile
+  gets a drawer. Brand accent is now indigo; emerald means *status* (running/healthy).
+- **Service cards rebuilt**: icon tile, full name + image ref, status text with a
+  quiet dot (loud pills only for exceptional states), domain/port chips, CPU/RAM
+  bars with live values, and a full-width CPU+RAM sparkline. Update badge sits on
+  the icon corner. Wider layouts on every page; fleet graph shown by default.
+- **Icons, not emoji**: a single stroke-icon registry replaces every emoji/symbol
+  in the chrome.
+- **Stacks page explains itself** and shows each stack's services + live CPU/RAM totals.
+- Catalog categories from community sources are cleaned (comma/camelCase mashes split,
+  known-broken ones aliased).
+
 ## v2.3.2 — 2026-07-04
 
 - **Fix: self-update helper mangled relative bind mounts.** The helper now mounts

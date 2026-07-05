@@ -1,9 +1,15 @@
 <template>
-  <div class="mx-auto max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
+  <div class="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8">
     <header class="mb-6 flex items-center gap-3">
       <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <h1 class="text-xl font-semibold text-slate-100">Stacks</h1>
-      <span v-if="data" class="font-mono text-xs text-slate-600">{{ data.dir }}</span>
+      <div>
+        <h1 class="text-xl font-semibold text-slate-100">Stacks</h1>
+        <p class="mt-1 text-[13px] text-slate-500">
+          Compose projects homeport manages — each is a folder with a compose file in
+          <code class="text-slate-400">{{ data?.dir || '/stacks' }}</code>. Deploy, edit, or update them from git;
+          catalog installs land here too.
+        </p>
+      </div>
       <button
         class="ml-auto rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
         @click="creating = true"
@@ -87,18 +93,32 @@
           v-for="s in data.stacks"
           :key="s.name"
           :to="`/stacks/${s.name}`"
-          class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-900 px-4 py-3 transition-colors hover:border-accent/30"
+          class="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 px-5 py-4 transition-colors hover:border-accent/30"
         >
-          <span class="h-2 w-2 shrink-0 rounded-full" :class="dotCls(s.state)" />
-          <span class="text-sm font-medium text-slate-100">{{ s.name }}</span>
-          <span
-            v-if="s.git"
-            class="rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300"
-            title="Git-backed stack"
-          >git</span>
-          <span class="font-mono text-[11px] text-slate-600">{{ s.file }}</span>
-          <span class="ml-auto text-xs text-slate-500">{{ s.running }}/{{ s.total }} running</span>
-          <span class="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider" :class="pillCls(s.state)">{{ s.state }}</span>
+          <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="dotCls(s.state)" />
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate text-[15px] font-medium text-slate-100">{{ s.name }}</span>
+              <span
+                v-if="s.git"
+                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300"
+                title="Git-backed stack"
+              ><Icon name="git-branch" class="h-2.5 w-2.5" />git</span>
+              <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ s.file }}</span>
+            </div>
+            <p class="mt-1 truncate text-xs text-slate-500">
+              <template v-if="stackServices(s.name).length">{{ stackServices(s.name).join(' · ') }}</template>
+              <template v-else>no running containers</template>
+            </p>
+          </div>
+          <div v-if="stackTotals(s.name)" class="hidden shrink-0 text-right font-mono text-[11px] leading-5 text-slate-500 sm:block">
+            <div>CPU {{ stackTotals(s.name)!.cpu }}%</div>
+            <div>RAM {{ formatBytes(stackTotals(s.name)!.mem) }}</div>
+          </div>
+          <div class="shrink-0 text-right">
+            <span class="block text-xs text-slate-500">{{ s.running }}/{{ s.total }} running</span>
+            <span class="mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider" :class="pillCls(s.state)">{{ s.state }}</span>
+          </div>
         </NuxtLink>
       </div>
 
@@ -132,6 +152,26 @@ interface StacksResponse {
 }
 
 const data = ref<StacksResponse | null>(null)
+
+// enrich rows with what actually runs inside each stack (compose project)
+const { data: svcData, start: svcStart, stop: svcStop } = useServices()
+const { stats, start: statsStart, stop: statsStop } = useStats()
+function stackServices(name: string): string[] {
+  return (svcData.value?.services ?? []).filter((s) => s.project === name).map((s) => s.displayName)
+}
+function stackTotals(name: string): { cpu: number; mem: number } | null {
+  const ids = (svcData.value?.services ?? []).filter((s) => s.project === name && s.state === 'running').map((s) => s.id)
+  if (!ids.length) return null
+  let cpu = 0
+  let mem = 0
+  for (const id of ids) {
+    const st = stats.value[id]
+    if (!st) continue
+    cpu += st.cpuPercent ?? 0
+    mem += st.memBytes
+  }
+  return { cpu: Math.round(cpu * 10) / 10, mem }
+}
 const error = ref('')
 const creating = ref(false)
 const newName = ref('')
@@ -191,10 +231,14 @@ const pillCls = (s: string) =>
 let poll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   load()
+  svcStart()
+  statsStart()
   poll = setInterval(load, 10_000)
 })
 onBeforeUnmount(() => {
   if (poll) clearInterval(poll)
+  svcStop()
+  statsStop()
 })
 
 useHead({ title: 'Stacks — homeport' })

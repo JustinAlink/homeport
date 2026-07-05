@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
+  <div class="mx-auto max-w-[1700px] px-4 py-8 sm:px-6 lg:px-8">
     <header class="mb-8 flex flex-wrap items-center gap-x-5 gap-y-4">
       <div>
         <h1 class="text-[22px] font-semibold tracking-tight text-slate-100">Fleet</h1>
