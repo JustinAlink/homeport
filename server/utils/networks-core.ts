@@ -11,6 +11,17 @@ export interface NetworkInfo {
   subnets: string[]
   /** Containers referencing the network (running or not). */
   containers: number
+  /** The attached containers themselves (service ids for linking). */
+  attached?: { id: string; name: string }[]
+  /** com.docker.compose.project label, when compose created the network. */
+  project?: string | null
+}
+
+/** Leftover networks of a compose project — its label or name prefix, unused. */
+export function leftoverProjectNetworks(networks: NetworkInfo[], project: string): NetworkInfo[] {
+  return networks.filter(
+    (n) => !n.builtin && n.containers === 0 && (n.project === project || n.name.startsWith(`${project}_`)),
+  )
 }
 
 /** Parse an IPv4 or IPv6 CIDR into a numeric range. Returns null on garbage. */

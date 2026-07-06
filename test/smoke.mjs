@@ -49,6 +49,7 @@ const PAGES = [
   ['/stacks', 'compose projects homeport manages'],
   ['/stacks/media', 'compose.yaml'],
   ['/stacks/legacy-app', 'unmanaged'],
+  ['/networks', 'every network claims an address range'],
   ['/catalog', 'app catalog'],
   ['/catalog/uptime-kuma', 'install'],
   ['/domains', 'domain'],

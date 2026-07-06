@@ -125,6 +125,18 @@
           >:{{ p.hostPort }}</a>
         </div>
 
+        <!-- docker networks this container is attached to -->
+        <div v-if="service.networks?.length" class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] uppercase tracking-wider text-slate-500">Networks</span>
+          <NuxtLink
+            v-for="n in service.networks"
+            :key="n"
+            to="/networks"
+            class="rounded bg-white/5 px-2 py-1 font-mono text-xs text-slate-400 hover:bg-white/10 hover:text-slate-200"
+            :title="`docker network ${n} — open the networks page`"
+          >{{ n }}</NuxtLink>
+        </div>
+
         <div v-if="service.state === 'running'">
           <div class="mb-2 flex items-center gap-1 text-[11px]">
             <button
@@ -164,6 +176,15 @@
             <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
               <input v-model="deleteVolumes" type="checkbox" class="h-3 w-3" />
               also delete its anonymous volumes
+            </label>
+            <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <input v-model="deleteImage" type="checkbox" class="h-3 w-3" />
+              also delete its image
+            </label>
+            <label v-if="caps.proxyAdmin && matchedRoutes.length" class="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <input v-model="deleteProxyRoutes" type="checkbox" class="h-3 w-3" />
+              also remove its domain{{ matchedRoutes.length > 1 ? 's' : '' }} from the proxy
+              ({{ matchedRoutes.flatMap((r) => r.domains).join(', ') }})
             </label>
           </div>
           <div v-if="dangerSteps.length" class="mt-3 border-t border-white/5 pt-3">
@@ -406,13 +427,15 @@ async function loadRoutes() {
   }
 }
 watch(
-  () => tab.value === 'domains' && caps.value.proxyAdmin,
+  // overview needs them too — the delete cleanup checkbox shows matching routes
+  () => (tab.value === 'domains' || tab.value === 'overview') && caps.value.proxyAdmin,
   (on) => { if (on && !routesLoaded.value) loadRoutes() },
   { immediate: true },
 )
-const matchedRoute = computed(() =>
-  service.value ? proxyRoutes.value.find((r) => r.upstreamHost === service.value!.name) : undefined,
+const matchedRoutes = computed(() =>
+  service.value ? proxyRoutes.value.filter((r) => r.upstreamHost === service.value!.name) : [],
 )
+const matchedRoute = computed(() => matchedRoutes.value[0])
 const domainInitial = computed(() => {
   const s = service.value!
   const m = matchedRoute.value
@@ -491,6 +514,8 @@ const series = computed(() => {
 // --- danger zone: recreate + delete ---
 const deleting = ref(false)
 const deleteVolumes = ref(false)
+const deleteImage = ref(false)
+const deleteProxyRoutes = ref(false)
 const dangerSteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
 
 async function recreate() {
@@ -520,11 +545,31 @@ async function recreate() {
 
 async function deleteContainer() {
   const name = service.value?.displayName
-  if (!window.confirm(`Delete “${name}” permanently?${deleteVolumes.value ? ' Its anonymous volumes are removed too.' : ''}\nThis cannot be undone.`)) return
+  const extras = [
+    deleteVolumes.value ? 'its anonymous volumes' : '',
+    deleteImage.value ? 'its image' : '',
+    deleteProxyRoutes.value ? 'its proxy domains' : '',
+  ].filter(Boolean)
+  if (!window.confirm(`Delete “${name}” permanently?${extras.length ? ` Also removed: ${extras.join(', ')}.` : ''}\nThis cannot be undone.`)) return
   deleting.value = true
   try {
-    await $fetch('/api/control', { method: 'POST', body: { id, action: 'remove', volumes: deleteVolumes.value } })
-    await navigateTo('/', { replace: true })
+    const r = await $fetch<{ ok: boolean; notes?: string[] }>('/api/control', {
+      method: 'POST',
+      body: {
+        id,
+        action: 'remove',
+        volumes: deleteVolumes.value,
+        image: deleteImage.value,
+        proxyRoutes: deleteProxyRoutes.value,
+      },
+    })
+    if (r.notes?.length) {
+      dangerSteps.value = r.notes.map((n) => ({ step: n, ok: !/kept:|failed|could not/i.test(n) }))
+      // let the cleanup results be read before leaving the page
+      setTimeout(() => navigateTo('/', { replace: true }), 2500)
+    } else {
+      await navigateTo('/', { replace: true })
+    }
   } catch (e: any) {
     window.alert(errMsg(e, 'Delete failed'))
   } finally {

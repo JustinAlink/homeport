@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.17.0 — 2026-07-06
+
+- **Networks manager.** New **/networks** page: every docker network with its
+  subnets, driver, compose project, and attached containers (linked); unused
+  networks removable with one click (built-ins and referenced networks are
+  refused). Service pages show the networks each container joins.
+- **Delete things completely.** Deletes stay conservative by default, with
+  opt-in checkboxes for a full cleanup:
+  - Stack delete: also remove named volumes (`down --volumes`), images
+    (`--rmi all`), and the stack's reverse-proxy domains. Leftover project
+    networks are swept always — unused networks keep their subnet claimed and
+    caused real "Pool overlaps" failures on reinstall.
+  - Container delete: also remove its image and its proxy routes (matching
+    domains are shown before confirming); cleanup results are reported
+    step-by-step.
+
 ## v2.16.0 — 2026-07-06
 
 - **Manage compose projects wherever they live.** Projects started outside

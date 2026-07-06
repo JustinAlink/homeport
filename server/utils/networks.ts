@@ -13,24 +13,30 @@ export async function listNetworksFor(host: HostConfig): Promise<NetworkInfo[]> 
     docker.listContainers({ all: true, ...oneShot() }),
   ])
 
-  // count references per network name (stopped containers keep theirs — removing
+  // track references per network name (stopped containers keep theirs — removing
   // such a network breaks the container's next start, so they count too)
-  const refs = new Map<string, number>()
+  const refs = new Map<string, { id: string; name: string }[]>()
   for (const c of containers) {
+    const entry = { id: `${host.id}::${c.Id}`, name: (c.Names?.[0] || '').replace(/^\//, '') }
     for (const name of Object.keys(c.NetworkSettings?.Networks || {})) {
-      refs.set(name, (refs.get(name) || 0) + 1)
+      refs.set(name, [...(refs.get(name) || []), entry])
     }
   }
 
   return (nets || [])
-    .map((n) => ({
-      id: n.Id || '',
-      name: n.Name || '',
-      driver: n.Driver || '',
-      builtin: BUILTIN_NETWORKS.includes(n.Name || ''),
-      subnets: (n.IPAM?.Config || []).map((c) => c.Subnet || '').filter(Boolean),
-      containers: refs.get(n.Name || '') || 0,
-    }))
+    .map((n) => {
+      const attached = refs.get(n.Name || '') || []
+      return {
+        id: n.Id || '',
+        name: n.Name || '',
+        driver: n.Driver || '',
+        builtin: BUILTIN_NETWORKS.includes(n.Name || ''),
+        subnets: (n.IPAM?.Config || []).map((c) => c.Subnet || '').filter(Boolean),
+        containers: attached.length,
+        attached,
+        project: (n.Labels || {})['com.docker.compose.project'] || null,
+      }
+    })
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 

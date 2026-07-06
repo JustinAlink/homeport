@@ -6,6 +6,7 @@ import {
   findSubnetConflicts,
   detectNetworkError,
   subnetsFromComposeConfig,
+  leftoverProjectNetworks,
 } from '../server/utils/networks-core.ts'
 
 test('parseCidr: v4 ranges + garbage', () => {
@@ -61,6 +62,30 @@ test('detectNetworkError: overlap vs pool exhaustion', () => {
   )
   assert.equal(detectNetworkError('all predefined address pools have been fully subnetted'), 'exhausted')
   assert.equal(detectNetworkError('some other failure'), null)
+})
+
+test('leftoverProjectNetworks: label or name-prefix match, unused + non-builtin only', () => {
+  const mk = (name: string, containers: number, project: string | null = null, builtin = false) => ({
+    id: name,
+    name,
+    driver: 'bridge',
+    builtin,
+    subnets: [],
+    containers,
+    project,
+  })
+  const nets = [
+    mk('bridge', 0, null, true), // builtin — never swept
+    mk('pelican_nw', 0), // name prefix match, unused → swept
+    mk('pelican_pelican-network', 0, 'pelican'), // label match → swept
+    mk('pelican_busy', 2, 'pelican'), // still referenced → kept
+    mk('pelicanish', 0), // no separator — not this project
+    mk('other_default', 0, 'other'),
+  ]
+  assert.deepEqual(
+    leftoverProjectNetworks(nets, 'pelican').map((n) => n.name),
+    ['pelican_nw', 'pelican_pelican-network'],
+  )
 })
 
 test('subnetsFromComposeConfig: ipam subnets across networks', () => {

@@ -73,6 +73,7 @@ function toService(s: Seed, i: number): Service {
     health: s.health ?? null,
     createdAt: Date.now() - (i + 1) * DAY,
     ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
+    networks: [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])],
     group: s.group,
     project: s.group,
     icon: null,
@@ -413,16 +414,23 @@ export function demoSetRestartPolicy(id: string, policy: string) {
   return { ok: true, policy }
 }
 
-export function demoStackDelete(name: string): string {
+export function demoStackDelete(name: string, opts?: { volumes?: boolean; images?: boolean; proxyRoutes?: boolean }): string {
   return startOp(`delete ${name}`, async (emit) => {
     await new Promise((r) => setTimeout(r, 400))
     if (!demoStackContent.has(name)) {
       emit('demo: the built-in demo stacks cannot be deleted — create one first, then delete it')
       return false
     }
-    emit(`$ docker compose -p ${name} down`)
+    const args = ['down', '--remove-orphans']
+    if (opts?.volumes) args.push('--volumes')
+    if (opts?.images) args.push('--rmi', 'all')
+    emit(`$ docker compose -p ${name} ${args.join(' ')}`)
     await new Promise((r) => setTimeout(r, 500))
-    emit(`removed stack directory /stacks/${name}`)
+    if (opts?.volumes) emit(`✔ Volume ${name}_data  Removed`)
+    if (opts?.images) emit(`✔ Image ${name}:latest  Removed`)
+    emit(`removed leftover network ${name}_default (172.28.0.0/16)`)
+    if (opts?.proxyRoutes) emit(`removed proxy route ${name}.example.com → ${name}:8080`)
+    emit(`removed stack directory /stacks/${name}${opts?.volumes ? '' : ' (named volumes kept)'}`)
     demoStackContent.delete(name)
     return true
   })
@@ -455,14 +463,36 @@ export function demoStackAction(name: string, op: string): string {
   })
 }
 
-// In-memory docker network list so the conflict card round-trips in demo.
+// In-memory docker network list so the networks page + conflict card round-trip in demo.
 const demoRemovedNetworks = new Set<string>()
 export function demoNetworks() {
+  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g !== 'systemd')
+  const projectNets = groups.map((g, gi) => {
+    const attached = seeds
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.group === g)
+      .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
+    return {
+      id: `demo-net-${g}`,
+      name: `${g}_default`,
+      driver: 'bridge',
+      builtin: false,
+      subnets: [`172.${19 + gi}.0.0/16`],
+      containers: attached.length,
+      attached,
+      project: g,
+    }
+  })
+  const npmAttached = seeds
+    .map((s, i) => ({ s, i }))
+    .filter(({ s, i }) => s.group !== 'systemd' && i % 4 === 0)
+    .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
   const nets = [
-    { id: 'demo-net-0', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 3 },
-    { id: 'demo-net-1', name: 'homeport_internal', driver: 'bridge', builtin: false, subnets: ['172.20.0.0/16'], containers: 2 },
-    { id: 'demo-net-2', name: 'media_default', driver: 'bridge', builtin: false, subnets: ['172.19.0.0/16'], containers: 3 },
-    { id: 'demo-net-3', name: 'oldapp_default', driver: 'bridge', builtin: false, subnets: ['172.18.0.0/16'], containers: 0 },
+    { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 0, attached: [], project: null },
+    { id: 'demo-net-npm', name: 'npm-network', driver: 'bridge', builtin: false, subnets: ['192.168.0.0/20'], containers: npmAttached.length, attached: npmAttached, project: null },
+    // an unused leftover — the removable kind that causes "Pool overlaps" on reinstalls
+    { id: 'demo-net-old', name: 'oldapp_default', driver: 'bridge', builtin: false, subnets: ['172.18.0.0/16'], containers: 0, attached: [], project: 'oldapp' },
+    ...projectNets,
   ]
   return nets.filter((n) => !demoRemovedNetworks.has(n.name))
 }

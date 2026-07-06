@@ -252,6 +252,24 @@ homeport container **at the same path it has on the host** — e.g.
   stacks dir), and homeport refuses `down`/`restart` on its **own** stack (use
   Settings → About → Update homeport instead).
 
+### Networks
+
+**/networks** lists every docker network on the host — subnets, driver, and which containers
+are attached (linked) — and removes unused ones with one click (built-ins and anything still
+referenced are refused). Each service page shows the networks its container joins. Deleting a
+stack always sweeps its leftover project networks: unused networks keep their address range
+claimed and are the classic cause of "Pool overlaps" on a later install.
+
+### Deleting things completely
+
+Deletes are conservative by default (data outlives the container), with opt-in checkboxes for
+a full cleanup:
+
+- **Stack delete**: also delete named volumes (the stack's data), also delete its images, and
+  also remove its domains from the reverse proxy (when proxy management is enabled).
+- **Container delete** (service page danger zone): also delete anonymous volumes, its image,
+  and its proxy domains — the matching routes are shown before you confirm.
+
 ### When a deploy fails on "Pool overlaps"
 
 Some upstream compose files pin a fixed subnet (`ipam: … subnet:`) that may already be taken

@@ -22,6 +22,7 @@ const ICONS = {
   stacks: '<polygon points="12 2 22 8 12 14 2 8"/><polyline points="2 12.5 12 18.5 22 12.5"/><polyline points="2 17 12 23 22 17"/>',
   catalog: '<rect x="3" y="3" width="18" height="5" rx="1.5"/><rect x="3" y="11" width="8" height="10" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c-3 3.6-3 14.4 0 18"/><path d="M12 3c3 3.6 3 14.4 0 18"/>',
+  network: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><line x1="10.8" y1="7.2" x2="6.2" y2="16.8"/><line x1="13.2" y1="7.2" x2="17.8" y2="16.8"/><line x1="7.5" y1="19" x2="16.5" y2="19"/>',
   sliders: '<line x1="6" y1="4" x2="6" y2="20"/><circle cx="6" cy="9" r="2"/><line x1="12" y1="4" x2="12" y2="20"/><circle cx="12" cy="15" r="2"/><line x1="18" y1="4" x2="18" y2="20"/><circle cx="18" cy="7" r="2"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/>',

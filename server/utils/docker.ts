@@ -61,6 +61,7 @@ export interface RawContainer {
   ports: ServicePort[]
   project: string | null
   service: string | null
+  networks: string[]
   labels: Record<string, string>
 }
 
@@ -98,6 +99,7 @@ function mapContainer(c: Docker.ContainerInfo): RawContainer {
     ports: publishedPorts(c.Ports),
     project: labels['com.docker.compose.project'] || null,
     service: labels['com.docker.compose.service'] || null,
+    networks: Object.keys(c.NetworkSettings?.Networks || {}),
     labels,
   }
 }

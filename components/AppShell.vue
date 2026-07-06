@@ -89,6 +89,7 @@ const updateCount = computed(
 const items = computed(() => [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
   ...(caps.value.stacks ? [{ to: '/stacks', label: 'Stacks', icon: 'stacks' }] : []),
+  ...(caps.value.stacks ? [{ to: '/networks', label: 'Networks', icon: 'network' }] : []),
   ...(caps.value.updateCheck || caps.value.updates
     ? [{ to: '/updates', label: 'Updates', icon: 'arrow-up', badge: updateCount.value || undefined }]
     : []),
