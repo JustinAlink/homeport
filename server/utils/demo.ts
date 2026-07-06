@@ -3,6 +3,7 @@ import { getConfig } from './config'
 import { getHosts } from './hosts'
 import { startOp } from './ops'
 import { safeNetworkName, parseCidr, findSubnetConflicts } from './networks-core'
+import { safeRelPath, type FileEntry } from './files-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -561,6 +562,112 @@ export function demoNetworkRemove(name: string) {
     throw createError({ statusCode: 400, statusMessage: `network "${name}" is still used by ${net.containers} containers` })
   demoRemovedNetworks.add(name)
   return { ok: true }
+}
+
+// --- demo file browser: an in-memory tree per stack ---
+type DemoNode = { type: 'dir' } | { type: 'file'; content: string }
+const demoFileTrees = new Map<string, Map<string, DemoNode>>()
+function demoTree(name: string): Map<string, DemoNode> | null {
+  if (!demoFileTrees.has(name)) {
+    if (!demoStackRead(name)) return null
+    const t = new Map<string, DemoNode>()
+    t.set('.env', { type: 'file', content: `# environment for ${name}\nTZ=Europe/Amsterdam\nAPI_KEY=change-me\n` })
+    t.set('config', { type: 'dir' })
+    t.set('config/settings.json', { type: 'file', content: '{\n  "example": true\n}\n' })
+    demoFileTrees.set(name, t)
+  }
+  return demoFileTrees.get(name)!
+}
+// compose.yaml reads live from the stack store so the editor + browser agree
+function demoNode(name: string, rel: string): DemoNode | null {
+  if (rel === 'compose.yaml') {
+    const s = demoStackRead(name)
+    return s ? { type: 'file', content: s.content } : null
+  }
+  return demoTree(name)?.get(rel) ?? null
+}
+
+export function demoFileList(name: string, path: string) {
+  const rel = safeRelPath(path)
+  const tree = demoTree(name)
+  if (rel === null || !tree) throw createError({ statusCode: 404, statusMessage: 'Unknown stack or path' })
+  if (rel !== '' && tree.get(rel)?.type !== 'dir') throw createError({ statusCode: 400, statusMessage: 'not a directory' })
+  const names = new Set<string>()
+  const entries: FileEntry[] = []
+  const all: [string, DemoNode][] = [['compose.yaml', demoNode(name, 'compose.yaml')!], ...tree.entries()]
+  for (const [p, node] of all) {
+    if (rel === '' ? p.includes('/') : !(p.startsWith(rel + '/') && !p.slice(rel.length + 1).includes('/'))) continue
+    const base = p.split('/').pop()!
+    if (names.has(base)) continue
+    names.add(base)
+    entries.push({
+      name: base,
+      type: node.type,
+      size: node.type === 'file' ? node.content.length : 0,
+      mtime: Date.now() - 3600_000,
+    })
+  }
+  entries.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'dir' ? -1 : 1))
+  return { path: rel, entries }
+}
+
+export function demoFileRead(event: any, name: string, path: string, download: boolean) {
+  const rel = safeRelPath(path)
+  const node = rel !== null ? demoNode(name, rel) : null
+  if (!node || node.type !== 'file') throw createError({ statusCode: 404, statusMessage: 'no such file' })
+  if (download) {
+    setHeader(event, 'content-type', 'application/octet-stream')
+    setHeader(event, 'content-disposition', `attachment; filename="${rel!.split('/').pop()}"`)
+    return Buffer.from(node.content)
+  }
+  return { path: rel, content: node.content }
+}
+
+export function demoFileWrite(name: string, path: string, content: string) {
+  const rel = safeRelPath(path)
+  const tree = demoTree(name)
+  if (rel === null || rel === '' || !tree) throw createError({ statusCode: 400, statusMessage: 'invalid path' })
+  if (rel === 'compose.yaml') demoStackSave(name, content, false)
+  else tree.set(rel, { type: 'file', content })
+  return { ok: true, path: rel }
+}
+
+export function demoFileAction(name: string, action: 'mkdir' | 'delete' | 'rename', path: string, to: string) {
+  const rel = safeRelPath(path)
+  const tree = demoTree(name)
+  if (rel === null || rel === '' || !tree) throw createError({ statusCode: 400, statusMessage: 'invalid path' })
+  if (rel === 'compose.yaml')
+    throw createError({ statusCode: 400, statusMessage: "this is the stack's compose file — delete the whole stack instead" })
+  if (action === 'mkdir') {
+    if (demoNode(name, rel)) throw createError({ statusCode: 400, statusMessage: 'already exists' })
+    tree.set(rel, { type: 'dir' })
+  } else if (action === 'delete') {
+    if (!demoNode(name, rel)) throw createError({ statusCode: 400, statusMessage: 'no such file or directory' })
+    for (const k of [...tree.keys()]) if (k === rel || k.startsWith(rel + '/')) tree.delete(k)
+  } else {
+    const dest = safeRelPath(to)
+    if (!dest || demoNode(name, dest)) throw createError({ statusCode: 400, statusMessage: 'invalid or existing target' })
+    for (const k of [...tree.keys()]) {
+      if (k === rel || k.startsWith(rel + '/')) {
+        tree.set(dest + k.slice(rel.length), tree.get(k)!)
+        tree.delete(k)
+      }
+    }
+  }
+  return { ok: true }
+}
+
+export function demoFileUpload(name: string, dir: string, files: { filename: string; size: number }[]) {
+  const tree = demoTree(name)
+  if (!tree) throw createError({ statusCode: 404, statusMessage: 'Unknown stack' })
+  const saved: string[] = []
+  for (const f of files) {
+    const base = f.filename.split('/').pop()!
+    const rel = dir ? `${dir}/${base}` : base
+    tree.set(rel, { type: 'file', content: `(uploaded ${f.size} bytes in demo mode)\n` })
+    saved.push(rel)
+  }
+  return { ok: true, saved }
 }
 
 /** Synthetic log lines so the logs panel works in demo mode. Deterministic per id+seed. */

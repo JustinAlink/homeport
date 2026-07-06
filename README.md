@@ -231,6 +231,16 @@ project name:
   streamed live to the page.
 - The dashboard's image-update detection pairs naturally with `pull` here.
 
+### File browser
+
+Each stack page has a **Files** section over the stack's directory (external/adopted projects
+included): browse, edit (with a `.bak` of every overwrite), create, rename, delete, upload,
+and download. `.env` and config files live next to the compose file — exactly where compose
+expects them — so setting secrets before the first `up` is an in-app flow. Safety rails:
+paths can't escape the stack directory (traversal *and* symlink checks), `.git` internals are
+off limits, the compose file can't be deleted or renamed and is validated on save, binary or
+huge files are download-only.
+
 ### Manage projects that live anywhere (compose roots & adoption)
 
 Projects that were started outside homeport (a `docker compose up` over SSH, an old

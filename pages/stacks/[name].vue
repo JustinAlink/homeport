@@ -213,6 +213,9 @@
       >Run “Up” again</button>
     </div>
 
+    <!-- file browser: everything in the stack's directory -->
+    <StackFiles v-if="!notManaged && !isNew" :stack="name" :compose-file="file" class="mt-6" />
+
     <!-- services in this stack (compose project) -->
     <section v-if="rows.length" class="mt-6">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">

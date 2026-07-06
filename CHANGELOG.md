@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.19.0 — 2026-07-06
+
+- **File browser per stack.** Every stack page (including external/adopted
+  projects) gets a Files section over the stack's own directory: browse,
+  create, edit (CodeMirror, YAML highlighting where it applies), rename,
+  delete, upload, and download. `.env` and config files land next to the
+  compose file, exactly where compose expects them — so "set the API key
+  before first start" is now an in-app flow. Overwritten files keep a `.bak`.
+  Guard rails: paths are validated against traversal *and* symlink escapes
+  (realpath containment), `.git` internals are off limits, the compose file
+  can't be deleted/renamed and is compose-validated on save (bad saves are
+  rolled back), binary/oversized files are download-only, uploads capped at
+  50 MiB.
+
 ## v2.18.0 — 2026-07-06
 
 - **Create networks and attach/detach containers.** The /networks page can now

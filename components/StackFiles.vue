@@ -1,0 +1,285 @@
+<template>
+  <section>
+    <div class="mb-2 flex flex-wrap items-center gap-2">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Files</h2>
+      <!-- breadcrumb -->
+      <nav class="flex items-center gap-1 font-mono text-xs text-slate-500">
+        <button class="hover:text-slate-200" @click="cd('')">{{ stack }}</button>
+        <template v-for="(seg, i) in crumbs" :key="i">
+          <span class="text-slate-700">/</span>
+          <button class="hover:text-slate-200" @click="cd(crumbs.slice(0, i + 1).join('/'))">{{ seg }}</button>
+        </template>
+      </nav>
+      <div class="ml-auto flex items-center gap-1.5">
+        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="newFile">+ File</button>
+        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="newFolder">+ Folder</button>
+        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="uploadInput?.click()">Upload</button>
+        <input ref="uploadInput" type="file" multiple class="hidden" @change="upload" />
+        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5" :disabled="loading" @click="load">
+          {{ loading ? '…' : 'Refresh' }}
+        </button>
+      </div>
+    </div>
+
+    <p v-if="err" class="mb-2 whitespace-pre-line text-xs text-red-400">{{ err }}</p>
+
+    <div class="overflow-hidden rounded-lg border border-white/5 bg-ink-900">
+      <div v-if="!entries.length && !path" class="p-6 text-center text-xs text-slate-600">empty directory</div>
+      <div
+        v-if="path"
+        class="flex cursor-pointer items-center gap-2 border-b border-white/5 px-4 py-2 text-xs text-slate-500 hover:bg-white/[0.03]"
+        @click="cd(parentPath)"
+      >
+        <Icon name="arrow-left" class="h-3.5 w-3.5" /> ..
+      </div>
+      <div
+        v-for="e in entries"
+        :key="e.name"
+        class="group flex items-center gap-3 border-b border-white/5 px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
+      >
+        <button class="flex min-w-0 flex-1 items-center gap-2.5 text-left" @click="open(e)">
+          <Icon :name="e.type === 'dir' ? 'stacks' : 'file'" class="h-4 w-4 shrink-0" :class="e.type === 'dir' ? 'text-sky-300/80' : 'text-slate-500'" />
+          <span class="truncate font-mono text-[13px]" :class="e.type === 'dir' ? 'text-slate-200' : 'text-slate-300'">{{ e.name }}</span>
+          <span v-if="rel(e.name) === composeFile" class="shrink-0 rounded-full border border-accent/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-accent-light">compose</span>
+        </button>
+        <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ e.type === 'file' ? formatBytes(e.size) : '' }}</span>
+        <span class="hidden shrink-0 text-[11px] text-slate-600 sm:block">{{ ago(e.mtime) }}</span>
+        <div class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <a
+            v-if="e.type === 'file'"
+            :href="`/api/stacks/${encodeURIComponent(stack)}/file?path=${encodeURIComponent(rel(e.name))}&download=1`"
+            class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+            :download="e.name"
+          >download</a>
+          <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="renameEntry(e)">rename</button>
+          <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="deleteEntry(e)">delete</button>
+        </div>
+      </div>
+    </div>
+    <p class="mt-1.5 text-[11px] text-slate-600">
+      Everything lives in the stack's own directory — <code>.env</code> and config files land next to the compose file,
+      exactly where compose expects them. Overwritten files keep a <code>.bak</code>.
+    </p>
+
+    <!-- editor modal -->
+    <div v-if="editing !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeEditor">
+      <div class="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-white/10 bg-ink-950 shadow-2xl">
+        <div class="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
+          <span class="font-mono text-sm text-slate-200">{{ editing }}</span>
+          <span v-if="editing === composeFile" class="rounded-full border border-accent/30 px-1.5 py-px text-[9px] uppercase text-accent-light" title="Validated with docker compose config on save">compose</span>
+          <button class="ml-auto text-slate-500 hover:text-slate-200" aria-label="Close" @click="closeEditor"><Icon name="x" class="h-4 w-4" /></button>
+        </div>
+        <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto text-[13px]" />
+        <div class="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
+          <button
+            :disabled="fileSaving"
+            class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            @click="saveFile"
+          >{{ fileSaving ? 'Saving…' : 'Save' }}</button>
+          <span v-if="fileMsg" class="whitespace-pre-line text-[11px]" :class="fileOk ? 'text-accent-light' : 'text-red-400'">{{ fileMsg }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+const props = defineProps<{ stack: string; composeFile?: string }>()
+
+interface Entry {
+  name: string
+  type: 'file' | 'dir'
+  size: number
+  mtime: number
+}
+
+const path = ref('')
+const entries = ref<Entry[]>([])
+const loading = ref(false)
+const err = ref('')
+const uploadInput = ref<HTMLInputElement | null>(null)
+
+const crumbs = computed(() => (path.value ? path.value.split('/') : []))
+const parentPath = computed(() => crumbs.value.slice(0, -1).join('/'))
+const composeFile = computed(() => props.composeFile || 'compose.yaml')
+const rel = (name: string) => (path.value ? `${path.value}/${name}` : name)
+
+function ago(ms: number): string {
+  const s = Math.max(0, (Date.now() - ms) / 1000)
+  if (s < 90) return 'just now'
+  if (s < 5400) return `${Math.round(s / 60)}m ago`
+  if (s < 129600) return `${Math.round(s / 3600)}h ago`
+  return `${Math.round(s / 86400)}d ago`
+}
+
+async function load() {
+  loading.value = true
+  try {
+    const r = await $fetch<{ path: string; entries: Entry[] }>(
+      `/api/stacks/${encodeURIComponent(props.stack)}/files`,
+      { query: { path: path.value } },
+    )
+    entries.value = r.entries
+    err.value = ''
+  } catch (e: any) {
+    err.value = errMsg(e, 'Could not list files')
+  } finally {
+    loading.value = false
+  }
+}
+
+function cd(p: string) {
+  path.value = p
+  load()
+}
+
+function open(e: Entry) {
+  if (e.type === 'dir') return cd(rel(e.name))
+  openEditor(rel(e.name))
+}
+
+// --- editor modal ---
+const editing = ref<string | null>(null)
+const editorEl = ref<HTMLElement | null>(null)
+const fileSaving = ref(false)
+const fileMsg = ref('')
+const fileOk = ref(false)
+let fileView: any = null
+
+async function setupFileEditor(content: string, yamlMode: boolean) {
+  const [{ EditorView, basicSetup }, { oneDark }, yamlExt] = await Promise.all([
+    import('codemirror'),
+    import('@codemirror/theme-one-dark'),
+    yamlMode ? import('@codemirror/lang-yaml') : Promise.resolve(null),
+  ])
+  fileView?.destroy()
+  fileView = new EditorView({
+    doc: content,
+    parent: editorEl.value!,
+    extensions: [
+      basicSetup,
+      ...(yamlExt ? [yamlExt.yaml()] : []),
+      oneDark,
+      EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
+    ],
+  })
+}
+
+async function openEditor(relPath: string, initial = '') {
+  fileMsg.value = ''
+  editing.value = relPath
+  let content = initial
+  if (initial === '') {
+    try {
+      const r = await $fetch<{ content: string }>(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
+        query: { path: relPath },
+      })
+      content = r.content
+    } catch (e: any) {
+      const code = e?.statusCode ?? e?.response?.status
+      if (code === 404) content = '' // new file
+      else {
+        editing.value = null
+        err.value = errMsg(e, 'Could not open the file')
+        return
+      }
+    }
+  }
+  await nextTick()
+  await setupFileEditor(content, /\.ya?ml$/i.test(relPath))
+}
+
+function closeEditor() {
+  fileView?.destroy()
+  fileView = null
+  editing.value = null
+}
+
+async function saveFile() {
+  if (editing.value === null) return
+  fileSaving.value = true
+  fileMsg.value = ''
+  try {
+    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
+      method: 'PUT',
+      body: { path: editing.value, content: fileView.state.doc.toString() },
+    })
+    fileOk.value = true
+    fileMsg.value = 'Saved.'
+    load()
+  } catch (e: any) {
+    fileOk.value = false
+    fileMsg.value = errMsg(e, 'Save failed')
+  } finally {
+    fileSaving.value = false
+  }
+}
+
+// --- actions ---
+function newFile() {
+  const name = window.prompt('New file name (in the current folder):')
+  if (!name?.trim()) return
+  openEditor(rel(name.trim()), '\n')
+}
+
+async function newFolder() {
+  const name = window.prompt('New folder name (in the current folder):')
+  if (!name?.trim()) return
+  try {
+    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
+      method: 'POST',
+      body: { action: 'mkdir', path: rel(name.trim()) },
+    })
+    load()
+  } catch (e: any) {
+    err.value = errMsg(e, 'Could not create the folder')
+  }
+}
+
+async function renameEntry(e: Entry) {
+  const name = window.prompt(`Rename “${e.name}” to:`, e.name)
+  if (!name?.trim() || name.trim() === e.name) return
+  try {
+    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
+      method: 'POST',
+      body: { action: 'rename', path: rel(e.name), to: rel(name.trim()) },
+    })
+    load()
+  } catch (er: any) {
+    err.value = errMsg(er, 'Could not rename')
+  }
+}
+
+async function deleteEntry(e: Entry) {
+  const what = e.type === 'dir' ? 'folder (and everything in it)' : 'file'
+  if (!window.confirm(`Delete ${what} “${e.name}”? This cannot be undone.`)) return
+  try {
+    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
+      method: 'POST',
+      body: { action: 'delete', path: rel(e.name) },
+    })
+    load()
+  } catch (er: any) {
+    err.value = errMsg(er, 'Could not delete')
+  }
+}
+
+async function upload(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const files = [...(input.files || [])]
+  input.value = ''
+  if (!files.length) return
+  const fd = new FormData()
+  fd.append('path', path.value)
+  for (const f of files) fd.append('file', f)
+  try {
+    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/upload`, { method: 'POST', body: fd })
+    load()
+  } catch (e: any) {
+    err.value = errMsg(e, 'Upload failed')
+  }
+}
+
+onMounted(load)
+onBeforeUnmount(() => fileView?.destroy())
+</script>
