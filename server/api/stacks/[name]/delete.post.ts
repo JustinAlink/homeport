@@ -8,6 +8,8 @@ import { demoStackDelete } from '../../../utils/demo'
 // Delete a managed stack: compose down, then remove its directory (and git
 // token). Streamed as an op like every other stack operation. Named volumes
 // are left alone — data outlives the stack unless removed explicitly.
+// External stacks (compose roots / adopted projects) are refused — homeport
+// won't delete files it doesn't own outside its stacks directory.
 export default defineEventHandler(async (event) => {
   const cfg = getConfig()
   const name = safeStackName(String(getRouterParam(event, 'name') || ''))
@@ -17,7 +19,14 @@ export default defineEventHandler(async (event) => {
   if (!cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
   }
-  if (!readStack(name)) throw createError({ statusCode: 404, statusMessage: 'Unknown stack' })
+  const stack = await readStack(name)
+  if (!stack) throw createError({ statusCode: 404, statusMessage: 'Unknown stack' })
+  if (stack.source !== 'stacks') {
+    throw createError({
+      statusCode: 403,
+      statusMessage: `"${name}" lives outside homeport's stacks directory (${stack.dir}) — take it down and remove its files there instead.`,
+    })
+  }
 
   const opId = startOp(`delete ${name}`, async (emit) => {
     const ok = await runStackOp(name, 'down', emit)

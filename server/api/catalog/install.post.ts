@@ -33,11 +33,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Installing needs stacks enabled (HOMEPORT_ALLOW_STACKS=true).' })
   }
 
-  if (readStack(stackName)) {
+  if (await readStack(stackName)) {
     throw createError({ statusCode: 409, statusMessage: `a stack named "${stackName}" already exists` })
   }
 
-  saveStack(stackName, gen.content, true)
+  await saveStack(stackName, gen.content, true)
   const check = await validateCompose(stackName)
   if (!check.ok) {
     // fresh install — remove the just-created dir so a corrected retry starts clean

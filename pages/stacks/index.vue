@@ -5,8 +5,10 @@
       <div>
         <h1 class="text-xl font-semibold text-slate-100">Stacks</h1>
         <p class="mt-1 text-[13px] text-slate-500">
-          Compose projects homeport manages — each is a folder with a compose file in
-          <code class="text-slate-400">{{ data?.dir || '/stacks' }}</code>. Deploy, edit, or update them from git;
+          Compose projects homeport manages — folders with a compose file in
+          <code class="text-slate-400">{{ data?.dir || '/stacks' }}</code><template v-if="data?.roots?.length">
+            or a configured compose root (<code class="text-slate-400">{{ data.roots.join(', ') }}</code>)</template>,
+          plus running projects whose files homeport can see. Deploy, edit, or update them from git;
           catalog installs land here too.
         </p>
       </div>
@@ -104,6 +106,11 @@
                 class="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300"
                 title="Git-backed stack"
               ><Icon name="git-branch" class="h-2.5 w-2.5" />git</span>
+              <span
+                v-if="s.source && s.source !== 'stacks'"
+                class="shrink-0 rounded-full border border-violet-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-violet-300"
+                :title="`Managed in place at ${s.dir}`"
+              >external</span>
               <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ s.file }}</span>
             </div>
             <p class="mt-1 truncate text-xs text-slate-500">
@@ -124,7 +131,12 @@
 
       <template v-if="data.unmanaged.length">
         <h2 class="mb-2 mt-8 text-sm font-semibold uppercase tracking-wider text-slate-500">Unmanaged compose projects</h2>
-        <p class="mb-2 text-xs text-slate-600">Running compose projects without a directory in {{ data.dir }} — their compose files aren't editable here, but you can still view and control their containers.</p>
+        <p class="mb-2 text-xs text-slate-600">
+          Running compose projects whose files homeport can't see — you can view and control their containers, but not
+          edit or compose-operate them. To manage one fully, mount its folder into the homeport container at the
+          <strong>same path it has on the host</strong> (shown below) — it's adopted automatically. A parent folder of
+          several projects can be added once under Settings → Compose roots.
+        </p>
         <div class="space-y-1.5">
           <NuxtLink
             v-for="u in data.unmanaged"
@@ -133,7 +145,8 @@
             class="flex items-center gap-3 rounded-md border border-white/5 bg-ink-900/60 px-4 py-2 transition-colors hover:border-accent/30"
           >
             <span class="text-sm text-slate-300">{{ u.name }}</span>
-            <span class="ml-auto text-xs text-slate-600">{{ u.running }}/{{ u.total }} running</span>
+            <span v-if="u.workingDir" class="truncate font-mono text-[11px] text-slate-600" :title="`compose files live at ${u.workingDir} on the host — mount it at this exact path to manage the project here`">{{ u.workingDir }}</span>
+            <span class="ml-auto shrink-0 text-xs text-slate-600">{{ u.running }}/{{ u.total }} running</span>
           </NuxtLink>
         </div>
       </template>
@@ -149,11 +162,14 @@ interface StackRow {
   total: number
   file?: string
   git?: boolean
+  source?: 'stacks' | 'root' | 'adopted'
+  dir?: string
 }
 interface StacksResponse {
   stacks: StackRow[]
-  unmanaged: { name: string; running: number; total: number }[]
+  unmanaged: { name: string; running: number; total: number; workingDir?: string | null }[]
   dir: string
+  roots?: string[]
 }
 
 const data = ref<StacksResponse | null>(null)

@@ -60,6 +60,8 @@ export interface HomeportConfig {
   allowStacks: boolean
   /** Directory of compose stacks (each subdir = one stack). */
   stacksDir: string
+  /** Extra dirs scanned for compose projects, managed in place (mount at the SAME host path). */
+  composeRoots: string[]
   /** Extra app-catalog template source URLs (native or Portainer format). */
   catalogUrls: string[]
   /** Web terminal: exec into containers (needs EXEC=1 POST=1). Off by default. */
@@ -224,6 +226,13 @@ export function getConfig(): HomeportConfig {
         ? process.env.HOMEPORT_ALLOW_STACKS === 'true'
         : !!s.allowStacks,
     stacksDir: envStr('HOMEPORT_STACKS_DIR') ?? '/stacks',
+    composeRoots:
+      envStr('HOMEPORT_COMPOSE_ROOTS') !== undefined
+        ? (envStr('HOMEPORT_COMPOSE_ROOTS') || '')
+            .split(',')
+            .map((x) => x.trim())
+            .filter((x) => x.startsWith('/'))
+        : (s.composeRoots ?? []).filter((x) => x.startsWith('/')),
     catalogUrls:
       envStr('HOMEPORT_CATALOG_URLS') !== undefined
         ? (envStr('HOMEPORT_CATALOG_URLS') || '')
@@ -314,6 +323,7 @@ export function getEnvLocks() {
     allowUpdates: envStr('HOMEPORT_ALLOW_UPDATES') !== undefined,
     registryCreds: envStr('HOMEPORT_REGISTRY_AUTH') !== undefined,
     allowStacks: envStr('HOMEPORT_ALLOW_STACKS') !== undefined,
+    composeRoots: envStr('HOMEPORT_COMPOSE_ROOTS') !== undefined,
     catalogUrls: envStr('HOMEPORT_CATALOG_URLS') !== undefined,
     allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
     allowProxyAdmin: envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined,
@@ -350,6 +360,7 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     allowUpdates: !!s.allowUpdates,
     registryCreds: settingsRegistryCreds(s),
     allowStacks: !!s.allowStacks,
+    composeRoots: s.composeRoots ?? [],
     catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal: !!s.allowTerminal,
     allowProxyAdmin: !!s.allowProxyAdmin,

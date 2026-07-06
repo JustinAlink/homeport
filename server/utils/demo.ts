@@ -291,33 +291,51 @@ function synthCompose(group: string): string {
   return `services:\n${members.map(svc).join('\n')}\n`
 }
 
+// One demo stack presents as an external project managed in place (compose root).
+const DEMO_EXTERNAL_STACK = 'downloads'
+
 export function demoStackList() {
   const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => !UNMANAGED_GROUPS.has(g))
   const stacks = groups.map((g) => {
     const members = seeds.map((s, i) => ({ s, i })).filter(({ s }) => s.group === g)
     const running = members.filter(({ s, i }) => (demoOverrides[`demo-${i}`] || s.state || 'running') === 'running').length
     const total = members.length
+    const external = g === DEMO_EXTERNAL_STACK
     return {
       name: g,
       state: running === 0 ? 'stopped' : running === total ? 'running' : 'partial',
       running,
       total,
       file: 'compose.yaml',
+      source: external ? 'adopted' : 'stacks',
+      dir: external ? `/home/demo/docker/${g}` : undefined,
       git: g === 'media' || demoGitStacks.has(g),
     }
   })
-  return { stacks, unmanaged: [{ name: 'legacy-app', running: 1, total: 1 }], dir: '/stacks' }
+  return {
+    stacks,
+    unmanaged: [{ name: 'legacy-app', running: 1, total: 1, workingDir: '/opt/legacy-app' }],
+    dir: '/stacks',
+    roots: [],
+  }
 }
 
 export function demoStackRead(name: string) {
   if (UNMANAGED_GROUPS.has(name)) return null
   if (![...new Set(seeds.map((s) => s.group))].includes(name) && !demoStackContent.has(name)) return null
-  return { name, file: 'compose.yaml', content: demoStackContent.get(name) ?? synthCompose(name) }
+  const external = name === DEMO_EXTERNAL_STACK
+  return {
+    name,
+    file: 'compose.yaml',
+    content: demoStackContent.get(name) ?? synthCompose(name),
+    source: external ? 'adopted' : 'stacks',
+    dir: external ? `/home/demo/docker/${name}` : `/stacks/${name}`,
+  }
 }
 
 export function demoStackSave(name: string, content: string, _create: boolean) {
   demoStackContent.set(name, content)
-  return { ok: true, stack: { name, file: 'compose.yaml', content } }
+  return { ok: true, stack: { name, file: 'compose.yaml', content, source: 'stacks', dir: `/stacks/${name}` } }
 }
 
 // One demo stack presents as git-backed so the from-git flow is demoable.
@@ -435,6 +453,27 @@ export function demoStackAction(name: string, op: string): string {
     }
     return true
   })
+}
+
+// In-memory docker network list so the conflict card round-trips in demo.
+const demoRemovedNetworks = new Set<string>()
+export function demoNetworks() {
+  const nets = [
+    { id: 'demo-net-0', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 3 },
+    { id: 'demo-net-1', name: 'homeport_internal', driver: 'bridge', builtin: false, subnets: ['172.20.0.0/16'], containers: 2 },
+    { id: 'demo-net-2', name: 'media_default', driver: 'bridge', builtin: false, subnets: ['172.19.0.0/16'], containers: 3 },
+    { id: 'demo-net-3', name: 'oldapp_default', driver: 'bridge', builtin: false, subnets: ['172.18.0.0/16'], containers: 0 },
+  ]
+  return nets.filter((n) => !demoRemovedNetworks.has(n.name))
+}
+export function demoNetworkRemove(name: string) {
+  const net = demoNetworks().find((n) => n.name === name)
+  if (!net) throw createError({ statusCode: 400, statusMessage: `no network named "${name}"` })
+  if (net.builtin) throw createError({ statusCode: 400, statusMessage: `"${name}" is a built-in docker network` })
+  if (net.containers > 0)
+    throw createError({ statusCode: 400, statusMessage: `network "${name}" is still used by ${net.containers} containers` })
+  demoRemovedNetworks.add(name)
+  return { ok: true }
 }
 
 /** Synthetic log lines so the logs panel works in demo mode. Deterministic per id+seed. */

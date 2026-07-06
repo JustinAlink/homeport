@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   if (!cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
   }
-  if (readStack(name)) {
+  if (await readStack(name)) {
     throw createError({ statusCode: 409, statusMessage: `a stack named "${name}" already exists` })
   }
 

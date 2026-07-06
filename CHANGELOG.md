@@ -1,5 +1,31 @@
 # Changelog
 
+## v2.16.0 — 2026-07-06
+
+- **Manage compose projects wherever they live.** Projects started outside
+  homeport no longer have to move into the stacks dir:
+  - Running compose projects whose files are visible inside the container
+    (mount them at the **same path** they have on the host, e.g.
+    `-v /home/user/docker:/home/user/docker`) are **adopted automatically** —
+    edited and compose-operated in place, marked `external` in the UI.
+  - **Settings → Compose roots** (`HOMEPORT_COMPOSE_ROOTS`) scans extra
+    directories for compose projects — including ones whose containers were
+    **never created**, so you can set env vars and deploy a fresh project from
+    homeport instead of over SSH.
+  - Projects homeport can't see stay "unmanaged"; the stacks page now shows the
+    exact host path to mount to adopt each one.
+  - Safety: external stacks can't be deleted from homeport, and homeport
+    refuses `down`/`restart`/`pull` on its **own** stack (that would kill it
+    mid-operation) — self-updates go through Settings → About.
+- **"Pool overlaps" deploy failures are now diagnosed and fixable in-app.**
+  When a stack deploy dies on docker's address-space errors, homeport compares
+  the subnets the stack requests with the live network list and names the
+  conflicting network in the op output. The stack page adds a card listing all
+  docker networks (subnet, container count) with one-click **removal of unused
+  networks** and a retry button. New `GET /api/networks` +
+  `POST /api/networks/remove` (stacks-gated; removal refuses built-ins and
+  anything still referenced by a container).
+
 ## v2.15.0 — 2026-07-06
 
 - Re-cut of **v2.14.0** (private registry logins, below) — its release run hung

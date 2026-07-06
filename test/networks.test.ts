@@ -1,0 +1,79 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  parseCidr,
+  cidrsOverlap,
+  findSubnetConflicts,
+  detectNetworkError,
+  subnetsFromComposeConfig,
+} from '../server/utils/networks-core.ts'
+
+test('parseCidr: v4 ranges + garbage', () => {
+  const r = parseCidr('172.20.0.0/16')!
+  assert.equal(r.end - r.start + 1n, 65536n)
+  assert.equal(r.v6, false)
+  // host bits are masked off
+  assert.deepEqual(parseCidr('10.1.2.3/8')!.start, parseCidr('10.0.0.0/8')!.start)
+  assert.equal(parseCidr('300.0.0.0/8'), null)
+  assert.equal(parseCidr('10.0.0.0/33'), null)
+  assert.equal(parseCidr('10.0.0.0'), null)
+  assert.equal(parseCidr(''), null)
+})
+
+test('parseCidr: v6 incl. :: expansion', () => {
+  const r = parseCidr('fdba:17c8:6c94::/64')!
+  assert.equal(r.v6, true)
+  assert.equal(r.end - r.start + 1n, 1n << 64n)
+  assert.equal(parseCidr('fdba::1::2/64'), null)
+  assert.equal(parseCidr('fdba::/129'), null)
+})
+
+test('cidrsOverlap: containment, identity, disjoint, family mismatch', () => {
+  assert.equal(cidrsOverlap('172.20.0.0/16', '172.20.0.0/16'), true) // the pelican case
+  assert.equal(cidrsOverlap('172.20.1.0/24', '172.20.0.0/16'), true)
+  assert.equal(cidrsOverlap('172.23.0.0/16', '172.23.1.0/24'), true)
+  assert.equal(cidrsOverlap('172.20.0.0/16', '172.21.0.0/16'), false)
+  assert.equal(cidrsOverlap('172.20.0.0/16', 'fdba::/64'), false)
+  assert.equal(cidrsOverlap('garbage', '172.20.0.0/16'), false)
+})
+
+test('findSubnetConflicts: names the overlapping network', () => {
+  const networks = [
+    { id: '1', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 3 },
+    { id: '2', name: 'homeport_internal', driver: 'bridge', builtin: false, subnets: ['172.20.0.0/16'], containers: 2 },
+    { id: '3', name: 'idle_net', driver: 'bridge', builtin: false, subnets: ['172.30.0.0/16'], containers: 0 },
+  ]
+  assert.deepEqual(findSubnetConflicts(['172.20.0.0/16'], networks), [
+    { requested: '172.20.0.0/16', network: 'homeport_internal', subnet: '172.20.0.0/16', containers: 2 },
+  ])
+  assert.deepEqual(findSubnetConflicts(['10.99.0.0/24'], networks), [])
+  assert.deepEqual(findSubnetConflicts([], networks), [])
+})
+
+test('detectNetworkError: overlap vs pool exhaustion', () => {
+  assert.equal(
+    detectNetworkError('Error response from daemon: invalid pool request: Pool overlaps with other one on this address space'),
+    'overlap',
+  )
+  assert.equal(
+    detectNetworkError('could not find an available, non-overlapping IPv4 address pool among the defaults'),
+    'exhausted',
+  )
+  assert.equal(detectNetworkError('all predefined address pools have been fully subnetted'), 'exhausted')
+  assert.equal(detectNetworkError('some other failure'), null)
+})
+
+test('subnetsFromComposeConfig: ipam subnets across networks', () => {
+  assert.deepEqual(
+    subnetsFromComposeConfig({
+      networks: {
+        default: { ipam: { config: [{ subnet: '172.20.0.0/16' }] } },
+        internal: { ipam: { config: [{ subnet: '10.5.0.0/24' }, { subnet: 'fd00::/64' }] } },
+        plain: {},
+      },
+    }),
+    ['172.20.0.0/16', '10.5.0.0/24', 'fd00::/64'],
+  )
+  assert.deepEqual(subnetsFromComposeConfig({}), [])
+  assert.deepEqual(subnetsFromComposeConfig(null), [])
+})

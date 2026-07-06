@@ -23,6 +23,8 @@ export interface PersistedSettings {
   /** Registry logins for checking/pulling private images (e.g. ghcr.io). */
   registryCreds?: RegistryCred[]
   allowStacks?: boolean
+  /** Extra dirs scanned for compose projects, managed in place (mounted at the same host path). */
+  composeRoots?: string[]
   /** Extra app-catalog template source URLs (native or Portainer format). */
   catalogUrls?: string[]
   allowTerminal?: boolean

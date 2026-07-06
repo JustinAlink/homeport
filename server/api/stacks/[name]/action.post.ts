@@ -1,6 +1,6 @@
 import { getConfig } from '../../../utils/config'
 import { startOp } from '../../../utils/ops'
-import { runCompose, runStackOp } from '../../../utils/stacks'
+import { runCompose, runStackOp, selfProject } from '../../../utils/stacks'
 import { safeStackName, type StackOp } from '../../../utils/stacks-core'
 import { isGitStack, updateGitStack } from '../../../utils/git-stacks'
 import { demoStackAction } from '../../../utils/demo'
@@ -22,6 +22,15 @@ export default defineEventHandler(async (event) => {
   if (cfg.demo) return { opId: demoStackAction(name, op) }
   if (!cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
+  }
+
+  // Homeport's own stack: down/restart/pull would kill homeport mid-operation
+  // and leave it half-applied ('up' on a running stack is a harmless no-op).
+  if (op !== 'up' && name === (await selfProject())) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `"${name}" is homeport's own stack — use Settings → About → Update homeport instead (compose ${op} from inside would kill homeport mid-operation).`,
+    })
   }
 
   if (op === 'update') {

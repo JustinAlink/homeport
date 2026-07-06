@@ -117,6 +117,19 @@ export default defineEventHandler(async (event) => {
   if (body.allowUpdates !== undefined) patch.allowUpdates = !!body.allowUpdates
   if (body.registryCreds !== undefined) patch.registryCreds = sanitizeRegistryCreds(body.registryCreds)
   if (body.allowStacks !== undefined) patch.allowStacks = !!body.allowStacks
+  if (body.composeRoots !== undefined) {
+    if (!Array.isArray(body.composeRoots))
+      throw createError({ statusCode: 400, statusMessage: 'composeRoots must be an array' })
+    patch.composeRoots = body.composeRoots
+      .map((p) => (typeof p === 'string' ? p.trim().replace(/\/+$/, '') : ''))
+      .filter(Boolean)
+      .map((p) => {
+        if (!p.startsWith('/'))
+          throw createError({ statusCode: 400, statusMessage: 'compose roots must be absolute paths (e.g. /home/user/docker)' })
+        return p
+      })
+      .slice(0, 20)
+  }
   if (body.catalogUrls !== undefined) {
     if (!Array.isArray(body.catalogUrls))
       throw createError({ statusCode: 400, statusMessage: 'catalogUrls must be an array' })

@@ -229,9 +229,37 @@ project name:
   `docker compose config` first, and the previous version is kept as a `.bak`.
 - **Deploy / restart / pull-and-recreate / down** per stack, with the compose output
   streamed live to the page.
-- Running compose projects without a stack directory show up as **unmanaged** — visible,
-  not editable.
 - The dashboard's image-update detection pairs naturally with `pull` here.
+
+### Manage projects that live anywhere (compose roots & adoption)
+
+Projects that were started outside homeport (a `docker compose up` over SSH, an old
+`~/docker/*` tree) don't have to move into the stacks dir. Mount their directory into the
+homeport container **at the same path it has on the host** — e.g.
+`-v /home/user/docker:/home/user/docker` — and:
+
+- Running compose projects whose `working_dir` is visible are **adopted automatically**:
+  edited and compose-operated in place, marked `external` in the UI. (The same-path rule
+  matters — compose resolves relative bind mounts against the file's directory, and the
+  daemon interprets those paths on the host.)
+- Add the folder under **Settings → Compose roots** (or `HOMEPORT_COMPOSE_ROOTS`, comma-
+  separated) and every subfolder with a compose file becomes a stack **even before its
+  containers exist** — create a project over SSH, then set its env and start it from
+  homeport.
+- Projects homeport can't see stay **unmanaged** — visible and controllable, with the exact
+  host path you'd need to mount shown on the stacks page.
+- External stacks can't be deleted from homeport (it won't remove files outside its own
+  stacks dir), and homeport refuses `down`/`restart` on its **own** stack (use
+  Settings → About → Update homeport instead).
+
+### When a deploy fails on "Pool overlaps"
+
+Some upstream compose files pin a fixed subnet (`ipam: … subnet:`) that may already be taken
+on your machine — docker then fails with the famously unhelpful
+`Pool overlaps with other one on this address space`. Homeport diagnoses this: the op output
+names the conflicting network, and the stack page shows a card listing every docker network
+(subnet + how many containers use it) with one-click **removal of unused networks**, then
+retry. Pool-exhaustion errors (too many networks) get the same treatment.
 
 ![compose stack editor](docs/stacks.png)
 

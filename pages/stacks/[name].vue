@@ -4,6 +4,11 @@
       <NuxtLink to="/stacks" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
       <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
       <span v-if="file" class="font-mono text-xs text-slate-600">{{ file }}</span>
+      <span
+        v-if="source !== 'stacks' && !notManaged && !isNew"
+        class="rounded-full border border-violet-400/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300"
+        :title="`Managed in place at ${stackDir} — not in homeport's stacks directory`"
+      >external</span>
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
       <span v-if="notManaged && rows.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
       <div v-if="notManaged" class="ml-auto flex items-center gap-2">
@@ -52,6 +57,7 @@
           @click="runAction(a.op)"
         ><Icon :name="a.icon" class="h-3.5 w-3.5" /> {{ a.label }}</button>
         <button
+          v-if="source === 'stacks'"
           :disabled="opRunning"
           class="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
           title="compose down, then remove the stack directory (named volumes are kept)"
@@ -59,6 +65,12 @@
         ><Icon name="x" class="h-3.5 w-3.5" /> Delete</button>
       </div>
     </header>
+
+    <!-- external project location -->
+    <div v-if="source !== 'stacks' && !notManaged && !isNew" class="mb-4 rounded-md border border-white/5 bg-ink-900/60 px-3 py-2 text-xs text-slate-500">
+      Managed in place at <code class="text-slate-400">{{ stackDir }}</code> — edits and compose operations act on the
+      real files there; delete it from that directory if you want it gone.
+    </div>
 
     <!-- git source line -->
     <div v-if="gitInfo" class="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-white/5 bg-ink-900/60 px-3 py-2 text-xs">
@@ -86,11 +98,13 @@
         <NuxtLink to="/stacks" class="text-accent-light hover:underline">Back to stacks</NuxtLink>
       </div>
       <div v-else class="mb-4 rounded-lg border border-white/5 bg-ink-900 p-4 text-sm text-slate-400">
-        This compose project is running on the host, but its compose file lives outside homeport's stacks directory —
-        so it can't be edited or compose-updated from here. You can still control and update its containers below.
+        This compose project is running on the host, but homeport can't see its compose files —
+        so it can't be edited or compose-operated from here. You can still control and update its containers below.
         <span class="mt-1 block text-xs text-slate-600">
-          To manage it fully, mount the folder holding its compose file into homeport's stacks directory
-          (e.g. <code class="text-slate-500">-v /path/to/projects:/stacks</code> — each subfolder with a compose file becomes an editable stack).
+          To manage it fully, mount its project folder into the homeport container at the <strong>same path it has on
+          the host</strong> (e.g. <code class="text-slate-500">-v /home/user/docker:/home/user/docker</code>) — visible
+          projects are adopted automatically; a parent folder of many projects can also be added under
+          Settings → Compose roots.
         </span>
       </div>
       <p v-if="bulkMsg" class="mb-4 whitespace-pre-line text-xs" :class="bulkOk ? 'text-accent-light' : 'text-red-400'">{{ bulkMsg }}</p>
@@ -126,6 +140,46 @@
         {{ opRunning ? 'running…' : opOk ? 'finished' : 'failed' }}
       </div>
       <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
+    </div>
+
+    <!-- docker network conflict helper (compose "Pool overlaps" failures) -->
+    <div v-if="netIssue" class="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+      <h3 class="mb-1 text-sm font-semibold text-amber-300">Docker network conflict</h3>
+      <p class="text-xs text-slate-400">
+        <template v-if="netIssue === 'overlap'">
+          A network this stack defines asks for an address range an existing docker network already occupies.
+          Change the subnet under <code class="text-slate-500">networks: … ipam</code> in the compose file (any free
+          range works), or remove the conflicting network below if nothing uses it.
+        </template>
+        <template v-else>
+          Docker has no free address pools left for a new network — removing unused networks frees address space.
+        </template>
+      </p>
+      <p v-if="netErr" class="mt-2 text-xs text-red-400">{{ netErr }}</p>
+      <div v-if="networks.length" class="mt-3 space-y-1">
+        <div
+          v-for="n in networks"
+          :key="n.id"
+          class="flex items-center gap-3 rounded-md border px-3 py-1.5 text-xs"
+          :class="conflictNames.has(n.name) ? 'border-amber-400/30 bg-amber-400/5' : 'border-white/5'"
+        >
+          <span class="font-mono text-slate-200">{{ n.name }}</span>
+          <span v-if="conflictNames.has(n.name)" class="rounded-full border border-amber-400/40 px-1.5 py-px text-[10px] uppercase text-amber-300">conflict</span>
+          <span class="font-mono text-slate-500">{{ n.subnets.join(', ') || '—' }}</span>
+          <span class="ml-auto text-slate-500">{{ n.containers ? `${n.containers} container${n.containers > 1 ? 's' : ''}` : 'unused' }}</span>
+          <button
+            v-if="!n.builtin && n.containers === 0"
+            :disabled="netBusy === n.name"
+            class="rounded-md border border-red-500/25 px-2 py-1 text-[11px] text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+            @click="removeNetwork(n.name)"
+          >{{ netBusy === n.name ? 'Removing…' : 'Remove' }}</button>
+        </div>
+      </div>
+      <button
+        class="mt-3 rounded-md border border-accent/25 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
+        :disabled="opRunning"
+        @click="runAction('up')"
+      >Run “Up” again</button>
     </div>
 
     <!-- services in this stack (compose project) -->
@@ -172,6 +226,8 @@ const name = String(route.params.name)
 const isNew = ref(String(route.query.new || '') === '1')
 
 const file = ref('')
+const source = ref<'stacks' | 'root' | 'adopted'>('stacks')
+const stackDir = ref('')
 const loadError = ref('')
 const notManaged = ref(false) // no stack dir for this name — unmanaged compose project view
 
@@ -291,8 +347,12 @@ async function load() {
     return
   }
   try {
-    const s = await $fetch<{ name: string; file: string; content: string }>(`/api/stacks/${encodeURIComponent(name)}`)
+    const s = await $fetch<{ name: string; file: string; content: string; source?: 'stacks' | 'root' | 'adopted'; dir?: string }>(
+      `/api/stacks/${encodeURIComponent(name)}`,
+    )
     file.value = s.file
+    source.value = s.source ?? 'stacks'
+    stackDir.value = s.dir ?? ''
     savedContent = s.content
     await setupEditor(s.content)
   } catch (e: any) {
@@ -385,6 +445,58 @@ async function runAction(op: string) {
     opLines.value.push(errMsg(e, 'could not start the operation'))
     opOk.value = false
     opRunning.value = false
+  }
+}
+
+// --- docker network conflict helper ---
+// a failed op whose output matches docker's address-space errors gets a card
+// listing live networks, with one-click removal of unused ones
+const netIssue = computed<null | 'overlap' | 'exhausted'>(() => {
+  if (opRunning.value || opOk.value !== false) return null
+  const text = opLines.value.join('\n')
+  if (/pool overlaps with other one on this address space/i.test(text)) return 'overlap'
+  if (/(could not find an available, non-overlapping|all predefined address pools have been fully subnetted)/i.test(text))
+    return 'exhausted'
+  return null
+})
+// networks the server-side hints named as conflicting — highlighted in the card
+const conflictNames = computed(() => {
+  const out = new Set<string>()
+  for (const m of opLines.value.join('\n').matchAll(/overlaps existing network "([^"]+)"/g)) out.add(m[1])
+  return out
+})
+interface NetRow {
+  id: string
+  name: string
+  driver: string
+  builtin: boolean
+  subnets: string[]
+  containers: number
+}
+const networks = ref<NetRow[]>([])
+const netBusy = ref('')
+const netErr = ref('')
+watch(netIssue, (v) => {
+  if (v) loadNetworks()
+})
+async function loadNetworks() {
+  try {
+    networks.value = (await $fetch<{ networks: NetRow[] }>('/api/networks')).networks
+    netErr.value = ''
+  } catch (e: any) {
+    netErr.value = errMsg(e, 'could not list networks')
+  }
+}
+async function removeNetwork(netName: string) {
+  if (!window.confirm(`Remove docker network “${netName}”? No containers reference it.`)) return
+  netBusy.value = netName
+  try {
+    await $fetch('/api/networks/remove', { method: 'POST', body: { name: netName } })
+    await loadNetworks()
+  } catch (e: any) {
+    netErr.value = errMsg(e, 'could not remove the network')
+  } finally {
+    netBusy.value = ''
   }
 }
 

@@ -262,6 +262,38 @@
         </div>
       </section>
 
+      <!-- Compose roots -->
+      <section v-if="form.allowStacks" :id="'stacks'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Compose roots</h2>
+        <p class="text-xs text-slate-500">
+          Extra directories scanned for compose projects — each subfolder with a compose file becomes a fully
+          manageable <NuxtLink to="/stacks" class="text-accent-light hover:underline">stack</NuxtLink>, edited and
+          operated in place (nothing is copied). Mount each root into the homeport container at the
+          <strong>same path it has on the host</strong> (e.g. <code class="text-slate-400">-v /home/user/docker:/home/user/docker</code>)
+          so relative bind mounts keep pointing at the right host files.
+          <template v-if="locked.composeRoots"> Set by <code>HOMEPORT_COMPOSE_ROOTS</code> — locked.</template>
+        </p>
+        <div class="space-y-2" :class="locked.composeRoots ? 'pointer-events-none opacity-50' : ''">
+          <div v-for="(p, i) in form.composeRoots" :key="i" class="flex items-center gap-2">
+            <input
+              v-model="form.composeRoots[i]"
+              :class="fieldCls"
+              placeholder="/home/user/docker"
+            />
+            <button
+              type="button"
+              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              @click="form.composeRoots.splice(i, 1)"
+            >Remove</button>
+          </div>
+          <button
+            type="button"
+            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            @click="form.composeRoots.push('')"
+          >+ Add root</button>
+        </div>
+      </section>
+
       <!-- App catalog -->
       <section :id="'catalog'"  class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">App catalog</h2>
@@ -663,6 +695,7 @@ const sections = computed(() =>
     { id: 'proxy', label: 'Reverse proxy' },
     ...(form.allowProxyAdmin ? [{ id: 'proxy-admin', label: 'Proxy management' }] : []),
     { id: 'capabilities', label: 'Capabilities' },
+    ...(form.allowStacks ? [{ id: 'stacks', label: 'Compose roots' }] : []),
     { id: 'catalog', label: 'App catalog' },
     { id: 'uptime', label: 'Uptime' },
     { id: 'systemd', label: 'Host services' },
@@ -792,6 +825,7 @@ const form = reactive({
   allowUpdates: false,
   registryCreds: [] as RegistryCredRow[],
   allowStacks: false,
+  composeRoots: [] as string[],
   catalogUrls: [] as string[],
   allowTerminal: false,
   allowProxyAdmin: false,

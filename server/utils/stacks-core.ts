@@ -63,6 +63,42 @@ export function stackStatuses(
   return { stacks, unmanaged }
 }
 
+/** Where a stack's compose file lives: homeport's own stacks dir, an extra
+ * configured compose root, or adopted in place from a running project's
+ * com.docker.compose.project.working_dir label. */
+export type StackSource = 'stacks' | 'root' | 'adopted'
+
+export interface ExternalProject {
+  project: string
+  dir: string
+  /** Absolute compose file paths from the config_files label (may be empty). */
+  files: string[]
+}
+
+/** Extract an external compose project's on-disk location from container labels. */
+export function externalProjectFromLabels(labels: Record<string, string>): ExternalProject | null {
+  const project = labels['com.docker.compose.project']
+  const dir = labels['com.docker.compose.project.working_dir']
+  if (!project || !dir || !dir.startsWith('/')) return null
+  const files = (labels['com.docker.compose.project.config_files'] || '')
+    .split(',')
+    .map((f) => f.trim())
+    .filter((f) => f.startsWith('/'))
+  return { project, dir, files }
+}
+
+/** Compose's default project name for a directory (lowercase, invalid chars dropped). */
+export function projectNameFromDir(dirName: string): string | null {
+  const n = dirName.toLowerCase().replace(/[^a-z0-9_-]/g, '').replace(/^[_-]+/, '')
+  return n || null
+}
+
+/** Top-level `name:` from a compose file, if present (cheap scan, no YAML parse). */
+export function composeProjectNameFromContent(content: string): string | null {
+  const m = /^name:\s*["']?([a-z0-9][a-z0-9_-]*)["']?\s*(#.*)?$/m.exec(content)
+  return m ? m[1] : null
+}
+
 export type StackOp = 'up' | 'down' | 'restart' | 'pull'
 
 /** docker compose argv for an operation (after `docker compose -p <name>`). */

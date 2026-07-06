@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
 
   let saved
   try {
-    saved = saveStack(name, content, create)
+    saved = await saveStack(name, content, create)
   } catch (e: any) {
     throw createError({ statusCode: 400, statusMessage: e?.message || 'save failed' })
   }
@@ -33,8 +33,8 @@ export default defineEventHandler(async (event) => {
     // restore the previous good version from .bak — backup:false so we don't
     // overwrite that good .bak with the rejected content.
     try {
-      const good = readFileSync(`${cfg.stacksDir}/${saved.name}/${saved.file}.bak`, 'utf8')
-      saveStack(saved.name, good, false, false)
+      const good = readFileSync(`${saved.dir}/${saved.file}.bak`, 'utf8')
+      await saveStack(saved.name, good, false, false)
     } catch {
       // no backup (new stack) — leave the invalid file for the user to fix
     }
