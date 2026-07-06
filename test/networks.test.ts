@@ -7,7 +7,19 @@ import {
   detectNetworkError,
   subnetsFromComposeConfig,
   leftoverProjectNetworks,
+  safeNetworkName,
 } from '../server/utils/networks-core.ts'
+
+test('safeNetworkName: docker network name rules', () => {
+  assert.equal(safeNetworkName('shared-backend'), 'shared-backend')
+  assert.equal(safeNetworkName('npm.network_2'), 'npm.network_2')
+  assert.equal(safeNetworkName('  trimmed  '), 'trimmed')
+  assert.equal(safeNetworkName('inner space'), null)
+  assert.equal(safeNetworkName('-leading'), null)
+  assert.equal(safeNetworkName('has/slash'), null)
+  assert.equal(safeNetworkName(''), null)
+  assert.equal(safeNetworkName('x'.repeat(64)), null)
+})
 
 test('parseCidr: v4 ranges + garbage', () => {
   const r = parseCidr('172.20.0.0/16')!

@@ -17,6 +17,13 @@ export interface NetworkInfo {
   project?: string | null
 }
 
+/** Docker network name rules: leading alnum, then alnum . _ - (conservative, ≤63). */
+export function safeNetworkName(name: string): string | null {
+  const n = String(name || '').trim()
+  if (!/^[a-z0-9][a-z0-9._-]{0,62}$/i.test(n)) return null
+  return n
+}
+
 /** Leftover networks of a compose project — its label or name prefix, unused. */
 export function leftoverProjectNetworks(networks: NetworkInfo[], project: string): NetworkInfo[] {
   return networks.filter(

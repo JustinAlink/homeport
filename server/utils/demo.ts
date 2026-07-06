@@ -2,6 +2,7 @@ import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from
 import { getConfig } from './config'
 import { getHosts } from './hosts'
 import { startOp } from './ops'
+import { safeNetworkName, parseCidr, findSubnetConflicts } from './networks-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -465,6 +466,9 @@ export function demoStackAction(name: string, op: string): string {
 
 // In-memory docker network list so the networks page + conflict card round-trip in demo.
 const demoRemovedNetworks = new Set<string>()
+const demoExtraNetworks: ReturnType<typeof demoNetworks> = []
+// network name → service id → attached ('on') / detached ('off') override
+const demoNetOverrides = new Map<string, Map<string, 'on' | 'off'>>()
 export function demoNetworks() {
   const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g !== 'systemd')
   const projectNets = groups.map((g, gi) => {
@@ -488,13 +492,66 @@ export function demoNetworks() {
     .filter(({ s, i }) => s.group !== 'systemd' && i % 4 === 0)
     .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
   const nets = [
-    { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 0, attached: [], project: null },
+    { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 0, attached: [] as { id: string; name: string }[], project: null as string | null },
     { id: 'demo-net-npm', name: 'npm-network', driver: 'bridge', builtin: false, subnets: ['192.168.0.0/20'], containers: npmAttached.length, attached: npmAttached, project: null },
     // an unused leftover — the removable kind that causes "Pool overlaps" on reinstalls
     { id: 'demo-net-old', name: 'oldapp_default', driver: 'bridge', builtin: false, subnets: ['172.18.0.0/16'], containers: 0, attached: [], project: 'oldapp' },
     ...projectNets,
+    ...demoExtraNetworks,
   ]
-  return nets.filter((n) => !demoRemovedNetworks.has(n.name))
+  return nets
+    .filter((n) => !demoRemovedNetworks.has(n.name))
+    .map((n) => {
+      const ov = demoNetOverrides.get(n.name)
+      if (!ov?.size) return n
+      let attached = (n.attached || []).filter((c) => ov.get(c.id) !== 'off')
+      for (const [sid, mode] of ov) {
+        if (mode === 'on' && !attached.some((c) => c.id === sid)) {
+          const idx = Number(sid.replace('demo-', ''))
+          attached = [...attached, { id: sid, name: seeds[idx]?.name || sid }]
+        }
+      }
+      return { ...n, attached, containers: attached.length }
+    })
+}
+
+export function demoNetworkCreate(name: string, subnet: string) {
+  if (!safeNetworkName(name)) throw createError({ statusCode: 400, statusMessage: 'invalid network name (letters, digits, . _ -)' })
+  if (demoNetworks().some((n) => n.name === name))
+    throw createError({ statusCode: 400, statusMessage: `a network named "${name}" already exists` })
+  if (subnet) {
+    if (!parseCidr(subnet)) throw createError({ statusCode: 400, statusMessage: `"${subnet}" is not a valid CIDR subnet (e.g. 172.30.0.0/16)` })
+    const clash = findSubnetConflicts([subnet], demoNetworks())[0]
+    if (clash)
+      throw createError({ statusCode: 400, statusMessage: `subnet ${subnet} overlaps existing network "${clash.network}" (${clash.subnet})` })
+  }
+  demoRemovedNetworks.delete(name)
+  demoExtraNetworks.push({ id: `demo-net-x-${name}`, name, driver: 'bridge', builtin: false, subnets: subnet ? [subnet] : [], containers: 0, attached: [], project: null })
+  return { ok: true }
+}
+
+export function demoNetworkConnect(network: string, id: string) {
+  if (!demoNetworks().some((n) => n.name === network))
+    throw createError({ statusCode: 400, statusMessage: `no network named "${network}"` })
+  const ov = demoNetOverrides.get(network) ?? new Map()
+  ov.set(id, 'on')
+  demoNetOverrides.set(network, ov)
+  return { ok: true }
+}
+
+export function demoNetworkDisconnect(network: string, id: string) {
+  const memberships = demoNetworks().filter((n) => n.attached?.some((c) => c.id === id))
+  if (!memberships.some((n) => n.name === network))
+    throw createError({ statusCode: 400, statusMessage: `container is not attached to "${network}"` })
+  if (memberships.length <= 1)
+    throw createError({
+      statusCode: 400,
+      statusMessage: "that is the container's only network — attach it to another one first (a container with no network is unreachable)",
+    })
+  const ov = demoNetOverrides.get(network) ?? new Map()
+  ov.set(id, 'off')
+  demoNetOverrides.set(network, ov)
+  return { ok: true }
 }
 export function demoNetworkRemove(name: string) {
   const net = demoNetworks().find((n) => n.name === name)

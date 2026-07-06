@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.18.0 — 2026-07-06
+
+- **Create networks and attach/detach containers.** The /networks page can now
+  create a bridge network (optional fixed subnet, validated against existing
+  ranges up front — a conflict names the network instead of failing with the
+  daemon's bare "Pool overlaps") and attach or detach containers per network.
+  Detaching a container's last network is refused (it would become
+  unreachable). The page is honest about docker's rules: memberships are
+  runtime-only for compose-managed containers (the compose file wins on the
+  next recreate — use `external: true` there to make it stick), and subnets
+  cannot be edited in place.
+
 ## v2.17.0 — 2026-07-06
 
 - **Networks manager.** New **/networks** page: every docker network with its

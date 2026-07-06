@@ -260,6 +260,14 @@ referenced are refused). Each service page shows the networks its container join
 stack always sweeps its leftover project networks: unused networks keep their address range
 claimed and are the classic cause of "Pool overlaps" on a later install.
 
+You can also **create networks** (name + optional subnet — validated against existing ranges
+up front, so no bare "Pool overlaps") and **attach/detach containers** per network — handy for
+letting two stacks talk to each other. Attach/detach is live but runtime-only for
+compose-managed containers: the compose file's `networks:` section wins on the next recreate,
+so declare the network there (`external: true`) to make it permanent. Subnets can't be edited
+in place (docker has no API for it) — change them in the owning compose file, or remove and
+recreate an unused network.
+
 ### Deleting things completely
 
 Deletes are conservative by default (data outlives the container), with opt-in checkboxes for
