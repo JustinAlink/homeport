@@ -158,15 +158,21 @@ const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const isUp = computed(() => props.service.state === 'running' || props.service.state === 'restarting')
 const busy = ref(false)
+const { confirm } = useConfirm()
+const toast = useToast()
 async function control(action: 'start' | 'stop' | 'restart') {
-  if (action === 'stop' && !window.confirm(`Stop “${props.service.displayName}”?`)) return
+  if (
+    action === 'stop' &&
+    !(await confirm({ message: `Stop “${props.service.displayName}”?`, confirmLabel: 'Stop', danger: true }))
+  )
+    return
   busy.value = true
   try {
     await $fetch('/api/control', { method: 'POST', body: { id: props.service.id, action } })
     await refreshServices()
     refreshStats()
   } catch (e: any) {
-    window.alert(errMsg(e, 'Action failed'))
+    toast.error(errMsg(e, 'Action failed'))
   } finally {
     busy.value = false
   }

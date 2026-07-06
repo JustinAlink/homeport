@@ -3,5 +3,7 @@
     <AppShell>
       <NuxtPage />
     </AppShell>
+    <ConfirmDialog />
+    <ToastHost />
   </div>
 </template>

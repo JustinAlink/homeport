@@ -1,6 +1,7 @@
 import { getEventStreamFor } from '../utils/docker'
 import { getHosts } from '../utils/hosts'
 import { getConfig } from '../utils/config'
+import { log } from '../utils/log'
 
 // SSE: push a "refresh" whenever any host reports a container change, plus a
 // periodic heartbeat. The client re-fetches /api/services on each.
@@ -36,7 +37,10 @@ export default defineEventHandler(async (event) => {
       ds.on('data', () => stream.push('refresh'))
       ds.on('error', reattach)
       ds.on('end', reattach)
-    } catch {
+    } catch (e) {
+      // Log the first failed attach per host — an endless silent reconnect loop
+      // (e.g. socket-proxy missing EVENTS=1) is why "the dashboard never goes live".
+      if (firstTry) log.warn('events', `docker event stream unavailable for host "${host?.name ?? host?.id ?? '?'}" — live updates fall back to polling`, e)
       scheduleRetry(host, Math.min(backoff * 2, RETRY_MAX_MS))
     }
   }

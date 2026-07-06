@@ -1,5 +1,56 @@
 # Changelog
 
+## v2.22.0 — 2026-07-06
+
+Error logging + clarity pass — make failures visible and every flow legible.
+
+- **Server-side logging.** homeport now writes leveled, tagged diagnostics to the
+  container log (`docker logs homeport`) — it previously logged nothing at all.
+  A boot banner states the effective config (version, auth mode, data-dir
+  writability, docker target, collector cadence, enabled capabilities). Every
+  background-loop failure is logged instead of silently swallowed: collector
+  ticks (now stage-isolated, so one broken subsystem can't take down history +
+  alerts together), auto-update / update-sweep host skips and results, the
+  docker events reconnect loop, failed alert deliveries, and self-update. When
+  the data dir is read-only, a one-time warning explains why history / sessions
+  won't persist. Level via `HOMEPORT_LOG_LEVEL` (debug|info|warn|error|silent,
+  default info); secrets are redacted.
+- **Clearer error messages.** Reverse-proxy (NPM/Caddy) failures keep the
+  upstream reason instead of a bare `HTTP 401`, and connection refused / host
+  not found read plainly. Auto-dockerize image inspection gives a distinct
+  message for private/nonexistent images vs timeouts. A failed update that rolls
+  back now says the previous version is running again — and a failed rollback
+  says the service is down and names the leftover container. Container-control
+  errors map to the right status and hint when the socket-proxy needs `POST=1`.
+- **No more dead-ends in the UI.** The log viewer shows a connection state +
+  Reconnect instead of an eternal spinner when the stream drops. Operation
+  panels no longer flash a red "failed" when the browser merely loses the SSE
+  stream mid-run — they say the operation may still be running. A transient
+  capabilities fetch is retried instead of silently hiding the whole sidebar,
+  and the dashboard shows "stats paused" when the stats poll keeps failing.
+- **Native dialogs replaced.** Every `window.confirm` / `window.alert` (which are
+  silently suppressed in embedded/proxied views — a button that looked dead)
+  is now a themed in-app confirm dialog and toast, rendered in the DOM.
+
+## v2.21.0 — 2026-07-06
+
+- **Catalog Hub & GitHub tabs open with a recommended list.** The Docker Hub
+  tab lands on the most-pulled official images; the GitHub tab lands on the
+  most-starred self-hosted projects — no more blank tab that hides the fact
+  it's searchable. Both got a prominent search hero (icon, wide input, clear
+  button) with search-as-you-type; clearing the box returns to the popular
+  list.
+- **Auto-dockerize any Docker Hub image.** Picking an image opens a guided
+  install page that reads the image's own configuration from the registry —
+  the ports it EXPOSEs and the paths it stores data in — and prepares a compose
+  stack from them (data paths become named volumes so recreates keep them).
+  Adjust ports/volumes, then install; the result is a normal editable stack.
+- **Auto-dockerize GitHub repos without a compose file.** Deploying a repo that
+  ships only a Dockerfile now generates a build-in-place `compose.yaml` (ports
+  from `EXPOSE`) instead of failing. The generated file is untracked, so git
+  updates leave it in place. (Building through a docker-socket-proxy needs
+  `BUILD=1`.)
+
 ## v2.20.0 — 2026-07-06
 
 - **Storage page.** /storage lists every volume and image with what references

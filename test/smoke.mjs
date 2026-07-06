@@ -53,6 +53,7 @@ const PAGES = [
   ['/storage', 'volumes and images on this host'],
   ['/catalog', 'app catalog'],
   ['/catalog/uptime-kuma', 'install'],
+  ['/catalog/hub/jellyfin/jellyfin', 'install'],
   ['/domains', 'domain'],
   ['/settings', 'capabilities'],
   ['/services/demo-0', 'jellyfin'],

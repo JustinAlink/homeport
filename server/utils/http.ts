@@ -111,17 +111,36 @@ export function httpJson<T = any>(
             ok: status >= 200 && status < 300,
             data,
             text,
-            error: status >= 400 ? `HTTP ${status}` : status === 0 ? 'no response' : undefined,
+            // Keep the upstream reason — NPM/Caddy return a real message in the
+            // body; discarding it is why proxy errors read as a bare "HTTP 401".
+            error: status >= 400 ? `HTTP ${status}${bodyReason(data, text)}` : status === 0 ? 'no response' : undefined,
           })
         })
       },
     )
     req.on('timeout', () => {
       req.destroy()
-      resolve({ status: 0, ok: false, data: null, text: '', error: 'timeout' })
+      resolve({ status: 0, ok: false, data: null, text: '', error: `no response (timed out after ${opts.timeoutMs ?? 8000}ms)` })
     })
-    req.on('error', (e) => resolve({ status: 0, ok: false, data: null, text: '', error: e.message }))
+    req.on('error', (e) => resolve({ status: 0, ok: false, data: null, text: '', error: connError(e, u) }))
     if (payload) req.write(payload)
     req.end()
   })
+}
+
+/** A short, human reason from a 4xx/5xx body — the JSON message field, else a trimmed snippet. */
+function bodyReason(data: any, text: string): string {
+  const msg =
+    (data && (data.message || data.error || data.detail || (Array.isArray(data.errors) && data.errors[0]?.message))) ||
+    ''
+  const reason = String(msg || text || '').replace(/\s+/g, ' ').trim()
+  return reason ? ` — ${reason.slice(0, 160)}` : ''
+}
+
+/** Turn a low-level socket error into something a user can act on. */
+function connError(e: NodeJS.ErrnoException, u: URL): string {
+  if (e.code === 'ECONNREFUSED') return `connection refused at ${u.host} — is the proxy reachable from homeport?`
+  if (e.code === 'ENOTFOUND' || e.code === 'EAI_AGAIN') return `host not found: ${u.host}`
+  if (e.code === 'ECONNRESET') return `connection reset by ${u.host}`
+  return e.message
 }

@@ -118,6 +118,8 @@ import { NuxtLink as NuxtLinkC } from '#components'
 
 const { data: svcData, refresh: svcRefresh, start: svcStart, stop: svcStop } = useServices()
 const updates = useUpdates()
+const { confirm } = useConfirm()
+const toast = useToast()
 const { caps, load: loadCaps } = useCapabilities()
 
 // managed stack names (homeport has a compose file for these)
@@ -177,7 +179,7 @@ const rowNote = ref<Record<string, string>>({})
 let es: EventSource | null = null
 
 async function pullStack(g: Group) {
-  if (!window.confirm(`Pull new images and redeploy stack “${g.project}”?`)) return
+  if (!(await confirm({ message: `Pull new images and redeploy stack “${g.project}”?`, confirmLabel: 'Pull & up' }))) return
   busyGroup.value = g.key
   opLines.value = []
   try {
@@ -210,7 +212,7 @@ function finishOp() {
 
 async function updateGroup(g: Group) {
   const n = g.services.length
-  if (!window.confirm(`Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`)) return
+  if (!(await confirm({ message: `Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`, confirmLabel: 'Update' }))) return
   busyGroup.value = g.key
   opLines.value = []
   for (const s of g.services) {
@@ -248,7 +250,7 @@ async function toggleAuto(name: string) {
     await $fetch('/api/settings', { method: 'POST', body: { autoUpdateTargets: autoTargets.value } })
   } catch (e: any) {
     autoTargets.value = prev
-    window.alert(errMsg(e, 'could not save the auto-update setting'))
+    toast.error(errMsg(e, 'could not save the auto-update setting'))
   }
 }
 
@@ -260,7 +262,7 @@ async function checkNow() {
     await $fetch('/api/updates/check', { method: 'POST' })
     await updates.refresh()
   } catch (e: any) {
-    window.alert(errMsg(e, 'Check failed'))
+    toast.error(errMsg(e, 'Check failed'))
   } finally {
     checking.value = false
   }

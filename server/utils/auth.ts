@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { settingsWritable } from './settings'
 import { hashPassword, verifyHash, constantEquals, MIN_PASSWORD_LENGTH } from './auth-core'
+import { warnOnce } from './log'
 
 // Admin auth resolution, in priority order:
 //   1. HOMEPORT_ADMIN_PASSWORD env  → headless / locked (env always wins)
@@ -109,6 +110,9 @@ export function sessionSecret(): string {
   if (persisted) return persisted
   if (settingsWritable()) return write({ sessionSecret: randomBytes(32).toString('hex') }).sessionSecret!
   // read-only volume: stable for this process only (sessions won't survive a restart)
-  if (!memorySecret) memorySecret = randomBytes(32).toString('hex')
+  if (!memorySecret) {
+    memorySecret = randomBytes(32).toString('hex')
+    warnOnce('session-ro', 'auth', 'data dir is not writable — the session secret is process-local, so logins drop on every restart (set HOMEPORT_SESSION_SECRET to fix)')
+  }
   return memorySecret
 }

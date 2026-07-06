@@ -3,6 +3,7 @@ import { replaceSettings, settingsWritable, type PersistedSettings } from '../ut
 import { restoreAuthFile } from '../utils/auth'
 import { saveToken } from '../utils/git-stacks'
 import { safeStackName } from '../utils/stacks-core'
+import { log } from '../utils/log'
 
 // Restore a backup produced by GET /api/backup. Settings are replaced (not
 // merged); the auth file is replaced when present — which invalidates all
@@ -33,21 +34,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Backup contains no settings object.' })
   }
 
-  replaceSettings(body.settings)
+  try {
+    replaceSettings(body.settings)
 
-  let authRestored = false
-  if (body.auth && typeof body.auth === 'object') {
-    restoreAuthFile(body.auth)
-    authRestored = true
-  }
-
-  let tokens = 0
-  for (const [name, token] of Object.entries(body.gitTokens ?? {})) {
-    if (safeStackName(name) && typeof token === 'string' && token) {
-      saveToken(name, token)
-      tokens++
+    let authRestored = false
+    if (body.auth && typeof body.auth === 'object') {
+      restoreAuthFile(body.auth)
+      authRestored = true
     }
-  }
 
-  return { ok: true, authRestored, gitTokens: tokens }
+    let tokens = 0
+    for (const [name, token] of Object.entries(body.gitTokens ?? {})) {
+      if (safeStackName(name) && typeof token === 'string' && token) {
+        saveToken(name, token)
+        tokens++
+      }
+    }
+
+    return { ok: true, authRestored, gitTokens: tokens }
+  } catch (e: any) {
+    // A mid-restore write failure (volume flipped read-only, disk full) must
+    // reach the client as a clear message, not a bare 500.
+    log.error('backup', 'restore failed while writing', e)
+    throw createError({ statusCode: 500, statusMessage: `Restore failed while writing: ${e?.message || e}` })
+  }
 })

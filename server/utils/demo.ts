@@ -406,6 +406,52 @@ export function demoCatalogInstall(
   return { ok: true, stack: stackName, opId }
 }
 
+// Canned catalog top-lists + image inspection so the Docker Hub / GitHub tabs
+// (and their auto-dockerize flows) work fully offline in demo mode.
+export function demoHubTop() {
+  return {
+    results: [
+      { name: 'nginx', description: 'Official build of Nginx.', stars: 20500, pulls: 1e9, official: true },
+      { name: 'postgres', description: 'The PostgreSQL object-relational database system.', stars: 14100, pulls: 1e9, official: true },
+      { name: 'redis', description: 'The world’s fastest in-memory data store.', stars: 13300, pulls: 1e9, official: true },
+      { name: 'jellyfin/jellyfin', description: 'The Free Software Media System.', stars: 1600, pulls: 1e8, official: false },
+      { name: 'louislam/uptime-kuma', description: 'A fancy self-hosted monitoring tool.', stars: 1200, pulls: 1e8, official: false },
+      { name: 'vaultwarden/server', description: 'Unofficial Bitwarden compatible server.', stars: 1100, pulls: 5e8, official: false },
+      { name: 'gitea/gitea', description: 'Gitea: Git with a cup of tea.', stars: 900, pulls: 2e8, official: false },
+      { name: 'nextcloud', description: 'A safe home for all your data.', stars: 4200, pulls: 5e8, official: true },
+      { name: 'homeassistant/home-assistant', description: 'Open source home automation.', stars: 1900, pulls: 3e8, official: false },
+    ],
+  }
+}
+
+export function demoGithubTop() {
+  return {
+    results: [
+      { name: 'immich-app/immich', description: 'High performance self-hosted photo and video management.', stars: 106000, url: 'https://github.com/immich-app/immich', cloneUrl: 'https://github.com/immich-app/immich.git' },
+      { name: 'louislam/uptime-kuma', description: 'A fancy self-hosted monitoring tool.', stars: 88000, url: 'https://github.com/louislam/uptime-kuma', cloneUrl: 'https://github.com/louislam/uptime-kuma.git' },
+      { name: 'n8n-io/n8n', description: 'Fair-code workflow automation platform.', stars: 195000, url: 'https://github.com/n8n-io/n8n', cloneUrl: 'https://github.com/n8n-io/n8n.git' },
+      { name: 'open-webui/open-webui', description: 'User-friendly AI interface.', stars: 144000, url: 'https://github.com/open-webui/open-webui', cloneUrl: 'https://github.com/open-webui/open-webui.git' },
+      { name: 'jellyfin/jellyfin', description: 'The Free Software Media System.', stars: 42000, url: 'https://github.com/jellyfin/jellyfin', cloneUrl: 'https://github.com/jellyfin/jellyfin.git' },
+      { name: 'paperless-ngx/paperless-ngx', description: 'Scan, index and archive your physical documents.', stars: 31000, url: 'https://github.com/paperless-ngx/paperless-ngx', cloneUrl: 'https://github.com/paperless-ngx/paperless-ngx.git' },
+    ],
+  }
+}
+
+// Plausible per-image metadata keyed by service name; generic fallback.
+const DEMO_IMAGE_META: Record<string, { ports: number[]; volumes: string[] }> = {
+  jellyfin: { ports: [8096], volumes: ['/config', '/cache'] },
+  nginx: { ports: [80], volumes: [] },
+  postgres: { ports: [5432], volumes: ['/var/lib/postgresql/data'] },
+  redis: { ports: [6379], volumes: ['/data'] },
+  'uptime-kuma': { ports: [3001], volumes: ['/app/data'] },
+  nextcloud: { ports: [80], volumes: ['/var/www/html'] },
+}
+
+export function demoHubInspect(image: string): { ports: number[]; volumes: string[] } {
+  const name = image.split('/').pop()?.split(/[:@]/)[0]?.toLowerCase() || ''
+  return DEMO_IMAGE_META[name] ?? { ports: [8080], volumes: ['/config'] }
+}
+
 // In-memory restart policies so the start-on-boot row round-trips in demo.
 const demoPolicies: Record<string, string> = {}
 export function demoRestartPolicy(id: string) {

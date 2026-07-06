@@ -99,11 +99,15 @@
       <!-- op output -->
       <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
         <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-          <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
-          {{ opRunning ? 'installing…' : opOk ? 'installed' : 'failed' }}
+          <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opDropped ? 'bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
+          {{ opRunning ? 'installing…' : opDropped ? 'connection to the installer dropped — it may still be running' : opOk ? 'installed' : 'failed' }}
         </div>
         <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
-        <div v-if="opOk" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <div v-if="opDropped" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Check the stack</NuxtLink>
+          <NuxtLink to="/" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">View on dashboard</NuxtLink>
+        </div>
+        <div v-else-if="opOk" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <span v-if="following" class="animate-pulse text-slate-400">waiting for the app to come up — opening its page…</span>
           <template v-else>
             <NuxtLink to="/" class="rounded-md border border-accent/30 px-3 py-1.5 text-accent-light hover:bg-accent/10">View on dashboard</NuxtLink>
@@ -206,6 +210,7 @@ const installedAs = ref('')
 const opLines = ref<string[]>([])
 const opRunning = ref(false)
 const opOk = ref<boolean | null>(null)
+const opDropped = ref(false)
 const following = ref(false)
 let es: EventSource | null = null
 
@@ -237,6 +242,7 @@ async function install() {
   installError.value = ''
   opLines.value = []
   opOk.value = null
+  opDropped.value = false
   try {
     const res = await $fetch<{ stack: string; opId: string }>('/api/catalog/install', {
       method: 'POST',
@@ -259,6 +265,8 @@ async function install() {
       } catch {}
     }
     es.onerror = () => {
+      // A dropped stream isn't a failure — the op keeps running server-side.
+      if (opOk.value === null) opDropped.value = true
       opRunning.value = false
       es?.close()
     }

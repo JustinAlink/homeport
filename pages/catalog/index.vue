@@ -63,127 +63,167 @@
       >{{ t.label }}</button>
     </div>
 
-    <!-- Docker Hub search -->
+    <!-- Docker Hub: search hero + popular images -->
     <template v-if="view === 'hub'">
-      <div class="mb-5 flex flex-wrap items-center gap-2">
-        <input
-          v-model="hubQuery"
-          placeholder="Search Docker Hub…"
-          class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          @keydown.enter="searchHub"
-        />
-        <button
-          class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
-          :disabled="hubLoading || !hubQuery.trim()"
-          @click="searchHub"
-        >{{ hubLoading ? 'Searching…' : 'Search' }}</button>
-        <select
-          v-model="hubSort"
-          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
-        >
-          <option value="match">Sort: best match</option>
-          <option value="pulls">Sort: most pulls</option>
-          <option value="stars">Sort: most stars</option>
-        </select>
+      <div class="mb-6 rounded-2xl border border-white/10 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[16rem] flex-1">
+            <Icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              v-model="hubQuery"
+              placeholder="Search all of Docker Hub — try jellyfin, nextcloud, postgres…"
+              class="w-full rounded-lg border border-white/10 bg-ink-950 py-2.5 pl-10 pr-9 text-sm text-slate-100 outline-none focus:border-accent/50"
+              @keydown.enter="searchHub"
+            />
+            <button
+              v-if="hubQuery"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200"
+              aria-label="Clear search"
+              @click="hubQuery = ''"
+            ><Icon name="x" class="h-4 w-4" /></button>
+          </div>
+          <select
+            v-model="hubSort"
+            class="rounded-md border border-white/10 bg-ink-950 px-2 py-2.5 text-xs text-slate-300 outline-none focus:border-accent/50"
+          >
+            <option value="match">Sort: best match</option>
+            <option value="pulls">Sort: most pulls</option>
+            <option value="stars">Sort: most stars</option>
+          </select>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-500">
+          Any image here installs as a compose stack — homeport reads its ports and data paths for you.
+        </p>
       </div>
 
       <p v-if="hubError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ hubError }}</p>
-      <p v-else-if="!hubSearched" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        Search all of Docker Hub — a result becomes a new compose stack with the image prefilled.
-      </p>
-      <p v-else-if="!hubSorted.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        No images match “{{ hubQuery }}”.
-      </p>
-      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-for="r in hubSorted"
-          :key="r.name"
-          class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
-        >
-          <div class="flex items-center gap-2">
-            <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
-            <span
-              v-if="r.official"
-              class="shrink-0 rounded-full border border-ok/40 px-1.5 py-px text-[10px] uppercase tracking-wider text-ok"
-            >official</span>
-          </div>
-          <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
-          <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
-            <span class="inline-flex items-center gap-1" title="pulls"><Icon name="download" class="h-3 w-3" />{{ formatCount(r.pulls) }}</span>
-            <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
-            <a
-              :href="`https://hub.docker.com/r/${r.official ? '_/' + r.name : r.name}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-sky-300/70 hover:text-sky-300 hover:underline"
-            >hub ↗</a>
-            <NuxtLink
-              v-if="data?.installEnabled"
-              :to="`/stacks/${hubStackName(r.name)}?new=1&image=${encodeURIComponent(r.name)}`"
-              class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
-            >New stack →</NuxtLink>
+      <template v-else>
+        <div class="mb-3 flex items-center gap-2 text-xs">
+          <span class="font-semibold uppercase tracking-wider text-slate-500">
+            {{ hubSearched ? `Results for “${hubQuery.trim()}”` : 'Most pulled on Docker Hub' }}
+          </span>
+          <span v-if="hubLoading" class="animate-pulse text-slate-600">searching…</span>
+        </div>
+        <p v-if="!hubDisplay.length && !hubSearched && !hubTopLoaded" class="animate-pulse rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-600">
+          Loading popular images…
+        </p>
+        <p v-else-if="!hubDisplay.length && !hubSearched && hubTopError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
+          {{ hubTopError }} — searching still works.
+        </p>
+        <p v-else-if="!hubDisplay.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+          No images match “{{ hubQuery.trim() }}”.
+        </p>
+        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="r in hubDisplay"
+            :key="r.name"
+            class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+          >
+            <div class="flex items-center gap-2">
+              <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
+              <span
+                v-if="r.official"
+                class="shrink-0 rounded-full border border-ok/40 px-1.5 py-px text-[10px] uppercase tracking-wider text-ok"
+              >official</span>
+            </div>
+            <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
+            <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+              <span class="inline-flex items-center gap-1" title="pulls"><Icon name="download" class="h-3 w-3" />{{ formatCount(r.pulls) }}</span>
+              <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
+              <a
+                :href="`https://hub.docker.com/r/${r.official ? '_/' + r.name : r.name}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-sky-300/70 hover:text-sky-300 hover:underline"
+              >hub ↗</a>
+              <NuxtLink
+                v-if="data?.installEnabled"
+                :to="`/catalog/hub/${r.name}`"
+                class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
+              >Install →</NuxtLink>
+            </div>
           </div>
         </div>
-      </div>
-      <p v-if="hubSearched && !data?.installEnabled" class="mt-4 text-xs text-slate-500">
-        Creating stacks from images needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
+      </template>
+      <p v-if="data && !data.installEnabled" class="mt-4 text-xs text-slate-500">
+        Installing images needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
       </p>
     </template>
 
-    <!-- GitHub repo search → git-backed stack -->
+    <!-- GitHub: search hero + top self-hosted repos → git-backed stack -->
     <template v-else-if="view === 'github'">
-      <div class="mb-5 flex flex-wrap items-center gap-2">
-        <input
-          v-model="ghQuery"
-          placeholder="Search GitHub repositories…"
-          class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-          @keydown.enter="searchGithub"
-        />
-        <button
-          class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
-          :disabled="ghLoading || !ghQuery.trim()"
-          @click="searchGithub"
-        >{{ ghLoading ? 'Searching…' : 'Search' }}</button>
-        <select
-          v-model="ghSort"
-          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
-        >
-          <option value="match">Sort: best match</option>
-          <option value="stars">Sort: most stars</option>
-        </select>
+      <div class="mb-6 rounded-2xl border border-white/10 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[16rem] flex-1">
+            <Icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              v-model="ghQuery"
+              placeholder="Search GitHub — try immich, paperless, uptime-kuma…"
+              class="w-full rounded-lg border border-white/10 bg-ink-950 py-2.5 pl-10 pr-9 text-sm text-slate-100 outline-none focus:border-accent/50"
+              @keydown.enter="searchGithub"
+            />
+            <button
+              v-if="ghQuery"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200"
+              aria-label="Clear search"
+              @click="ghQuery = ''"
+            ><Icon name="x" class="h-4 w-4" /></button>
+          </div>
+          <select
+            v-model="ghSort"
+            class="rounded-md border border-white/10 bg-ink-950 px-2 py-2.5 text-xs text-slate-300 outline-none focus:border-accent/50"
+          >
+            <option value="match">Sort: best match</option>
+            <option value="stars">Sort: most stars</option>
+          </select>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-500">
+          A repo deploys as a git-backed stack — homeport uses its compose file, or builds from a Dockerfile
+          when there's none. Updates then arrive with one click when the repo moves.
+        </p>
       </div>
 
       <p v-if="ghError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ ghError }}</p>
-      <p v-else-if="!ghSearched" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        Search GitHub and deploy a repository as a git-backed stack — it needs a compose file at its root.
-        Updates then arrive with one click when the repo moves.
-      </p>
-      <p v-else-if="!ghResults.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        No repositories match “{{ ghQuery }}”.
-      </p>
-      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-for="r in ghResults"
-          :key="r.name"
-          class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
-        >
-          <div class="flex items-center gap-2">
-            <Icon name="git-branch" class="h-4 w-4 shrink-0 text-slate-500" />
-            <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
-          </div>
-          <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
-          <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
-            <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
-            <a :href="r.url" target="_blank" rel="noopener noreferrer" class="text-sky-300/70 hover:text-sky-300 hover:underline">github ↗</a>
-            <NuxtLink
-              v-if="data?.installEnabled"
-              :to="`/stacks?git=${encodeURIComponent(r.cloneUrl)}&name=${hubStackName(r.name)}`"
-              class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
-            >Deploy stack →</NuxtLink>
+      <template v-else>
+        <div class="mb-3 flex items-center gap-2 text-xs">
+          <span class="font-semibold uppercase tracking-wider text-slate-500">
+            {{ ghSearched ? `Results for “${ghQuery.trim()}”` : 'Popular self-hosted projects' }}
+          </span>
+          <span v-if="ghLoading" class="animate-pulse text-slate-600">searching…</span>
+        </div>
+        <p v-if="!ghDisplay.length && !ghSearched && !ghTopLoaded" class="animate-pulse rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-600">
+          Loading popular repositories…
+        </p>
+        <p v-else-if="!ghDisplay.length && !ghSearched && ghTopError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
+          {{ ghTopError }} — searching still works.
+        </p>
+        <p v-else-if="!ghDisplay.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+          No repositories match “{{ ghQuery.trim() }}”.
+        </p>
+        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="r in ghDisplay"
+            :key="r.name"
+            class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+          >
+            <div class="flex items-center gap-2">
+              <Icon name="git-branch" class="h-4 w-4 shrink-0 text-slate-500" />
+              <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
+            </div>
+            <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
+            <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
+              <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
+              <a :href="r.url" target="_blank" rel="noopener noreferrer" class="text-sky-300/70 hover:text-sky-300 hover:underline">github ↗</a>
+              <NuxtLink
+                v-if="data?.installEnabled"
+                :to="`/stacks?git=${encodeURIComponent(r.cloneUrl)}&name=${hubStackName(r.name)}`"
+                class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
+              >Deploy stack →</NuxtLink>
+            </div>
           </div>
         </div>
-      </div>
-      <p v-if="ghSearched && !data?.installEnabled" class="mt-4 text-xs text-slate-500">
+      </template>
+      <p v-if="data && !data.installEnabled" class="mt-4 text-xs text-slate-500">
         Deploying repositories needs the <b class="text-slate-300">Compose stacks</b> capability (Settings → Capabilities).
       </p>
     </template>
@@ -338,18 +378,37 @@ watch([query, category, sort, page, view], () => {
   router.replace({ query: q })
 })
 
-// --- Docker Hub search ---
+// --- Docker Hub: popular list + search ---
 interface HubResult { name: string; description: string; stars: number; pulls: number; official: boolean }
 const hubQuery = ref('')
 const hubResults = ref<HubResult[]>([])
+const hubTop = ref<HubResult[]>([])
+const hubTopLoaded = ref(false)
+const hubTopError = ref('')
 const hubSort = ref<'match' | 'pulls' | 'stars'>('match')
 const hubLoading = ref(false)
 const hubSearched = ref(false)
 const hubError = ref('')
 
+async function loadHubTop() {
+  if (hubTopLoaded.value) return
+  try {
+    const r = await $fetch<{ results: HubResult[] }>('/api/hub/top')
+    hubTop.value = r.results
+  } catch (e: any) {
+    hubTopError.value = errMsg(e, 'Could not load popular images')
+  } finally {
+    hubTopLoaded.value = true
+  }
+}
+
 async function searchHub() {
   const q = hubQuery.value.trim()
-  if (!q) return
+  if (!q) {
+    hubSearched.value = false
+    hubResults.value = []
+    return
+  }
   hubLoading.value = true
   hubError.value = ''
   try {
@@ -363,12 +422,26 @@ async function searchHub() {
   }
 }
 
-const hubSorted = computed(() => {
-  const list = [...hubResults.value]
-  if (hubSort.value === 'pulls') list.sort((a, b) => b.pulls - a.pulls)
-  else if (hubSort.value === 'stars') list.sort((a, b) => b.stars - a.stars)
-  return list
+// debounced search-as-you-type; clearing the box returns to the popular list
+let hubTimer: ReturnType<typeof setTimeout> | null = null
+watch(hubQuery, () => {
+  if (hubTimer) clearTimeout(hubTimer)
+  hubError.value = ''
+  if (!hubQuery.value.trim()) {
+    hubSearched.value = false
+    hubResults.value = []
+    return
+  }
+  hubTimer = setTimeout(searchHub, 450)
 })
+
+function sortHub(list: HubResult[]): HubResult[] {
+  const out = [...list]
+  if (hubSort.value === 'pulls') out.sort((a, b) => b.pulls - a.pulls)
+  else if (hubSort.value === 'stars') out.sort((a, b) => b.stars - a.stars)
+  return out
+}
+const hubDisplay = computed(() => sortHub(hubSearched.value ? hubResults.value : hubTop.value))
 
 function formatCount(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`
@@ -377,18 +450,37 @@ function formatCount(n: number): string {
   return String(n)
 }
 
-// --- GitHub repo search ---
+// --- GitHub: popular list + search ---
 interface GhResult { name: string; description: string; stars: number; url: string; cloneUrl: string }
 const ghQuery = ref('')
 const ghResults = ref<GhResult[]>([])
+const ghTop = ref<GhResult[]>([])
+const ghTopLoaded = ref(false)
+const ghTopError = ref('')
 const ghSort = ref<'match' | 'stars'>('match')
 const ghLoading = ref(false)
 const ghSearched = ref(false)
 const ghError = ref('')
 
+async function loadGhTop() {
+  if (ghTopLoaded.value) return
+  try {
+    const r = await $fetch<{ results: GhResult[] }>('/api/github/top')
+    ghTop.value = r.results
+  } catch (e: any) {
+    ghTopError.value = errMsg(e, 'Could not load popular repositories')
+  } finally {
+    ghTopLoaded.value = true
+  }
+}
+
 async function searchGithub() {
   const q = ghQuery.value.trim()
-  if (!q) return
+  if (!q) {
+    ghSearched.value = false
+    ghResults.value = []
+    return
+  }
   ghLoading.value = true
   ghError.value = ''
   try {
@@ -401,10 +493,25 @@ async function searchGithub() {
     ghLoading.value = false
   }
 }
+
+// debounced search-as-you-type; clearing returns to the popular list
+let ghTimer: ReturnType<typeof setTimeout> | null = null
+watch(ghQuery, () => {
+  if (ghTimer) clearTimeout(ghTimer)
+  ghError.value = ''
+  if (!ghQuery.value.trim()) {
+    ghSearched.value = false
+    ghResults.value = []
+    return
+  }
+  ghTimer = setTimeout(searchGithub, 500)
+})
 // the sort lives server-side (different result set) — re-run an active search on change
 watch(ghSort, () => {
   if (ghSearched.value) searchGithub()
 })
+
+const ghDisplay = computed(() => (ghSearched.value ? ghResults.value : ghTop.value))
 
 /** "linuxserver/jellyfin" → a valid stack/dir name suggestion ("jellyfin"). */
 function hubStackName(repo: string): string {
@@ -494,6 +601,16 @@ const pageNumbers = computed(() => {
   }
   return nums.map((n, i) => ({ n, key: n ?? `gap-${i}` }))
 })
+
+// lazy-load a tab's popular list the first time it's shown
+watch(
+  view,
+  (v) => {
+    if (v === 'hub') loadHubTop()
+    else if (v === 'github') loadGhTop()
+  },
+  { immediate: true },
+)
 
 onMounted(() => load())
 useHead({ title: 'App catalog — homeport' })

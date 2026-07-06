@@ -1,7 +1,7 @@
 // Server-side GitHub repository search (unauthenticated: 10 searches/min —
 // the short cache keeps interactive use well under that). A result deploys
-// through the existing git-backed-stacks flow, so it needs a compose file at
-// the repo root; the UI says so.
+// through the git-backed-stacks flow: a root compose file when the repo has
+// one, else a compose auto-generated from its Dockerfile.
 interface GhResult {
   name: string // owner/repo
   description: string

@@ -3,6 +3,7 @@ import { getHosts } from './hosts'
 import { getDockerFor, oneShot } from './docker'
 import { HELPER_LABEL, buildHelperPayload, selfUpdatePlan } from './self-update-core'
 import { digestMatches } from './registry-core'
+import { log } from './log'
 
 // Self-update: find our own container (in-container hostname = short container
 // id), validate it's compose-managed, and launch the detached helper that
@@ -16,7 +17,9 @@ export async function findSelfId(): Promise<string | null> {
     const docker = getDockerFor(getHosts()[0])
     const list = await docker.listContainers({ all: false, ...oneShot() })
     return list.find((c: any) => c.Id.startsWith(short))?.Id ?? null
-  } catch {
+  } catch (e) {
+    // Don't mask a real Docker error as "not containerized" silently.
+    log.warn('self-update', 'could not list containers to find homeport itself', e)
     return null
   }
 }
@@ -60,7 +63,13 @@ export async function launchSelfUpdate(): Promise<{ ok: true; helper: string } |
     dockerHost: process.env.DOCKER_HOST || '',
     networks: plan.networks,
   })
-  const helper = await docker.createContainer(payload as any)
-  await helper.start()
-  return { ok: true, helper: payload.name }
+  try {
+    const helper = await docker.createContainer(payload as any)
+    await helper.start()
+    log.info('self-update', `launched updater "${payload.name}" for project "${plan.project}"`)
+    return { ok: true, helper: payload.name }
+  } catch (e: any) {
+    log.error('self-update', 'failed to launch the updater container', e)
+    return { ok: false, reason: `could not launch the updater: ${e?.message || e}` }
+  }
 }

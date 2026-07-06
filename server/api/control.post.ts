@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
     }
     const { hostId, containerId } = splitServiceId(id)
     const host = getHosts().find((h) => h.id === hostId)
-    if (!host) throw new Error('unknown host')
+    if (!host) throw createError({ statusCode: 404, statusMessage: `unknown host "${hostId}"` })
 
     // capture name + image ref before removal — needed for the cleanup steps
     let name = ''
@@ -62,6 +62,11 @@ export default defineEventHandler(async (event) => {
     }
     return { ok: true, notes }
   } catch (err: any) {
-    throw createError({ statusCode: 502, statusMessage: `Could not ${action} container: ${err?.message || err}` })
+    if (err?.statusCode) throw err // already a clean createError (e.g. unknown host)
+    // Trim HTML/whitespace the socket-proxy sometimes wraps around the daemon reason.
+    const reason = String(err?.message || err || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    const status = /403|forbidden|administrative rules/i.test(reason) ? 403 : 502
+    const hint = status === 403 ? ' — the docker-socket-proxy may need POST=1 for this action' : ''
+    throw createError({ statusCode: status, statusMessage: `Could not ${action} container: ${reason || 'unknown error'}${hint}` })
   }
 })

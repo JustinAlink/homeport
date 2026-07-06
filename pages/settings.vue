@@ -711,6 +711,7 @@ const sections = computed(() =>
 )
 
 const { caps, load: loadCaps } = useCapabilities()
+const { confirm } = useConfirm()
 
 // --- about / self-update ---
 const appVersion = ref('')
@@ -719,7 +720,7 @@ const selfUpdateMsg = ref('')
 const selfUpdateOk = ref(false)
 
 async function selfUpdate() {
-  if (!window.confirm('Update homeport to the latest image? The UI will briefly disconnect while the container is recreated.')) return
+  if (!(await confirm({ message: 'Update homeport to the latest image? The UI will briefly disconnect while the container is recreated.', confirmLabel: 'Update homeport' }))) return
   selfUpdating.value = true
   selfUpdateOk.value = false
   selfUpdateMsg.value = 'starting the update helper…'
@@ -980,7 +981,13 @@ async function restoreBackup(ev: Event) {
     return
   }
   const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString() : 'unknown date'
-  if (!window.confirm(`Replace ALL settings with the backup from ${when}?${parsed.demo ? '\n(Note: this backup was exported from a demo instance.)' : ''}\nIf it includes a different admin password/session secret, you will be logged out.`)) return
+  if (!(await confirm({
+    title: 'Restore backup?',
+    message: `Replace ALL settings with the backup from ${when}?${parsed.demo ? '\n(Note: this backup was exported from a demo instance.)' : ''}`,
+    detail: 'If it includes a different admin password/session secret, you will be logged out.',
+    confirmLabel: 'Restore',
+    danger: true,
+  }))) return
   try {
     const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number }>('/api/backup', { method: 'POST', body: parsed })
     backupOk.value = true

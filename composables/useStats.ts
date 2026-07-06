@@ -15,6 +15,10 @@ export function useStats() {
   const history = useState<Record<string, StatHistory>>('hp:hist', () => ({}))
   const hostHistory = useState<StatHistory>('hp:hosthist', () => ({ cpu: [], mem: [] }))
   const systemHistory = useState<StatHistory>('hp:syshist', () => ({ cpu: [], mem: [] }))
+  // True once the poll has failed repeatedly — lets the UI say "stats paused"
+  // instead of presenting frozen numbers as if they were live.
+  const stale = useState('hp:stats-stale', () => false)
+  let fails = 0
   let poll: ReturnType<typeof setInterval> | null = null
 
   // A line needs two points — an empty buffer gets its first sample doubled so
@@ -40,6 +44,8 @@ export function useStats() {
         }
       }
       history.value = hist
+      fails = 0
+      stale.value = false
 
       if (r.host) {
         hostHistory.value = {
@@ -54,7 +60,8 @@ export function useStats() {
         }
       }
     } catch {
-      // keep last values
+      // keep last values, but after a few misses flag the data as stale
+      if (++fails >= 3) stale.value = true
     }
   }
 
@@ -67,5 +74,5 @@ export function useStats() {
     poll = null
   }
 
-  return { stats, host, history, hostHistory, systemHistory, refresh, start, stop }
+  return { stats, host, history, hostHistory, systemHistory, stale, refresh, start, stop }
 }

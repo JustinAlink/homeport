@@ -9,6 +9,7 @@ import { listStackDirs, runStackOp } from './stacks'
 import { dispatch } from './alerts'
 import { isAutoUpdateDue, planAutoUpdate } from './auto-update-core'
 import { guard } from './guard'
+import { log } from './log'
 
 // Scheduled automatic updates: once per day, in the configured hour, refresh
 // the update cache and apply updates to everything opted in (target list or
@@ -68,8 +69,11 @@ export const maybeAutoUpdate = guard(async () => {
     let containers
     try {
       containers = await listContainersFor(host)
-    } catch {
-      continue // host down — skip
+    } catch (e) {
+      // Scheduled + unattended: a silently-skipped host is the worst case — the
+      // user thinks auto-update ran. Say so.
+      log.warn('auto-update', `skipping host "${host.name}" — could not list containers`, e)
+      continue
     }
     const candidates = containers
       .filter((c) => map[`${host.id}|${c.image}`]?.status === 'update')
@@ -90,13 +94,18 @@ export const maybeAutoUpdate = guard(async () => {
       } catch (e: any) {
         lines.push(e?.message || String(e))
       }
+      // Durable trail — the op buffer is ephemeral and this runs unattended overnight.
+      if (ok) log.info('auto-update', `updated stack "${stack}" on ${host.name}`)
+      else log.error('auto-update', `stack "${stack}" on ${host.name} failed`, lines.at(-1) || 'compose pull failed')
       await notify(`stack ${stack}`, host.name, ok, lines.at(-1) || 'compose pull failed')
     }
     for (const c of plan.directs) {
       try {
         await applyUpdate(host, c.id)
+        log.info('auto-update', `updated "${c.name}" on ${host.name}`)
         await notify(c.name, host.name, true, '')
       } catch (e: any) {
+        log.error('auto-update', `"${c.name}" on ${host.name} failed`, e)
         await notify(c.name, host.name, false, e?.message || 'update failed')
       }
     }

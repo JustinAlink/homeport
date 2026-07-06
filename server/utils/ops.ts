@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { log } from './log'
 
 // Tiny in-memory registry for long-running server operations (compose up/pull,
 // image updates). POST endpoints start an op and return its id; the client then
@@ -11,6 +12,8 @@ export interface Op {
   lines: string[]
   done: boolean
   ok: boolean | null
+  /** Last failure message (survives even after the line buffer is trimmed). */
+  error?: string
   startedAt: number
   finishedAt: number
   emitter: EventEmitter
@@ -46,10 +49,16 @@ export function startOp(title: string, run: (emit: (line: string) => void) => Pr
   run(emit)
     .then((ok) => {
       op.ok = ok
+      if (!ok) op.error = op.lines.at(-1) || 'operation failed'
     })
     .catch((e) => {
-      emit(`error: ${e?.message || e}`)
+      // Match the in-band ✗ convention the client styles as failure (was `error:`).
+      const msg = e?.message || String(e)
+      emit(`✗ ${msg}`)
       op.ok = false
+      op.error = msg
+      // The op buffer is pruned after 10 min — a durable log line survives for forensics.
+      log.error('ops', `"${title}" threw`, e)
     })
     .finally(() => {
       op.done = true
@@ -61,10 +70,10 @@ export function startOp(title: string, run: (emit: (line: string) => void) => Pr
 }
 
 /** Recent operations (running + briefly-kept finished), newest first — for the activity view. */
-export function listOps(): { id: string; title: string; done: boolean; ok: boolean | null; startedAt: number; finishedAt: number }[] {
+export function listOps(): { id: string; title: string; done: boolean; ok: boolean | null; error?: string; startedAt: number; finishedAt: number }[] {
   prune()
   return [...ops.values()]
-    .map(({ id, title, done, ok, startedAt, finishedAt }) => ({ id, title, done, ok, startedAt, finishedAt }))
+    .map(({ id, title, done, ok, error, startedAt, finishedAt }) => ({ id, title, done, ok, error, startedAt, finishedAt }))
     .sort((a, b) => b.startedAt - a.startedAt)
 }
 

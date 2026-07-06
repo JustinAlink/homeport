@@ -27,6 +27,9 @@ export default defineEventHandler(async (event) => {
   } catch (e: any) {
     throw createError({ statusCode: 502, statusMessage: `Docker Hub is unreachable: ${e?.message || e}` })
   }
+  if (r.status === 429) {
+    throw createError({ statusCode: 429, statusMessage: 'Docker Hub rate limit hit — try again in a minute.' })
+  }
   if (!r.ok) throw createError({ statusCode: 502, statusMessage: `Docker Hub answered ${r.status}` })
 
   const j: any = await r.json()

@@ -128,6 +128,7 @@ interface NetRow {
   project?: string | null
 }
 
+const { confirm } = useConfirm()
 const networks = ref<NetRow[]>([])
 const loaded = ref(false)
 const loading = ref(false)
@@ -154,7 +155,7 @@ async function load() {
 }
 
 async function remove(name: string) {
-  if (!window.confirm(`Remove docker network “${name}”? No containers reference it.`)) return
+  if (!(await confirm({ message: `Remove docker network “${name}”? No containers reference it.`, confirmLabel: 'Remove', danger: true }))) return
   busy.value = name
   removeErr.value = ''
   try {
@@ -205,7 +206,7 @@ async function attach(network: string, id: string) {
   }
 }
 async function detach(network: string, c: { id: string; name: string }) {
-  if (!window.confirm(`Detach “${c.name}” from “${network}”? Other containers reach it over this network right now.`)) return
+  if (!(await confirm({ message: `Detach “${c.name}” from “${network}”? Other containers reach it over this network right now.`, confirmLabel: 'Detach', danger: true }))) return
   rowErr[network] = ''
   try {
     await $fetch('/api/networks/disconnect', { method: 'POST', body: { network, id: c.id } })

@@ -33,7 +33,7 @@ homeport reads it all live:
 - **Updates view** — one page listing every container with a newer image, grouped by stack: *Pull & up* for managed stacks, one-click recreate for the rest — and opt-in **scheduled automatic updates** (daily, per stack/container, results to your alert channels).
 - **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
 - **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
-- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords — plus **Docker Hub and GitHub search tabs** (pull/star counts, sortable) that turn any image into a new stack or deploy any repo as a git-backed stack.
+- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords — plus **Docker Hub and GitHub tabs** that open on a recommended list, search as you type, and **auto-dockerize** anything: any Hub image becomes a compose stack from its own declared ports/volumes, and any repo deploys as a git-backed stack (its compose file, or one generated from its Dockerfile).
 - **Git-backed stacks** — deploy a stack straight from a GitHub/Gitea/GitLab repo and update it with one click when the repo moves (fetch → reset → rebuild → redeploy, streamed live). Private repos use a per-stack access token, stored server-side only.
 - **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
 - **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
@@ -120,6 +120,7 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_DEMO` | `false` | `true` serves a synthetic fleet (no Docker needed) — handy for a first look. |
 | `HOMEPORT_ALLOW_CONTROL` | `false` | `true` enables start/stop buttons. Requires the socket proxy to allow writes (`POST=1`). |
 | `HOMEPORT_DATA_DIR` | `/data` | Where the **settings page** persists config. Mount a volume here to keep it. |
+| `HOMEPORT_LOG_LEVEL` | `info` | Server log verbosity in `docker logs`: `debug` \| `info` \| `warn` \| `error` \| `silent`. |
 | `HOMEPORT_PING` | `true` | HTTP-ping mapped domains for an up/down dot. |
 | `HOMEPORT_SYSTEMD` | `false` | Show host systemd services. Needs `systemctl` access (host install, or mount `/run/systemd` + the dbus socket). |
 | `HOMEPORT_SYSTEMD_UNITS` | _(active+failed)_ | Comma list of units to show, e.g. `nginx,postgresql`. |
@@ -401,6 +402,21 @@ remote source — and you can add, replace or remove sources in **Settings → A
 An installed app is just a normal compose stack: it appears on the dashboard, and is editable on
 `/stacks/<name>` afterwards. Installing therefore requires the **Compose stacks** capability
 (browsing the catalog doesn't). Env: `HOMEPORT_CATALOG_URLS=url1,url2` (locks the settings field).
+
+### Docker Hub & GitHub tabs — auto-dockerize anything
+
+The catalog's **Docker Hub** and **GitHub** tabs go beyond the curated templates. Each opens on a
+recommended list (Hub: most-pulled official images; GitHub: most-starred self-hosted projects) and
+searches as you type:
+
+- **Docker Hub** — picking any image opens a guided install page that reads the image's own
+  configuration straight from the registry: the ports it `EXPOSE`s and the paths it declares as
+  volumes. homeport turns those into a compose stack (data paths become named volumes, so recreates
+  and updates keep the data), you confirm/adjust ports and volumes, and install.
+- **GitHub** — a repo deploys as a git-backed stack. If it has a compose file at its root that's
+  used directly; if it ships only a **Dockerfile**, homeport generates a build-in-place
+  `compose.yaml` (ports from `EXPOSE`) — the generated file is untracked, so one-click git updates
+  leave it alone. Building through a docker-socket-proxy needs `BUILD=1` on the proxy.
 
 ## Git-backed stacks
 

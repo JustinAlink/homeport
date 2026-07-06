@@ -31,11 +31,19 @@ export function useCapabilities() {
 
   async function load() {
     if (loaded.value) return
-    try {
-      caps.value = await $fetch<Capabilities>('/api/capabilities')
-      loaded.value = true
-    } catch {
-      // unauthenticated or server error — keep everything hidden
+    // A single failed fetch used to hide the ENTIRE sidebar + all controls with
+    // no explanation. Retry a few times so a transient blip self-heals rather
+    // than leaving the app looking feature-less until a manual reload.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        caps.value = await $fetch<Capabilities>('/api/capabilities')
+        loaded.value = true
+        return
+      } catch (e: any) {
+        // 401 = genuinely unauthenticated — retrying won't help; stop quietly.
+        if ((e?.statusCode ?? e?.response?.status) === 401) return
+        if (import.meta.client) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+      }
     }
   }
 

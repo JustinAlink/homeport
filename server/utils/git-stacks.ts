@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync
 import { join } from 'node:path'
 import { getConfig } from './config'
 import { findComposeFile, safeStackName } from './stacks-core'
+import { composeForBuild, dockerfilePorts } from './autostack-core'
 import {
   authArgs,
   parseHeadLog,
@@ -125,15 +126,43 @@ export async function cloneGitStack(
     cleanupFailedClone(name)
     return false
   }
+  return true
+}
+
+/**
+ * Auto-dockerize fallback for cloned repos: when the repo has no compose file
+ * but ships a Dockerfile, generate a build-in-place compose.yaml (ports from
+ * EXPOSE). The generated file is untracked, so git updates (reset --hard)
+ * leave it alone. Cleans up the clone when the repo has neither.
+ */
+export function ensureComposeFile(name: string, emit: (line: string) => void): boolean {
+  const dir = stackPath(name)
   let files: string[] = []
   try {
     files = readdirSync(dir)
   } catch {}
-  if (!findComposeFile(files)) {
-    emit('✗ the repository has no compose file at its root (compose.yaml / docker-compose.yml)')
+  if (findComposeFile(files)) return true
+
+  const dockerfile = files.find((f) => f.toLowerCase() === 'dockerfile')
+  if (!dockerfile) {
+    emit('✗ the repository has neither a compose file nor a Dockerfile at its root — nothing to deploy')
     cleanupFailedClone(name)
     return false
   }
+
+  let ports: number[] = []
+  try {
+    ports = dockerfilePorts(readFileSync(join(dir, dockerfile), 'utf8'))
+  } catch {}
+  emit('no compose file in the repository — generating one from its Dockerfile')
+  emit(
+    ports.length
+      ? `  detected EXPOSE port${ports.length > 1 ? 's' : ''}: ${ports.join(', ')} (mapped 1:1 — edit the stack to change)`
+      : '  no EXPOSE ports detected — add a ports: mapping to compose.yaml if the app serves anything',
+  )
+  writeFileSync(join(dir, 'compose.yaml'), composeForBuild(name, ports))
+  emit('  wrote compose.yaml (untracked — updates from git keep it)')
+  emit('  note: building through a docker-socket-proxy needs BUILD=1 on the proxy')
   return true
 }
 

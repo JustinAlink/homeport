@@ -167,8 +167,8 @@
     <!-- operation output -->
     <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
       <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-        <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
-        {{ opRunning ? 'running…' : opOk ? 'finished' : 'failed' }}
+        <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opDropped ? 'bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
+        {{ opRunning ? 'running…' : opDropped ? 'connection to the operation dropped — it may still be running; reload to check' : opOk ? 'finished' : 'failed' }}
       </div>
       <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
     </div>
@@ -268,6 +268,7 @@ const notManaged = ref(false) // no stack dir for this name — unmanaged compos
 // live services belonging to this compose project (both managed + unmanaged views)
 const { data: svcData, refresh: svcRefresh, start: svcStart, stop: svcStop } = useServices()
 const { stats, start: statsStart, stop: statsStop } = useStats()
+const { confirm } = useConfirm()
 const { caps, load: loadCaps } = useCapabilities()
 const updates = useUpdates()
 const stackSvcs = computed(() => (svcData.value?.services ?? []).filter((s) => s.project === name))
@@ -291,7 +292,7 @@ const updRunning = ref(false)
 async function updateAll() {
   const targets = [...updatable.value]
   if (!targets.length) return
-  if (!window.confirm(`Update ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}” to the latest images? Each is pulled and recreated in place.`)) return
+  if (!(await confirm({ message: `Update ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}” to the latest images? Each is pulled and recreated in place.`, confirmLabel: 'Update all' }))) return
   updRunning.value = true
   updLines.value = []
   for (const s of targets) {
@@ -318,7 +319,7 @@ async function bulk(action: 'start' | 'stop' | 'restart') {
   )
   if (!targets.length) return
   const verb = action === 'stop' ? 'Stop' : action === 'restart' ? 'Restart' : ''
-  if (verb && !window.confirm(`${verb} ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}”?`)) return
+  if (verb && !(await confirm({ message: `${verb} ${targets.length} container${targets.length > 1 ? 's' : ''} in “${name}”?`, confirmLabel: verb, danger: action === 'stop' }))) return
   bulkBusy.value = action
   bulkMsg.value = ''
   const errors: string[] = []
@@ -435,6 +436,7 @@ const actions = [
 const opLines = ref<string[]>([])
 const opRunning = ref(false)
 const opOk = ref<boolean | null>(null)
+const opDropped = ref(false)
 let es: EventSource | null = null
 
 function attachOp(opId: string, onDone?: () => void) {
@@ -453,21 +455,28 @@ function attachOp(opId: string, onDone?: () => void) {
     } catch {}
   }
   es.onerror = () => {
+    // A dropped stream isn't a failure — the op runs server-side. Don't paint it red.
+    if (opOk.value === null) opDropped.value = true
     opRunning.value = false
     es?.close()
   }
 }
 
 async function runAction(op: string) {
-  if (op === 'down' && !window.confirm(`Take stack “${name}” down?`)) return
+  if (op === 'down' && !(await confirm({ message: `Take stack “${name}” down?`, confirmLabel: 'Down', danger: true }))) return
   if (
     op === 'update' &&
-    !window.confirm(`Update “${name}” to the latest commit from its repository?\nAny local edits to the stack files are overwritten.`)
+    !(await confirm({
+      message: `Update “${name}” to the latest commit from its repository?`,
+      detail: 'Any local edits to the stack files are overwritten.',
+      confirmLabel: 'Update',
+    }))
   )
     return
-  if (op !== 'update' && dirty.value && !window.confirm('You have unsaved changes — run anyway?')) return
+  if (op !== 'update' && dirty.value && !(await confirm({ message: 'You have unsaved changes — run anyway?', confirmLabel: 'Run anyway' }))) return
   opLines.value = []
   opOk.value = null
+  opDropped.value = false
   opRunning.value = true
   try {
     const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(name)}/action`, {
@@ -522,7 +531,7 @@ async function loadNetworks() {
   }
 }
 async function removeNetwork(netName: string) {
-  if (!window.confirm(`Remove docker network “${netName}”? No containers reference it.`)) return
+  if (!(await confirm({ message: `Remove docker network “${netName}”? No containers reference it.`, confirmLabel: 'Remove', danger: true }))) return
   netBusy.value = netName
   try {
     await $fetch('/api/networks/remove', { method: 'POST', body: { name: netName } })
@@ -540,12 +549,18 @@ const del = reactive({ volumes: false, images: false, proxyRoutes: false })
 async function deleteStack() {
   if (
     del.volumes &&
-    !window.confirm(`Also delete ALL named volumes of “${name}”? Databases and app data in them are gone for good.`)
+    !(await confirm({
+      message: `Also delete ALL named volumes of “${name}”?`,
+      detail: 'Databases and app data in them are gone for good.',
+      confirmLabel: 'Delete volumes',
+      danger: true,
+    }))
   )
     return
   deletePanel.value = false
   opLines.value = []
   opOk.value = null
+  opDropped.value = false
   opRunning.value = true
   try {
     const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(name)}/delete`, {

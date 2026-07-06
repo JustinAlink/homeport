@@ -8,6 +8,7 @@ import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
 import { guard } from './guard'
+import { log } from './log'
 
 // Image update detection + apply.
 // Detection is DAEMON-side: GET /distribution/{image}/json (dockerode
@@ -126,8 +127,9 @@ export const runUpdateSweep = guard(async (force = false) => {
     let containers: Awaited<ReturnType<typeof listContainersFor>>
     try {
       containers = await listContainersFor(host)
-    } catch {
-      continue // host down — skip
+    } catch (e) {
+      log.warn('update-sweep', `skipping host "${host.name}" — could not list containers`, e)
+      continue
     }
     const images = [...new Set(containers.map((c) => c.image))]
     const keys = images.map((i) => keyOf(host.id, i))
@@ -204,6 +206,9 @@ async function swapContainer(
   } catch (e: any) {
     step('inspect', false, e?.message)
   }
+  // `step` throws on failure, so we only get here on success — but don't leave the
+  // rest of the swap depending on that side-effect to guard a raw null deref.
+  if (!inspect) throw fail('inspect: no container data')
 
   // Compose-managed containers whose stack homeport manages must be updated
   // through the stack — recreating one here would desync it from what a later
@@ -237,7 +242,9 @@ async function swapContainer(
       })
       step('pull', true, image)
     } catch (e: any) {
-      step('pull', false, e?.message)
+      // Same translation the check path uses — a private-image 401 or a
+      // socket-proxy 403 here should read clearly, not as raw daemon text.
+      step('pull', false, friendlyCheckError(e))
     }
   }
 
@@ -258,8 +265,8 @@ async function swapContainer(
     for (const [net, epCfg] of Object.entries(plan.extraNetworks)) {
       try {
         await docker.getNetwork(net).connect({ Container: created.id, EndpointConfig: epCfg })
-      } catch {
-        steps.push({ step: `connect network ${net}`, ok: false, detail: 'kept going — verify manually' })
+      } catch (ne: any) {
+        steps.push({ step: `connect network ${net}`, ok: false, detail: `kept going — verify manually (${ne?.message || ne})` })
       }
     }
     await created.start()
@@ -267,14 +274,22 @@ async function swapContainer(
   } catch (e: any) {
     steps.push({ step: 'create + start new', ok: false, detail: e?.message })
     // rollback
+    let rolledBack = false
     try {
       await docker.getContainer(backupName).rename({ name: plan.name })
       if (wasRunning) await docker.getContainer(plan.name).start()
       steps.push({ step: 'rollback (rename back + start)', ok: true })
+      rolledBack = true
     } catch (re: any) {
       steps.push({ step: 'rollback', ok: false, detail: `MANUAL FIX NEEDED: old container is "${backupName}" — ${re?.message}` })
     }
-    throw fail(`update failed: ${e?.message}`)
+    // Surface the un-restored state in the message itself — not just buried in steps —
+    // so a toast/log makes clear the service is DOWN and renamed, not merely "failed".
+    throw fail(
+      rolledBack
+        ? `update failed: ${e?.message} (rolled back — the previous version is running again)`
+        : `update failed and ROLLBACK FAILED: "${plan.name}" is down; its old container is "${backupName}" and must be restored manually`,
+    )
   }
 
   // 4. success — remove the old container

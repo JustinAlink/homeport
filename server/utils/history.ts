@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, accessSync, constants } from 'node:fs'
+import { warnOnce } from './log'
 import { join, dirname } from 'node:path'
 import type { Snapshot } from './collector'
 import { getConfig } from './config'
@@ -42,6 +43,9 @@ export function historyWritable(): boolean {
     persistent = true
   } catch {
     persistent = false
+  }
+  if (!persistent) {
+    warnOnce('history-ro', 'history', 'data dir is not writable — CPU/RAM history is in-memory only and resets on restart')
   }
   return persistent
 }

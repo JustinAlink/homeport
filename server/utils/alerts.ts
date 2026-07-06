@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, constants } from 'node:fs'
+import { log as logger, warnOnce } from './log'
 import { join, dirname } from 'node:path'
 import type { Snapshot } from './collector'
 import { getConfig } from './config'
@@ -43,6 +44,9 @@ function canWrite(): boolean {
     writable = true
   } catch {
     writable = false
+  }
+  if (!writable) {
+    warnOnce('alerts-ro', 'alerts', 'data dir is not writable — alert state/history is in-memory only (may re-notify after a restart)')
   }
   return writable
 }
@@ -164,7 +168,14 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
   stateCache = state
 
   if (events.length) {
-    for (const e of events) await dispatch(e)
+    for (const e of events) {
+      // The automated path used to discard delivery results — a channel that's
+      // been failing for days produced no signal. Log every failed send.
+      const results = await dispatch(e)
+      for (const r of results.filter((x) => !x.ok)) {
+        logger.warn('alerts', `notifier "${r.name}" failed to deliver "${e.kind}" alert for ${e.name}`, r.error)
+      }
+    }
   } else {
     persist() // checkpoint debounce counters
   }

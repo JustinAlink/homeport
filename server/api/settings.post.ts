@@ -195,7 +195,13 @@ export default defineEventHandler(async (event) => {
   }
   if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
 
-  const saved = writeSettings(patch)
+  let saved: PersistedSettings
+  try {
+    saved = writeSettings(patch)
+  } catch (e: any) {
+    // Writable-check passed but the write still failed (volume flipped, disk full).
+    throw createError({ statusCode: 500, statusMessage: `Could not save settings: ${e?.message || e}` })
+  }
   resetDocker() // a connection change should take effect immediately
   return { ok: true, settings: saved }
 })

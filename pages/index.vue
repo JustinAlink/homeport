@@ -8,6 +8,11 @@
         </p>
       </div>
       <div class="ml-auto flex items-center gap-2.5">
+        <span
+          v-if="stats.stale.value"
+          class="inline-flex items-center gap-1.5 rounded-md border border-amber-500/25 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-300"
+          title="The stats poll keeps failing — the numbers below may be out of date."
+        ><span class="h-1.5 w-1.5 rounded-full bg-amber-400" /> stats paused</span>
         <SearchBar v-model="q" />
         <button
           class="rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-white/5"

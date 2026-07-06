@@ -65,6 +65,8 @@ interface AdminRoute {
   managed: boolean
 }
 
+const { confirm } = useConfirm()
+const toast = useToast()
 const routes = ref<AdminRoute[]>([])
 const provider = ref('')
 const caps = ref({ create: false, update: false, delete: false })
@@ -95,12 +97,12 @@ function onSaved() {
 }
 
 async function remove(r: AdminRoute) {
-  if (!window.confirm(`Delete the route for ${r.domains.join(', ')}?`)) return
+  if (!(await confirm({ message: `Delete the route for ${r.domains.join(', ')}?`, confirmLabel: 'Delete', danger: true }))) return
   try {
     await $fetch(`/api/proxy/routes?id=${encodeURIComponent(r.id)}`, { method: 'DELETE' })
     load()
   } catch (e: any) {
-    window.alert(errMsg(e, 'Delete failed'))
+    toast.error(errMsg(e, 'Delete failed'))
   }
 }
 

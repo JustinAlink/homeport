@@ -1,4 +1,5 @@
 import { httpJson } from '../http'
+import { log } from '../log'
 import type { ProxyAdmin, AdminRoute, NewRoute } from './types'
 import { buildProxyHostPayload, npmRouteFrom, pickCertificate, type NpmProxyHost } from './npm-admin-core'
 
@@ -49,8 +50,13 @@ export function createNpmAdmin(cfg: NpmAdminConfig): ProxyAdmin {
     if (!route.ssl) return 0
     try {
       const certs = await api<{ id: number; domain_names: string[] }[]>('/api/nginx/certificates')
-      return pickCertificate(route.domains, certs || [])
-    } catch {
+      const id = pickCertificate(route.domains, certs || [])
+      // SSL was requested but no matching cert exists — the route would be created
+      // WITHOUT TLS. Surface it rather than silently downgrading.
+      if (!id) log.warn('proxy-admin', `NPM has no certificate matching ${route.domains.join(', ')} — creating the route without SSL`)
+      return id
+    } catch (e) {
+      log.warn('proxy-admin', `NPM certificate lookup failed for ${route.domains.join(', ')} — creating the route without SSL`, e)
       return 0
     }
   }

@@ -380,6 +380,8 @@ const { data, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const { caps, loaded: capsLoaded, load: loadCaps } = useCapabilities()
 const updates = useUpdates()
+const { confirm } = useConfirm()
+const toast = useToast()
 
 const applying = ref(false)
 const newPage = ref('') // route of the recreated container once an update lands
@@ -519,7 +521,7 @@ const deleteProxyRoutes = ref(false)
 const dangerSteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
 
 async function recreate() {
-  if (!window.confirm(`Recreate “${service.value?.displayName}” in place? It restarts with the same image and settings.`)) return
+  if (!(await confirm({ message: `Recreate “${service.value?.displayName}” in place? It restarts with the same image and settings.`, confirmLabel: 'Recreate' }))) return
   applying.value = true
   dangerSteps.value = []
   try {
@@ -537,7 +539,7 @@ async function recreate() {
     }
   } catch (e: any) {
     dangerSteps.value = e?.data?.data?.steps || []
-    window.alert(errMsg(e, 'Recreate failed'))
+    toast.error(errMsg(e, 'Recreate failed'))
   } finally {
     applying.value = false
   }
@@ -550,7 +552,13 @@ async function deleteContainer() {
     deleteImage.value ? 'its image' : '',
     deleteProxyRoutes.value ? 'its proxy domains' : '',
   ].filter(Boolean)
-  if (!window.confirm(`Delete “${name}” permanently?${extras.length ? ` Also removed: ${extras.join(', ')}.` : ''}\nThis cannot be undone.`)) return
+  if (!(await confirm({
+    title: `Delete “${name}”?`,
+    message: `Delete “${name}” permanently?${extras.length ? ` Also removed: ${extras.join(', ')}.` : ''}`,
+    detail: 'This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  }))) return
   deleting.value = true
   try {
     const r = await $fetch<{ ok: boolean; notes?: string[] }>('/api/control', {
@@ -571,7 +579,7 @@ async function deleteContainer() {
       await navigateTo('/', { replace: true })
     }
   } catch (e: any) {
-    window.alert(errMsg(e, 'Delete failed'))
+    toast.error(errMsg(e, 'Delete failed'))
   } finally {
     deleting.value = false
   }
@@ -580,13 +588,13 @@ async function deleteContainer() {
 // --- controls ---
 const busy = ref<'' | 'start' | 'stop' | 'restart'>('')
 async function control(action: 'start' | 'stop' | 'restart') {
-  if (action === 'stop' && !window.confirm(`Stop “${service.value?.displayName}”?`)) return
+  if (action === 'stop' && !(await confirm({ message: `Stop “${service.value?.displayName}”?`, confirmLabel: 'Stop', danger: true }))) return
   busy.value = action
   try {
     await $fetch('/api/control', { method: 'POST', body: { id, action } })
     await refresh()
   } catch (e: any) {
-    window.alert(errMsg(e, 'Action failed'))
+    toast.error(errMsg(e, 'Action failed'))
   } finally {
     busy.value = ''
   }
@@ -647,7 +655,7 @@ async function checkNow() {
     await $fetch('/api/updates/check', { method: 'POST' })
     await updates.refresh()
   } catch (e: any) {
-    window.alert(errMsg(e, 'Check failed'))
+    toast.error(errMsg(e, 'Check failed'))
   } finally {
     checking.value = false
   }
@@ -655,7 +663,7 @@ async function checkNow() {
 
 const applySteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
 async function apply() {
-  if (!window.confirm(`Update “${service.value?.displayName}” to the latest image? The container will be recreated.`)) return
+  if (!(await confirm({ message: `Update “${service.value?.displayName}” to the latest image? The container will be recreated.`, confirmLabel: 'Update' }))) return
   applying.value = true
   applySteps.value = []
   try {
@@ -677,7 +685,7 @@ async function apply() {
     }
   } catch (e: any) {
     applySteps.value = e?.data?.data?.steps || []
-    window.alert(errMsg(e, 'Update failed'))
+    toast.error(errMsg(e, 'Update failed'))
   } finally {
     applying.value = false
   }
@@ -712,7 +720,7 @@ watch(
 )
 
 async function applyEnv() {
-  if (!window.confirm(`Recreate “${service.value?.displayName}” with the edited environment?`)) return
+  if (!(await confirm({ message: `Recreate “${service.value?.displayName}” with the edited environment?`, confirmLabel: 'Recreate' }))) return
   applying.value = true
   envSteps.value = []
   try {
@@ -736,7 +744,7 @@ async function applyEnv() {
     }
   } catch (e: any) {
     envSteps.value = e?.data?.data?.steps || []
-    window.alert(errMsg(e, 'Environment change failed'))
+    toast.error(errMsg(e, 'Environment change failed'))
   } finally {
     applying.value = false
   }
