@@ -11,14 +11,45 @@
         </template>
       </nav>
       <div class="ml-auto flex items-center gap-1.5">
-        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="newFile">+ File</button>
-        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="newFolder">+ Folder</button>
+        <button
+          class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
+          :class="naming?.mode === 'file' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+          @click="openNaming('file')"
+        >+ File</button>
+        <button
+          class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
+          :class="naming?.mode === 'folder' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+          @click="openNaming('folder')"
+        >+ Folder</button>
         <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="uploadInput?.click()">Upload</button>
         <input ref="uploadInput" type="file" multiple class="hidden" @change="upload" />
         <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5" :disabled="loading" @click="load">
           {{ loading ? '…' : 'Refresh' }}
         </button>
       </div>
+    </div>
+
+    <!-- inline naming row: new file / new folder / rename (no native prompt()
+         — it is silently blocked in sandboxed/embedded views) -->
+    <div v-if="naming" class="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-ink-900 px-3 py-2">
+      <span class="text-[11px] uppercase tracking-wider text-slate-500">
+        {{ naming.mode === 'file' ? 'New file' : naming.mode === 'folder' ? 'New folder' : `Rename ${naming.target!.name}` }}
+      </span>
+      <input
+        ref="nameInput"
+        v-model="naming.value"
+        :placeholder="naming.mode === 'folder' ? 'folder name' : 'file name (e.g. .env)'"
+        class="min-w-[12rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-2.5 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+        @keydown.enter="confirmNaming"
+        @keydown.esc="naming = null"
+      />
+      <span v-if="path" class="font-mono text-[10px] text-slate-600">in {{ path }}/</span>
+      <button
+        class="rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+        :disabled="!naming.value.trim()"
+        @click="confirmNaming"
+      >{{ naming.mode === 'rename' ? 'Rename' : 'Create' }}</button>
+      <button class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-slate-400 hover:bg-white/5" @click="naming = null">Cancel</button>
     </div>
 
     <p v-if="err" class="mb-2 whitespace-pre-line text-xs text-red-400">{{ err }}</p>
@@ -44,15 +75,25 @@
         </button>
         <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ e.type === 'file' ? formatBytes(e.size) : '' }}</span>
         <span class="hidden shrink-0 text-[11px] text-slate-600 sm:block">{{ ago(e.mtime) }}</span>
-        <div class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <a
-            v-if="e.type === 'file'"
-            :href="`/api/stacks/${encodeURIComponent(stack)}/file?path=${encodeURIComponent(rel(e.name))}&download=1`"
-            class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
-            :download="e.name"
-          >download</a>
-          <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="renameEntry(e)">rename</button>
-          <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="deleteEntry(e)">delete</button>
+        <div
+          class="flex shrink-0 items-center gap-1 transition-opacity"
+          :class="pendingDelete === e.name ? '' : 'opacity-0 group-hover:opacity-100'"
+        >
+          <template v-if="pendingDelete === e.name">
+            <span class="text-[10px] text-red-300">delete {{ e.type === 'dir' ? 'folder + contents' : 'file' }}?</span>
+            <button class="rounded-md border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/20" @click="deleteEntry(e)">yes</button>
+            <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="pendingDelete = ''">no</button>
+          </template>
+          <template v-else>
+            <a
+              v-if="e.type === 'file'"
+              :href="`/api/stacks/${encodeURIComponent(stack)}/file?path=${encodeURIComponent(rel(e.name))}&download=1`"
+              class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+              :download="e.name"
+            >download</a>
+            <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="openNaming('rename', e)">rename</button>
+            <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="pendingDelete = e.name">delete</button>
+          </template>
         </div>
       </div>
     </div>
@@ -130,6 +171,8 @@ async function load() {
 
 function cd(p: string) {
   path.value = p
+  naming.value = null
+  pendingDelete.value = ''
   load()
 }
 
@@ -215,44 +258,55 @@ async function saveFile() {
   }
 }
 
-// --- actions ---
-function newFile() {
-  const name = window.prompt('New file name (in the current folder):')
-  if (!name?.trim()) return
-  openEditor(rel(name.trim()), '\n')
-}
+// --- actions (all inline UI — native prompt/confirm are silently blocked in
+// sandboxed/embedded views, which made the old buttons look dead) ---
+const naming = ref<{ mode: 'file' | 'folder' | 'rename'; value: string; target?: Entry } | null>(null)
+const nameInput = ref<HTMLInputElement | null>(null)
+const pendingDelete = ref('')
 
-async function newFolder() {
-  const name = window.prompt('New folder name (in the current folder):')
-  if (!name?.trim()) return
-  try {
-    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
-      method: 'POST',
-      body: { action: 'mkdir', path: rel(name.trim()) },
-    })
-    load()
-  } catch (e: any) {
-    err.value = errMsg(e, 'Could not create the folder')
+async function openNaming(mode: 'file' | 'folder' | 'rename', target?: Entry) {
+  naming.value = naming.value?.mode === mode && !target ? null : { mode, value: target?.name ?? '', target }
+  if (naming.value) {
+    await nextTick()
+    nameInput.value?.focus()
   }
 }
 
-async function renameEntry(e: Entry) {
-  const name = window.prompt(`Rename “${e.name}” to:`, e.name)
-  if (!name?.trim() || name.trim() === e.name) return
+async function confirmNaming() {
+  if (!naming.value) return
+  const { mode, target } = naming.value
+  const name = naming.value.value.trim()
+  if (!name) return
+  err.value = ''
+  if (mode === 'file') {
+    naming.value = null
+    return openEditor(rel(name), '\n')
+  }
   try {
-    await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
-      method: 'POST',
-      body: { action: 'rename', path: rel(e.name), to: rel(name.trim()) },
-    })
+    if (mode === 'folder') {
+      await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
+        method: 'POST',
+        body: { action: 'mkdir', path: rel(name) },
+      })
+    } else {
+      if (name === target!.name) {
+        naming.value = null
+        return
+      }
+      await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
+        method: 'POST',
+        body: { action: 'rename', path: rel(target!.name), to: rel(name) },
+      })
+    }
+    naming.value = null
     load()
-  } catch (er: any) {
-    err.value = errMsg(er, 'Could not rename')
+  } catch (e: any) {
+    err.value = errMsg(e, mode === 'folder' ? 'Could not create the folder' : 'Could not rename')
   }
 }
 
 async function deleteEntry(e: Entry) {
-  const what = e.type === 'dir' ? 'folder (and everything in it)' : 'file'
-  if (!window.confirm(`Delete ${what} “${e.name}”? This cannot be undone.`)) return
+  pendingDelete.value = ''
   try {
     await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/files`, {
       method: 'POST',
