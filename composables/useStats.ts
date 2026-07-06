@@ -17,7 +17,10 @@ export function useStats() {
   const systemHistory = useState<StatHistory>('hp:syshist', () => ({ cpu: [], mem: [] }))
   let poll: ReturnType<typeof setInterval> | null = null
 
+  // A line needs two points — an empty buffer gets its first sample doubled so
+  // live graphs/sparklines render immediately instead of after the next poll.
   const push = (arr: number[], v: number) => {
+    if (!arr.length) return [v, v]
     const next = [...arr, v]
     return next.length > MAX ? next.slice(next.length - MAX) : next
   }

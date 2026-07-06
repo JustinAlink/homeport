@@ -278,6 +278,14 @@ so declare the network there (`external: true`) to make it permanent. Subnets ca
 in place (docker has no API for it) — change them in the owning compose file, or remove and
 recreate an unused network.
 
+### Storage
+
+**/storage** lists every volume and image on the host with what references it. Data that
+outlived a deleted stack or container (deletes keep volumes by default) shows up here as
+*unused* and can be removed — volumes with a hard two-step confirm (that's your data),
+images casually (worst case is a re-pull). Volume disk usage is computed on demand
+("Calculate sizes" — it walks the volume contents).
+
 ### Deleting things completely
 
 Deletes are conservative by default (data outlives the container), with opt-in checkboxes for

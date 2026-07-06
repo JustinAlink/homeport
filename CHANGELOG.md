@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.20.0 — 2026-07-06
+
+- **Storage page.** /storage lists every volume and image with what references
+  it — the place where data that outlived a deleted stack or container becomes
+  visible (deletes keep volumes by default). Unused volumes are removable with
+  a two-step confirm (that data is gone forever); unused/dangling images too
+  (those just cost a re-pull). Volume disk usage on demand via
+  `docker system df`. Compose-project chips show where each volume came from.
+- **Live graphs render instantly.** An empty live buffer seeds itself with the
+  first sample doubled, so graphs and sparklines draw on the first poll instead
+  of waiting a full interval (~7s) for a second point.
+
 ## v2.19.0 — 2026-07-06
 
 - **File browser per stack.** Every stack page (including external/adopted

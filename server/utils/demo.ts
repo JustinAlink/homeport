@@ -564,6 +564,54 @@ export function demoNetworkRemove(name: string) {
   return { ok: true }
 }
 
+// --- demo storage: volumes + images incl. the orphaned-leftovers case ---
+const demoRemovedVolumes = new Set<string>()
+const demoRemovedImages = new Set<string>()
+export function demoStorage() {
+  const svcEntry = (i: number) => ({ id: `demo-${i}`, name: seeds[i].name })
+  const volumes = [
+    { name: 'media_config', driver: 'local', createdAt: Date.now() - 40 * DAY, project: 'media', attached: [svcEntry(0)] },
+    { name: 'web_ghost-content', driver: 'local', createdAt: Date.now() - 90 * DAY, project: 'web', attached: [svcEntry(3)] },
+    { name: 'infra_vaultwarden-data', driver: 'local', createdAt: Date.now() - 120 * DAY, project: 'infra', attached: [svcEntry(8)] },
+    // the pelican case: a deleted stack's data volumes, orphaned but intact
+    { name: 'pelican_pelican-data', driver: 'local', createdAt: Date.now() - 200 * DAY, project: 'pelican', attached: [] },
+    { name: 'pelican_pelican-logs', driver: 'local', createdAt: Date.now() - 200 * DAY, project: 'pelican', attached: [] },
+  ].filter((v) => !demoRemovedVolumes.has(v.name))
+  const images = [
+    { id: 'sha256:demo-jellyfin', ref: 'jellyfin/jellyfin:10.9.6', dangling: false, size: 780 * 1024 ** 2, createdAt: Date.now() - 30 * DAY, attached: [svcEntry(0)] },
+    { id: 'sha256:demo-ghost', ref: 'ghost:5-alpine', dangling: false, size: 420 * 1024 ** 2, createdAt: Date.now() - 60 * DAY, attached: [svcEntry(3)] },
+    // leftover image of the deleted stack + a dangling build layer
+    { id: 'sha256:demo-pelican', ref: 'ghcr.io/pelican-dev/panel:latest', dangling: false, size: 812 * 1024 ** 2, createdAt: Date.now() - 20 * DAY, attached: [] },
+    { id: 'sha256:demo-dangling', ref: '4be2a1c3d5e6', dangling: true, size: 96 * 1024 ** 2, createdAt: Date.now() - 15 * DAY, attached: [] },
+  ].filter((i) => !demoRemovedImages.has(i.id))
+  return { volumes, images }
+}
+export function demoVolumeSizes(): Record<string, number> {
+  return {
+    media_config: 320 * 1024 ** 2,
+    'web_ghost-content': 1.4 * 1024 ** 3,
+    'infra_vaultwarden-data': 48 * 1024 ** 2,
+    'pelican_pelican-data': 1.2 * 1024 ** 3,
+    'pelican_pelican-logs': 220 * 1024 ** 2,
+  }
+}
+export function demoVolumeRemove(name: string) {
+  const vol = demoStorage().volumes.find((v) => v.name === name)
+  if (!vol) throw createError({ statusCode: 400, statusMessage: `no volume named "${name}"` })
+  if (vol.attached.length)
+    throw createError({ statusCode: 400, statusMessage: `volume "${name}" is still used by ${vol.attached.map((c) => c.name).join(', ')} — delete those containers first` })
+  demoRemovedVolumes.add(name)
+  return { ok: true }
+}
+export function demoImageRemove(id: string) {
+  const img = demoStorage().images.find((i) => i.id === id)
+  if (!img) throw createError({ statusCode: 400, statusMessage: 'no such image' })
+  if (img.attached.length)
+    throw createError({ statusCode: 400, statusMessage: `image is still used by ${img.attached.map((c) => c.name).join(', ')} — delete those containers first` })
+  demoRemovedImages.add(id)
+  return { ok: true }
+}
+
 // --- demo file browser: an in-memory tree per stack ---
 type DemoNode = { type: 'dir' } | { type: 'file'; content: string }
 const demoFileTrees = new Map<string, Map<string, DemoNode>>()
