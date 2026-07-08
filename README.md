@@ -1,11 +1,13 @@
 <div align="center">
 
-# ⚓ homeport
+<img src="docs/logo.png" width="72" height="72" alt="homeport logo">
+
+# homeport
 
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/JustinAlink/homeport?sort=semver&color=2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.25.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 

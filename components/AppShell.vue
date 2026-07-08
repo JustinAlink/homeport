@@ -12,7 +12,7 @@
       >
         <Icon name="menu" class="h-5 w-5" />
       </button>
-      <div class="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent"><Icon name="anchor" class="h-4 w-4" /></div>
+      <div class="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent"><Logo class="h-4 w-4" /></div>
       <span class="text-[15px] font-semibold text-slate-100">homeport</span>
     </div>
     <div v-if="drawer" class="fixed inset-0 z-40 bg-black/60 md:hidden" @click="drawer = false" />
@@ -23,7 +23,7 @@
       :class="drawer ? 'translate-x-0' : '-translate-x-full'"
     >
       <NuxtLink to="/" class="mb-6 flex items-center gap-2.5 px-2.5" @click="drawer = false">
-        <div class="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent"><Icon name="anchor" class="h-[18px] w-[18px]" /></div>
+        <div class="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent"><Logo class="h-[18px] w-[18px]" /></div>
         <span class="text-[15px] font-semibold tracking-tight text-slate-100">homeport</span>
       </NuxtLink>
 

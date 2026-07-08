@@ -2,7 +2,7 @@
   <div class="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
     <div class="rounded-2xl border border-white/5 bg-ink-900 p-6 sm:p-8">
       <div class="mb-6 flex items-center gap-3">
-        <div class="grid h-10 w-10 place-items-center rounded-xl bg-accent/15 text-accent"><Icon name="anchor" class="h-5 w-5" /></div>
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-accent/15 text-accent"><Logo class="h-5 w-5" /></div>
         <div>
           <h1 class="text-lg font-semibold text-slate-100">Welcome to homeport</h1>
           <p class="text-xs text-slate-500">Step {{ step }} of 3</p>

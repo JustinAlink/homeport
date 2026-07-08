@@ -17,7 +17,6 @@
 const props = withDefaults(defineProps<{ name: string; weight?: number }>(), { weight: 1.7 })
 
 const ICONS = {
-  anchor: '<circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="22"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
   dashboard: '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
   stacks: '<polygon points="12 2 22 8 12 14 2 8"/><polyline points="2 12.5 12 18.5 22 12.5"/><polyline points="2 17 12 23 22 17"/>',
   catalog: '<rect x="3" y="3" width="18" height="5" rx="1.5"/><rect x="3" y="11" width="8" height="10" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/>',
