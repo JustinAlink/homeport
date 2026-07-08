@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.png" width="72" height="72" alt="homeport logo">
+<img src="docs/logo.png" width="88" height="88" alt="homeport logo">
 
 # homeport
 
