@@ -59,7 +59,7 @@ gen_secret() {
 ask() { # question
   [ -r /dev/tty ] || return 1
   printf '%s%s [Y/n]%s ' "$Y" "$1" "$Z" > /dev/tty
-  read ans < /dev/tty || return 1
+  read -r ans < /dev/tty || return 1
   case "$ans" in [nN]*) return 1 ;; *) return 0 ;; esac
 }
 
