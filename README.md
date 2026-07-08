@@ -333,85 +333,15 @@ project name:
   streamed live to the page.
 - The dashboard's image-update detection pairs naturally with `pull` here.
 
-### File browser
-
-Each stack page has a **Files** section over the stack's directory (external/adopted projects
-included): browse, edit (with a `.bak` of every overwrite), create, rename, delete, upload,
-and download. `.env` and config files live next to the compose file — exactly where compose
-expects them — so setting secrets before the first `up` is an in-app flow. Safety rails:
-paths can't escape the stack directory (traversal *and* symlink checks), `.git` internals are
-off limits, the compose file can't be deleted or renamed and is validated on save, binary or
-huge files are download-only.
-
-### Manage projects that live anywhere (compose roots & adoption)
-
-Projects that were started outside homeport (a `docker compose up` over SSH, an old
-`~/docker/*` tree) don't have to move into the stacks dir. Mount their directory into the
-homeport container **at the same path it has on the host** — e.g.
-`-v /home/user/docker:/home/user/docker` — and:
-
-- Running compose projects whose `working_dir` is visible are **adopted automatically**:
-  edited and compose-operated in place, marked `external` in the UI. (The same-path rule
-  matters — compose resolves relative bind mounts against the file's directory, and the
-  daemon interprets those paths on the host.)
-- Add the folder under **Settings → Compose roots** (or `HOMEPORT_COMPOSE_ROOTS`, comma-
-  separated) and every subfolder with a compose file becomes a stack **even before its
-  containers exist** — create a project over SSH, then set its env and start it from
-  homeport.
-- Projects homeport can't see stay **unmanaged** — visible and controllable, with the exact
-  host path you'd need to mount shown on the stacks page.
-- External stacks can't be deleted from homeport (it won't remove files outside its own
-  stacks dir), and homeport refuses `down`/`restart` on its **own** stack (use
-  Settings → About → Update homeport instead).
-
-### Networks
-
-**/networks** lists every docker network on the host — subnets, driver, and which containers
-are attached (linked) — and removes unused ones with one click (built-ins and anything still
-referenced are refused). Each service page shows the networks its container joins. Deleting a
-stack always sweeps its leftover project networks: unused networks keep their address range
-claimed and are the classic cause of "Pool overlaps" on a later install.
-
-You can also **create networks** (name + optional subnet — validated against existing ranges
-up front, so no bare "Pool overlaps") and **attach/detach containers** per network — handy for
-letting two stacks talk to each other. Attach/detach is live but runtime-only for
-compose-managed containers: the compose file's `networks:` section wins on the next recreate,
-so declare the network there (`external: true`) to make it permanent. Subnets can't be edited
-in place (docker has no API for it) — change them in the owning compose file, or remove and
-recreate an unused network.
-
-### Storage
-
-**/storage** lists every volume and image on the host with what references it. Data that
-outlived a deleted stack or container (deletes keep volumes by default) shows up here as
-*unused* and can be removed — volumes with a hard two-step confirm (that's your data),
-images casually (worst case is a re-pull). Volume disk usage is computed on demand
-("Calculate sizes" — it walks the volume contents).
-
-### Deleting things completely
-
-Deletes are conservative by default (data outlives the container), with opt-in checkboxes for
-a full cleanup:
-
-- **Stack delete**: also delete named volumes (the stack's data), also delete its images, and
-  also remove its domains from the reverse proxy (when proxy management is enabled).
-- **Container delete** (service page danger zone): also delete anonymous volumes, its image,
-  and its proxy domains — the matching routes are shown before you confirm.
-
-### When a deploy fails on "Pool overlaps"
-
-Some upstream compose files pin a fixed subnet (`ipam: … subnet:`) that may already be taken
-on your machine — docker then fails with the famously unhelpful
-`Pool overlaps with other one on this address space`. Homeport diagnoses this: the op output
-names the conflicting network, and the stack page shows a card listing every docker network
-(subnet + how many containers use it) with one-click **removal of unused networks**, then
-retry. Pool-exhaustion errors (too many networks) get the same treatment.
-
 ![compose stack editor](docs/stacks.png)
 
 Limitations (documented, by design): stacks operate on the host `DOCKER_HOST` points at —
 local socket or `tcp://`; `ssh://` hosts aren't supported for stacks (run homeport on that
 host instead).
+
+**More in the docs** ([docs/operations.md](docs/operations.md)): the file browser · adopting
+projects started outside homeport · the **networks** and **storage** managers · complete
+deletes · **"Pool overlaps"** troubleshooting.
 
 ## History & alerts
 
