@@ -1,7 +1,8 @@
-import { writeSettings, settingsWritable, type PersistedSettings, type SettingsHost } from '../utils/settings'
+import { writeSettings, readSettings, settingsWritable, type PersistedSettings, type SettingsHost } from '../utils/settings'
+import { getSettingsView } from '../utils/config'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
-import { normalizeRegistry, type RegistryCred } from '../utils/registry-core'
+import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'custom']
@@ -32,7 +33,9 @@ function sanitizeRegistryCreds(input: unknown): RegistryCred[] {
       const raw = str(o.registry)
       return { registry: raw ? normalizeRegistry(raw) : '', username: str(o.username), token: str(o.token) }
     })
-    .filter((c) => c.registry && c.token)
+    // Keep rows with a blank token here — mergeRegistryCredSecrets() reunites them
+    // with the stored token (masked on read) or drops them if truly empty.
+    .filter((c) => c.registry)
 }
 
 function sanitizeHosts(input: unknown): SettingsHost[] {
@@ -77,6 +80,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody<PersistedSettings>(event)
   const patch: PersistedSettings = {}
+  const existing = readSettings() // for keep-existing merges of masked secrets
 
   if (body.dockerMode !== undefined) {
     if (body.dockerMode !== 'local' && body.dockerMode !== 'ssh')
@@ -105,7 +109,9 @@ export default defineEventHandler(async (event) => {
     patch.npmApiUrl = v
   }
   if (body.npmApiIdentity !== undefined) patch.npmApiIdentity = body.npmApiIdentity.trim()
-  if (body.npmApiSecret !== undefined) patch.npmApiSecret = body.npmApiSecret
+  // Secret: a blank value = keep the stored one (it was masked on read). Only a
+  // non-empty value overwrites; to clear it, unset the provider.
+  if (body.npmApiSecret !== undefined && body.npmApiSecret !== '') patch.npmApiSecret = body.npmApiSecret
   if (body.caddyAdminUrl !== undefined) {
     const v = body.caddyAdminUrl.trim()
     if (v && !/^https?:\/\//.test(v)) throw createError({ statusCode: 400, statusMessage: 'caddyAdminUrl must be http(s)://' })
@@ -115,7 +121,8 @@ export default defineEventHandler(async (event) => {
   if (body.logsEnabled !== undefined) patch.logsEnabled = !!body.logsEnabled
   if (body.updateCheckEnabled !== undefined) patch.updateCheckEnabled = !!body.updateCheckEnabled
   if (body.allowUpdates !== undefined) patch.allowUpdates = !!body.allowUpdates
-  if (body.registryCreds !== undefined) patch.registryCreds = sanitizeRegistryCreds(body.registryCreds)
+  if (body.registryCreds !== undefined)
+    patch.registryCreds = mergeRegistryCredSecrets(sanitizeRegistryCreds(body.registryCreds), existing.registryCreds ?? [])
   if (body.allowStacks !== undefined) patch.allowStacks = !!body.allowStacks
   if (body.composeRoots !== undefined) {
     if (!Array.isArray(body.composeRoots))
@@ -158,9 +165,11 @@ export default defineEventHandler(async (event) => {
 
   if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
   if (body.alertUpdates !== undefined) patch.alertUpdates = !!body.alertUpdates
-  for (const k of ['smtpHost', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpTo'] as const) {
+  for (const k of ['smtpHost', 'smtpUser', 'smtpFrom', 'smtpTo'] as const) {
     if (body[k] !== undefined) patch[k] = String(body[k] ?? '').trim()
   }
+  // smtpPass is a secret (masked on read): a blank value keeps the stored one.
+  if (body.smtpPass !== undefined && String(body.smtpPass).trim() !== '') patch.smtpPass = String(body.smtpPass).trim()
   if (body.smtpPort !== undefined) {
     const p2 = Math.floor(Number(body.smtpPort))
     if (!Number.isFinite(p2) || p2 < 1 || p2 > 65535) throw createError({ statusCode: 400, statusMessage: 'smtpPort must be 1-65535' })
@@ -195,13 +204,12 @@ export default defineEventHandler(async (event) => {
   }
   if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
 
-  let saved: PersistedSettings
   try {
-    saved = writeSettings(patch)
+    writeSettings(patch)
   } catch (e: any) {
     // Writable-check passed but the write still failed (volume flipped, disk full).
     throw createError({ statusCode: 500, statusMessage: `Could not save settings: ${e?.message || e}` })
   }
   resetDocker() // a connection change should take effect immediately
-  return { ok: true, settings: saved }
+  return { ok: true, settings: getSettingsView() } // masked view — never echo secrets back
 })

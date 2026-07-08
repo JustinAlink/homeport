@@ -1,4 +1,5 @@
 import { verifyPassword, setPassword } from '../../utils/auth'
+import { createSessionToken, SESSION_COOKIE } from '../../utils/session'
 import { getConfig } from '../../utils/config'
 
 // Change the admin password (authenticated). Requires the current password.
@@ -15,5 +16,16 @@ export default defineEventHandler(async (event) => {
   } catch (e: any) {
     throw createError({ statusCode: 400, statusMessage: e?.message || 'could not change password' })
   }
+  // setPassword() bumped the session generation, invalidating every existing
+  // cookie (including this one). Re-issue a fresh cookie so the admin who just
+  // changed their password stays logged in on this device.
+  const proto = getHeader(event, 'x-forwarded-proto') || 'http'
+  setCookie(event, SESSION_COOKIE, createSessionToken(), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: proto === 'https',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30,
+  })
   return { ok: true }
 })

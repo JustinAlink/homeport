@@ -129,6 +129,25 @@ test('composeForInstall: end-to-end on a built-in app', () => {
   assert.deepEqual(doc.services['uptime-kuma'].ports, ['3200:3001'])
 })
 
+test('built-in: Nginx Proxy Manager reverse-proxy template installs correctly', () => {
+  const { apps } = parseNativeCatalog(BUILTIN_CATALOG, 'built-in')
+  const npm = apps.find((a) => a.slug === 'nginx-proxy-manager')
+  assert.ok(npm, 'NPM template is present')
+  assert.deepEqual(npm!.categories, ['Reverse Proxy']) // normalizeCategory title-cases it
+  assert.equal(npm!.image, 'jc21/nginx-proxy-manager:latest')
+
+  const out = composeForInstall(npm!, { ADMIN_PORT: '8181' })
+  assert.ok(out.ok, 'compose generates')
+  const doc: any = parseYAML((out as any).content)
+  const svc = doc.services['nginx-proxy-manager']
+  // reverse proxy owns 80/443 on the host + the chosen admin port
+  assert.ok(svc.ports.includes('80:80') && svc.ports.includes('443:443'))
+  assert.ok(svc.ports.includes('8181:81'))
+  // must join the shared external network so homeport (and other apps) can reach it by name
+  assert.deepEqual(svc.networks, ['npm-network'])
+  assert.equal(doc.networks['npm-network'].external, true)
+})
+
 test('normalizeCategory: merges community list inconsistencies', () => {
   assert.equal(normalizeCategory('development'), 'Development')
   assert.equal(normalizeCategory('Development'), 'Development')

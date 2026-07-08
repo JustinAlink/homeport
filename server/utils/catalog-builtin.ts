@@ -9,6 +9,37 @@
 export const BUILTIN_CATALOG = {
   apps: [
     {
+      name: 'Nginx Proxy Manager',
+      description:
+        "The friendly way to put your services on real domains: a web UI for reverse-proxy routes with free Let's Encrypt HTTPS. homeport can read and manage it for you.",
+      categories: ['Reverse proxy'],
+      icon: 'nginx-proxy-manager',
+      image: 'jc21/nginx-proxy-manager:latest',
+      notes:
+        'After it starts, click “Connect it” on homeport\'s dashboard — homeport rotates the default password and turns proxy management on for you (or set it up by hand in Settings → Proxy management with admin@example.com / changeme). It joins the shared "npm-network", so homeport reaches its API at http://nginx-proxy-manager:81. Ports 80 and 443 must be free on the host.',
+      inputs: [{ name: 'ADMIN_PORT', label: 'Admin UI port', default: '81', required: true }],
+      compose: `services:
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "{{ADMIN_PORT}}:81"
+    volumes:
+      - data:/data
+      - letsencrypt:/etc/letsencrypt
+    networks:
+      - npm-network
+volumes:
+  data:
+  letsencrypt:
+networks:
+  npm-network:
+    external: true
+`,
+    },
+    {
       name: 'Uptime Kuma',
       description: 'Self-hosted uptime monitoring with status pages and notifications.',
       categories: ['Monitoring'],

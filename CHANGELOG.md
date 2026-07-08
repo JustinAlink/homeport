@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.23.0 — 2026-07-07
+
+Public-launch prep: one-command install, security hardening, and installing a
+reverse proxy from the app.
+
+- **One-command install (`install.sh`).** A fresh server now goes from nothing to
+  homeport running with a single command — it **installs Docker + the Compose
+  plugin if they're missing** (via the official get.docker.com script, with a
+  confirmation prompt), creates the shared reverse-proxy network (the classic
+  first-run failure), fetches the hardened compose setup, generates a session
+  secret, and starts it. Idempotent and safe to re-run; the script is inspectable
+  (download-then-run is documented). The compose file's placeholder proxy mount is
+  commented out by default so a first `up` just works.
+- **Install a reverse proxy from the app — and connect it in one click.** The app
+  catalog now ships **Nginx Proxy Manager** as a curated one-click install (wired
+  onto the shared network so homeport can reach its API). A getting-started card on
+  the dashboard installs it and then **auto-connects**: homeport waits for NPM to
+  come up, rotates its default password to a generated one, stores the credentials,
+  and turns proxy management on — so you can add domains immediately, no manual
+  setup. Bare box → services on real domains, entirely from the UI.
+- **First-run wizard.** After you set your admin password, a short three-step
+  wizard orients you (homeport is read-only by default), offers to install and
+  connect a reverse proxy, and lets you opt into management capabilities — then
+  drops you on the dashboard. Skippable at every step.
+- **Security hardening.** The login brute-force limiter no longer trusts a
+  spoofable `X-Forwarded-For` unless you opt in with `HOMEPORT_TRUSTED_PROXY`, and
+  a rotation-proof global ceiling backstops it; the minimum password length is now
+  10 (a short env-set password is warned about at boot). Logging out and changing
+  your password now **revoke existing sessions** (previously a cookie stayed valid
+  for its full 30-day life). A read-only data volume no longer silently disables
+  the login — it fails closed unless you set `HOMEPORT_ALLOW_OPEN=true`.
+- **Repo polish.** README badges, a table of contents, a "how it compares" table,
+  and a `.dockerignore` (keeps deps and local files out of the build context).
+
 ## v2.22.0 — 2026-07-06
 
 Error logging + clarity pass — make failures visible and every flow legible.

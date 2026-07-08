@@ -29,7 +29,8 @@ export function constantEquals(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb)
 }
 
-export const MIN_PASSWORD_LENGTH = 6
+// A publicly reachable admin login: give it a real floor, not 6.
+export const MIN_PASSWORD_LENGTH = 10
 
 // --- login rate limiting (pure state machine; the endpoint owns the Map) ---
 //
@@ -60,5 +61,35 @@ export function recordFailure(state: LoginRate | undefined, now: number): LoginR
   const fails = (fresh ? 0 : state!.fails) + 1
   const over = fails - FREE_FAILS
   const lockedUntil = over >= 0 ? now + Math.min(LOCK_BASE_MS * 2 ** over, LOCK_MAX_MS) : 0
+  return { fails, lastAt: now, lockedUntil }
+}
+
+// --- global brute-force ceiling (rotation-proof backstop) ---
+//
+// The per-key limiter above is keyed on the client IP, so an attacker who can
+// rotate the source (spoofed X-Forwarded-For when a proxy isn't trusted, a
+// botnet, etc.) lands every guess under a fresh key and never trips it. This
+// second limiter counts ALL failures in a rolling window regardless of key —
+// once GLOBAL_FREE_FAILS is exceeded it locks the whole login endpoint,
+// escalating like the per-key one. The threshold is far above any human
+// fat-fingering, so a legitimate single admin never hits it.
+
+export const GLOBAL_FREE_FAILS = 15
+export const GLOBAL_LOCK_BASE_MS = 15_000
+export const GLOBAL_LOCK_MAX_MS = 5 * 60_000
+export const GLOBAL_WINDOW_MS = 5 * 60_000
+
+/** ms until ANY login may be attempted again (0 = allowed). */
+export function globalLockRemaining(state: LoginRate | undefined, now: number): number {
+  if (!state || now - state.lastAt > GLOBAL_WINDOW_MS) return 0
+  return Math.max(0, state.lockedUntil - now)
+}
+
+/** Record a failure against the global counter and return the new state. */
+export function recordGlobalFailure(state: LoginRate | undefined, now: number): LoginRate {
+  const fresh = !state || now - state.lastAt > GLOBAL_WINDOW_MS
+  const fails = (fresh ? 0 : state!.fails) + 1
+  const over = fails - GLOBAL_FREE_FAILS
+  const lockedUntil = over >= 0 ? now + Math.min(GLOBAL_LOCK_BASE_MS * 2 ** over, GLOBAL_LOCK_MAX_MS) : 0
   return { fails, lastAt: now, lockedUntil }
 }

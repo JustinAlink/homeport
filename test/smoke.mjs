@@ -51,6 +51,7 @@ const PAGES = [
   ['/stacks/legacy-app', 'unmanaged'],
   ['/networks', 'every network claims an address range'],
   ['/storage', 'volumes and images on this host'],
+  ['/welcome', 'Welcome to homeport'],
   ['/catalog', 'app catalog'],
   ['/catalog/uptime-kuma', 'install'],
   ['/catalog/hub/jellyfin/jellyfin', 'install'],

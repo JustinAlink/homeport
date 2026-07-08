@@ -92,6 +92,24 @@ export function normalizeRegistry(input: string): string {
   return r
 }
 
+/**
+ * Keep-existing merge for masked tokens. `settings.get` masks stored tokens to '',
+ * so a save round-trips blank tokens — reuse the existing token (matched by registry,
+ * and username when the incoming cred names one) instead of wiping it. Creds still
+ * without a token after the merge are dropped (an empty row = "remove this login").
+ */
+export function mergeRegistryCredSecrets(incoming: RegistryCred[], existing: RegistryCred[]): RegistryCred[] {
+  return incoming
+    .map((c) => {
+      if (c.token) return c
+      const prior = existing.find(
+        (e) => normalizeRegistry(e.registry) === normalizeRegistry(c.registry) && (!c.username || e.username === c.username),
+      )
+      return prior?.token ? { ...c, token: prior.token } : c
+    })
+    .filter((c) => c.registry && c.token)
+}
+
 /** The dockerode authconfig for an image, or undefined when no cred matches. */
 export function authForImage(image: string, creds: RegistryCred[] | undefined): DockerAuthConfig | undefined {
   if (!creds?.length) return undefined

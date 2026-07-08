@@ -19,11 +19,13 @@ interface AuthFile {
   passwordHash?: string
   sessionSecret?: string
   authSkipped?: boolean // user chose to run without a login
+  sessionGeneration?: number // bumped to revoke all outstanding sessions
 }
 
 const file = () => join(process.env.HOMEPORT_DATA_DIR || '/data', 'auth.json')
 const envPassword = () => process.env.HOMEPORT_ADMIN_PASSWORD || ''
 const envSecret = () => process.env.HOMEPORT_SESSION_SECRET || ''
+const envAllowOpen = () => process.env.HOMEPORT_ALLOW_OPEN === 'true' || process.env.HOMEPORT_ALLOW_OPEN === '1'
 
 let cache: AuthFile | null = null
 let memorySecret = '' // fallback secret when the data dir isn't writable
@@ -58,6 +60,7 @@ export function restoreAuthFile(data: AuthFile): void {
   if (typeof data.passwordHash === 'string') next.passwordHash = data.passwordHash
   if (typeof data.sessionSecret === 'string') next.sessionSecret = data.sessionSecret
   if (typeof data.authSkipped === 'boolean') next.authSkipped = data.authSkipped
+  if (typeof data.sessionGeneration === 'number') next.sessionGeneration = data.sessionGeneration
   const dir = process.env.HOMEPORT_DATA_DIR || '/data'
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(file(), JSON.stringify(next, null, 2), { mode: 0o600 })
@@ -81,7 +84,10 @@ export function setPassword(plain: string): void {
   if (envPassword()) throw new Error('password is set via HOMEPORT_ADMIN_PASSWORD (env) — change it there')
   if (!plain || plain.length < MIN_PASSWORD_LENGTH) throw new Error(`password must be at least ${MIN_PASSWORD_LENGTH} characters`)
   if (!settingsWritable()) throw new Error('cannot save: the data volume is not writable')
-  write({ passwordHash: hashPassword(plain), authSkipped: false })
+  // Bump the session generation so any cookie issued under the old password stops
+  // validating — a password change is the natural "I might be compromised" response.
+  const gen = (read().sessionGeneration || 0) + 1
+  write({ passwordHash: hashPassword(plain), authSkipped: false, sessionGeneration: gen })
 }
 
 /** Record that the user chose to run without a login. */
@@ -89,16 +95,39 @@ export function skipAuth(): void {
   if (settingsWritable()) write({ authSkipped: true })
 }
 
+/** Current session generation — mixed into every token so it can be revoked. */
+export function currentGeneration(): number {
+  return read().sessionGeneration || 0
+}
+
+/** Invalidate ALL outstanding session tokens (logout-everywhere / password change). */
+export function bumpGeneration(): number {
+  const next = (read().sessionGeneration || 0) + 1
+  if (settingsWritable()) {
+    write({ sessionGeneration: next })
+  } else {
+    // read-only volume: hold it in memory so it still revokes within this process
+    cache = { ...read(), sessionGeneration: next }
+  }
+  return next
+}
+
 export type AuthMode = 'enforced' | 'setup' | 'open'
 
 /**
  * - enforced: a password is configured → a valid session is required.
- * - setup:    no password, data dir writable, not skipped → force first-run setup.
- * - open:     no password and (skipped OR read-only volume) → no auth (with a warning).
+ * - open:     no password AND the operator explicitly opted out of auth
+ *             (chose "skip" in first-run setup, or set HOMEPORT_ALLOW_OPEN).
+ * - setup:    no password and no explicit opt-out → force first-run setup.
+ *
+ * Fail-closed: a read-only data volume (can't persist a password) no longer
+ * silently drops to open mode — it stays in `setup`, which keeps the API 401'd
+ * until the operator sets HOMEPORT_ADMIN_PASSWORD, fixes the volume, or opts in
+ * with HOMEPORT_ALLOW_OPEN=true.
  */
 export function authMode(): AuthMode {
   if (hasPassword()) return 'enforced'
-  if (read().authSkipped || !settingsWritable()) return 'open'
+  if (read().authSkipped || envAllowOpen()) return 'open'
   return 'setup'
 }
 

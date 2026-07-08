@@ -32,6 +32,55 @@
       <code>HOMEPORT_ADMIN_PASSWORD</code> and put it behind HTTPS.
     </div>
 
+    <div
+      v-if="showGettingStarted"
+      class="mb-6 overflow-hidden rounded-xl border border-accent/20 bg-accent/[0.04] p-4"
+    >
+      <div class="flex items-start gap-3.5">
+        <div class="mt-0.5 hidden rounded-lg border border-accent/25 bg-accent/10 p-2 text-accent-light sm:block">
+          <Icon name="globe" class="h-5 w-5" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-slate-100">Put your services on real domains</h2>
+          <p class="mt-1 text-[13px] leading-relaxed text-slate-400">
+            homeport maps each container to its URL by reading your reverse proxy — and it can install one for
+            you. No proxy yet? <strong class="font-medium text-slate-300">Nginx Proxy Manager</strong> is the
+            friendly default, with free HTTPS built in.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <NuxtLink
+              to="/catalog/nginx-proxy-manager"
+              class="rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-[13px] font-medium text-accent-light transition-colors hover:bg-accent/20"
+            >Install a reverse proxy</NuxtLink>
+            <button
+              :disabled="connecting"
+              class="rounded-lg border border-white/10 px-3 py-1.5 text-[13px] text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-60"
+              @click="connectProxy"
+            >{{ connecting ? 'Connecting…' : 'Already installed NPM? Connect it' }}</button>
+            <NuxtLink
+              to="/catalog"
+              class="rounded-lg border border-white/10 px-3 py-1.5 text-[13px] text-slate-300 transition-colors hover:bg-white/5"
+            >Browse apps</NuxtLink>
+          </div>
+          <div
+            v-if="connectMsg"
+            class="mt-3 rounded-md border p-2.5 text-[12px] leading-relaxed"
+            :class="connectOk ? 'border-ok/25 bg-ok/5 text-emerald-300' : 'border-amber-500/25 bg-amber-500/5 text-amber-300'"
+          >
+            {{ connectMsg }}
+            <div v-if="connectSecret" class="mt-1.5 select-all rounded bg-black/30 px-2 py-1 font-mono text-[12px] text-slate-100">
+              admin@example.com&nbsp;·&nbsp;{{ connectSecret }}
+            </div>
+          </div>
+        </div>
+        <button
+          class="shrink-0 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300"
+          title="Dismiss"
+          @click="dismissGettingStarted"
+        ><Icon name="x" class="h-4 w-4" /></button>
+      </div>
+    </div>
+
     <ResourceBar v-if="data && fleet" :fleet="fleet" :running="data.stats.running" :total="data.stats.total" class="mb-6" />
 
     <div v-if="showGraph" class="mb-7">
@@ -132,6 +181,53 @@ const { caps } = useCapabilities()
 const q = ref('')
 const hostFilter = ref('')
 
+// Onboarding nudge: no reverse proxy detected yet → offer to install one.
+// Dismissible; hidden in demo and once a provider is mapping domains.
+const gsDismissed = ref(false)
+const showGettingStarted = computed(
+  () => !!data.value && !data.value.domainProvider && !caps.value.demo && !gsDismissed.value,
+)
+function dismissGettingStarted() {
+  gsDismissed.value = true
+  if (import.meta.client) localStorage.setItem('hp:gs', '0')
+}
+
+// One-click connect: auto-configure a homeport-installed Nginx Proxy Manager
+// (rotate its default password) and turn proxy management on.
+const connecting = ref(false)
+const connectMsg = ref('')
+const connectSecret = ref('')
+const connectOk = ref(false)
+async function connectProxy() {
+  connecting.value = true
+  connectMsg.value = ''
+  connectSecret.value = ''
+  try {
+    const r = await $fetch<{ ok: boolean; secret?: string; notReady?: boolean; alreadyConfigured?: boolean; error?: string }>(
+      '/api/proxy/bootstrap',
+      { method: 'POST', body: {} },
+    )
+    if (r.ok) {
+      connectOk.value = true
+      connectSecret.value = r.secret || ''
+      connectMsg.value = r.secret
+        ? 'Connected — proxy management is on. Save this NPM login (you can sign into NPM directly with it):'
+        : 'Connected — proxy management is on.'
+      setTimeout(refresh, 1500) // provider now set → the card falls away
+    } else if (r.notReady) {
+      connectMsg.value = "Nginx Proxy Manager isn't reachable yet — give it a few seconds after installing, then try again."
+    } else if (r.alreadyConfigured) {
+      connectMsg.value = 'NPM is already set up. Add its email + password in Settings → Proxy management to connect.'
+    } else {
+      connectMsg.value = r.error || 'Could not connect to Nginx Proxy Manager.'
+    }
+  } catch (e: any) {
+    connectMsg.value = errMsg(e, 'Could not connect to Nginx Proxy Manager')
+  } finally {
+    connecting.value = false
+  }
+}
+
 const hosts = computed(() => data.value?.hosts ?? [])
 const multiHost = computed(() => hosts.value.length > 1)
 
@@ -147,6 +243,7 @@ onMounted(() => {
   useCapabilities().load()
   useUpdates().refresh()
   if (localStorage.getItem('hp:graph') === '0') showGraph.value = false
+  if (localStorage.getItem('hp:gs') === '0') gsDismissed.value = true
 })
 onBeforeUnmount(() => {
   stop()

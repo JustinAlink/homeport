@@ -1,0 +1,30 @@
+# Build context hygiene. The Dockerfile does `COPY . .` in the builder stage,
+# so anything not excluded here is shipped into the build context (and the
+# builder layer). Keep deps, artifacts, secrets and local files out.
+
+# Deps & build artifacts — reinstalled/rebuilt inside the image
+node_modules
+.nuxt
+.output
+dist
+
+# VCS & CI metadata
+.git
+.gitignore
+.github
+
+# Secrets & private/local files — never send these into the build context
+.env
+*.env.local
+CONTEXT.md
+.claude
+.data
+fixtures/npm-live
+
+# Not needed to build the runtime
+test
+docs
+
+# OS cruft
+.DS_Store
+Thumbs.db

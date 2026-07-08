@@ -338,7 +338,12 @@ export function getEnvLocks() {
 }
 
 /** Current persisted (UI) settings with sensible defaults filled in. */
-export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'>> & PersistedSettings {
+export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
+  dockerMode: 'local' | 'ssh'
+  npmApiSecretSet: boolean
+  smtpPassSet: boolean
+  registryCreds: { registry: string; username: string; token: string; tokenSet: boolean }[]
+} {
   const s = readSettings()
   return {
     dockerMode: s.dockerMode || 'local',
@@ -352,13 +357,16 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     traefikFilePath: s.traefikFilePath || '',
     npmApiUrl: s.npmApiUrl || '',
     npmApiIdentity: s.npmApiIdentity || '',
-    npmApiSecret: s.npmApiSecret || '',
+    // Secrets are masked out of the view (never sent to the browser). A companion
+    // `…Set` flag tells the UI whether one is stored; a blank value on save = keep.
+    npmApiSecret: '',
+    npmApiSecretSet: !!s.npmApiSecret,
     caddyAdminUrl: s.caddyAdminUrl || '',
     allowControl: !!s.allowControl,
     logsEnabled: s.logsEnabled ?? true,
     updateCheckEnabled: !!s.updateCheckEnabled,
     allowUpdates: !!s.allowUpdates,
-    registryCreds: settingsRegistryCreds(s),
+    registryCreds: settingsRegistryCreds(s).map((c) => ({ registry: c.registry, username: c.username, token: '', tokenSet: !!c.token })),
     allowStacks: !!s.allowStacks,
     composeRoots: s.composeRoots ?? [],
     catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
@@ -379,7 +387,8 @@ export function getSettingsView(): Required<Pick<PersistedSettings, 'dockerMode'
     smtpPort: s.smtpPort ?? 587,
     smtpSecure: s.smtpSecure ?? false,
     smtpUser: s.smtpUser ?? '',
-    smtpPass: s.smtpPass ?? '',
+    smtpPass: '',
+    smtpPassSet: !!s.smtpPass,
     smtpFrom: s.smtpFrom ?? '',
     smtpTo: s.smtpTo ?? '',
     alertTransitions: {

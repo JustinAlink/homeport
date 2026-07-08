@@ -41,8 +41,14 @@ export default defineNitroPlugin(() => {
   log.info('startup', `collector: every ${cfg.collectorInterval}s · history ${cfg.historyEnabled ? 'on' : 'off'}`)
   log.info('startup', `capabilities on: ${caps.length ? caps.join(', ') : 'none (read-only)'}`)
 
-  if (mode === 'open' && writable) {
-    log.warn('startup', 'running without a login — anyone who can reach this URL has full access')
+  if (mode === 'open') {
+    log.warn('startup', 'running WITHOUT a login (open mode) — anyone who can reach this URL has full access. Set HOMEPORT_ADMIN_PASSWORD to require a password.')
+  }
+
+  // A short env-set admin password can't be caught by the in-app length check.
+  const envPw = process.env.HOMEPORT_ADMIN_PASSWORD
+  if (envPw && envPw.length < 10) {
+    log.warn('startup', `HOMEPORT_ADMIN_PASSWORD is short (${envPw.length} chars) — use 12+ for an internet-reachable admin login`)
   }
 })
 

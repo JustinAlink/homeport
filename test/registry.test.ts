@@ -3,8 +3,49 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, mergeRegistryCredSecrets } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
+
+// ---- mergeRegistryCredSecrets (masked-token keep-existing on save) ----
+
+test('mergeRegistryCredSecrets: blank token reuses the stored one (no wipe)', () => {
+  const existing = [{ registry: 'ghcr.io', username: 'me', token: 'ghp_real' }]
+  const incoming = [{ registry: 'ghcr.io', username: 'me', token: '' }] // masked on read
+  const out = mergeRegistryCredSecrets(incoming, existing)
+  assert.deepEqual(out, [{ registry: 'ghcr.io', username: 'me', token: 'ghp_real' }])
+})
+
+test('mergeRegistryCredSecrets: a freshly typed token overrides the stored one', () => {
+  const existing = [{ registry: 'ghcr.io', username: 'me', token: 'old' }]
+  const incoming = [{ registry: 'ghcr.io', username: 'me', token: 'new' }]
+  assert.equal(mergeRegistryCredSecrets(incoming, existing)[0].token, 'new')
+})
+
+test('mergeRegistryCredSecrets: a blank token with no stored match is dropped', () => {
+  const out = mergeRegistryCredSecrets(
+    [{ registry: 'ghcr.io', username: 'me', token: '' }],
+    [{ registry: 'docker.io', username: 'x', token: 't' }],
+  )
+  assert.deepEqual(out, []) // an empty row = "remove this login"
+})
+
+test('mergeRegistryCredSecrets: matches by normalized registry across docker.io aliases', () => {
+  const existing = [{ registry: 'docker.io', username: 'u', token: 'dtok' }]
+  const incoming = [{ registry: 'index.docker.io', username: 'u', token: '' }]
+  assert.equal(mergeRegistryCredSecrets(incoming, existing)[0]?.token, 'dtok')
+})
+
+test('mergeRegistryCredSecrets: keeps new + existing together', () => {
+  const existing = [{ registry: 'ghcr.io', username: 'me', token: 'keep' }]
+  const incoming = [
+    { registry: 'ghcr.io', username: 'me', token: '' }, // keep existing
+    { registry: 'docker.io', username: 'you', token: 'brand-new' }, // add
+  ]
+  const out = mergeRegistryCredSecrets(incoming, existing)
+  assert.equal(out.length, 2)
+  assert.equal(out.find((c) => c.registry === 'ghcr.io')?.token, 'keep')
+  assert.equal(out.find((c) => c.registry === 'docker.io')?.token, 'brand-new')
+})
 
 const dir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
 

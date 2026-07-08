@@ -196,7 +196,7 @@
           <p v-if="locked.npmApiUrl" class="text-xs text-slate-500">Set by <code>HOMEPORT_NPM_API_URL</code> — locked.</p>
           <input v-model="form.npmApiUrl" :class="fieldCls" placeholder="NPM API URL (e.g. http://npm:81)" />
           <input v-model="form.npmApiIdentity" :class="fieldCls" placeholder="NPM email / identity" />
-          <input v-model="form.npmApiSecret" type="password" :class="fieldCls" placeholder="NPM password" />
+          <input v-model="form.npmApiSecret" type="password" :class="fieldCls" :placeholder="npmApiSecretSet ? '•••••• stored — leave blank to keep' : 'NPM password'" autocomplete="new-password" />
         </div>
         <div v-if="form.domainProvider === 'caddy'" class="space-y-2">
           <input v-model="form.caddyAdminUrl" :class="fieldCls" placeholder="Caddy admin API (e.g. http://caddy:2019)" />
@@ -496,7 +496,7 @@
                 </label>
               </div>
               <input v-model="form.smtpUser" :class="fieldCls" placeholder="username (optional)" autocomplete="off" />
-              <input v-model="form.smtpPass" type="password" :class="fieldCls" placeholder="password (optional)" autocomplete="new-password" />
+              <input v-model="form.smtpPass" type="password" :class="fieldCls" :placeholder="smtpPassSet ? '•••••• stored — leave blank to keep' : 'password (optional)'" autocomplete="new-password" />
               <input v-model="form.smtpFrom" :class="fieldCls" placeholder="from — homeport@example.com" />
               <input v-model="form.smtpTo" :class="fieldCls" placeholder="to — you@example.com (comma for more)" />
             </div>
@@ -562,7 +562,7 @@
           <div v-for="(c, i) in form.registryCreds" :key="i" class="flex flex-wrap items-center gap-2">
             <input v-model="c.registry" :class="[fieldCls, 'min-w-[9rem] flex-1']" placeholder="registry host (e.g. ghcr.io)" />
             <input v-model="c.username" :class="[fieldCls, 'min-w-[8rem] flex-1']" placeholder="username" autocomplete="off" />
-            <input v-model="c.token" type="password" :class="[fieldCls, 'min-w-[10rem] flex-1']" placeholder="token / password" autocomplete="new-password" />
+            <input v-model="c.token" type="password" :class="[fieldCls, 'min-w-[10rem] flex-1']" :placeholder="c.tokenSet ? '•••••• stored — blank keeps it' : 'token / password'" autocomplete="new-password" />
             <button
               type="button"
               class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
@@ -681,6 +681,8 @@ const fieldCls =
 
 const loaded = ref(false)
 const writable = ref(true)
+const npmApiSecretSet = ref(false) // a secret is stored server-side (masked); blank on save = keep
+const smtpPassSet = ref(false)
 const locked = ref<Record<string, boolean>>({})
 const busy = ref(false)
 const msg = ref('')
@@ -884,6 +886,7 @@ interface RegistryCredRow {
   registry: string
   username: string
   token: string
+  tokenSet?: boolean // a token is stored (masked); blank on save = keep it
 }
 
 function addChannel() {
@@ -1120,9 +1123,12 @@ onMounted(async () => {
       registry: c.registry ?? '',
       username: c.username ?? '',
       token: c.token ?? '',
+      tokenSet: !!c.tokenSet,
     }))
     locked.value = r.locked
     writable.value = r.writable
+    npmApiSecretSet.value = !!r.settings.npmApiSecretSet
+    smtpPassSet.value = !!r.settings.smtpPassSet
   } catch (e: any) {
     if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
   } finally {

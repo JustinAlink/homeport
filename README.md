@@ -4,9 +4,16 @@
 
 **A zero-config status hub for your self-hosted Docker fleet.**
 
+[![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JustinAlink/homeport?sort=semver&color=2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 Point it at your Docker socket and your reverse proxy — it builds the dashboard for you.
 No tiles to configure: every container shows up automatically, with its status and the
 domain that points to it.
+
+[Quick start](#quick-start) · [Features](#why-homeport) · [Compare](#how-it-compares) · [Security](#security)
 
 </div>
 
@@ -15,34 +22,75 @@ domain that points to it.
 > Want to see it before wiring up Docker? Run it with `HOMEPORT_DEMO=true` for a
 > synthetic fleet (the screenshot above is demo mode).
 
-## Why
+<details>
+<summary><b>Table of contents</b></summary>
 
-If you self-host, you already know what's running — it's just scattered across `docker ps`,
-your reverse-proxy UI, and a dashboard you have to hand-edit every time you add a service.
-homeport reads it all live:
+- [Why homeport?](#why-homeport)
+- [How it compares](#how-it-compares)
+- [Quick start](#quick-start)
+- [Get your first service online](#get-your-first-service-online)
+- [Configuration](#configuration)
+- [Reverse-proxy support](#reverse-proxy-support)
+- [Watch multiple hosts](#watch-multiple-hosts)
+- [Manage domains (proxy admin)](#manage-domains-proxy-admin)
+- [Compose stacks](#compose-stacks)
+- [History & alerts](#history--alerts)
+- [Updates & auto-update](#updates--auto-update)
+- [Security](#security)
+- [App catalog](#app-catalog)
+- [Git-backed stacks](#git-backed-stacks)
+- [Backup & restore](#backup--restore)
+- [Support](#support)
+- [License](#license)
 
-- **Auto-discovers** every container (no manual config) — name, image, status, health, ports.
-- **Auto-maps domains** from your reverse proxy. It knows `webapp → app.example.com`
-  because it reads the proxy config — you don't tell it anything.
-- **Live** — updates the moment a container starts, stops, or goes unhealthy (Docker events).
-- **Uptime** — optionally HTTP-pings each mapped domain (up / down / latency dot).
-- **systemd** — optionally shows host systemd services alongside containers.
-- **Resource stats** — live CPU + memory per container with **sparklines** (click through to the service page's full CPU/RAM graph), per-stack totals, a **resource-widget header** (CPU/RAM/running/cores), and a toggleable **fleet graph** with hover tooltips and a 1h/6h/24h history range — including **whole-machine CPU/RAM** (containers vs. everything else), read straight from procfs with no extra mounts.
-- **Alerts** — optional notifications when a service goes down / unhealthy (and recovers), with anti-flap debounce, webhook channels (Discord / Slack / ntfy / custom) **and an email (SMTP) channel** — plus optional **update-available notifications**.
-- **Service pages** — every container gets a dedicated page: overview + graphs, live **logs**, a **web terminal**, an **environment editor** (edit vars, recreate in place — secrets are write-only), one-click **image updates** (registry digest checks without pulling), and an **add-domain** form.
-- **Updates view** — one page listing every container with a newer image, grouped by stack: *Pull & up* for managed stacks, one-click recreate for the rest — and opt-in **scheduled automatic updates** (daily, per stack/container, results to your alert channels).
-- **Proxy management** (opt-in) — create/edit/remove reverse-proxy routes from the UI: Nginx Proxy Manager (REST API), Caddy (admin API), or Traefik (dynamic file).
-- **Compose stacks** (opt-in) — point homeport at your compose directory and manage stacks Dockge-style: edit the YAML in the browser (validated before it lands), deploy / down / restart / pull with live streamed output.
-- **App catalog** — browse curated + community templates (Portainer `templates.json` compatible) and one-click install them as compose stacks, with a guided form for ports, paths and passwords — plus **Docker Hub and GitHub tabs** that open on a recommended list, search as you type, and **auto-dockerize** anything: any Hub image becomes a compose stack from its own declared ports/volumes, and any repo deploys as a git-backed stack (its compose file, or one generated from its Dockerfile).
-- **Git-backed stacks** — deploy a stack straight from a GitHub/Gitea/GitLab repo and update it with one click when the repo moves (fetch → reset → rebuild → redeploy, streamed live). Private repos use a per-stack access token, stored server-side only.
-- **Real app logos** (from the [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) CDN, monogram fallback).
-- **Grouped by stack** (Docker Compose project) as cards — collapsible, searchable, dark by default.
-- **Optional lifecycle controls** (off by default — read-only unless you opt in): start/stop/restart, recreate-in-place, and delete (containers and whole stacks).
-- **Backup & restore** — download everything homeport persists as one JSON file, restore it on a fresh install.
-- **In-app settings page** — pick your reverse proxy, set the Docker connection (local or remote-over-SSH, with host-key pinning), add/remove extra hosts, and toggle controls, uptime, systemd, and remote logos — all without editing env. (Env vars still win when set.)
+</details>
 
-It's a *status hub first*: read-only out of the box, with management — controls, logs,
-terminal, updates, stacks — unlocked per capability when **you** opt in (see Security).
+## Why homeport?
+
+If you self-host, you already know what's running — it's just scattered across `docker ps`, your
+reverse-proxy admin, and a dashboard you hand-edit every time you add a service. homeport reads it
+all live and builds the page for you. **Zero tiles to configure.**
+
+### 🔎 Discover & monitor
+- **Auto-discovery** — every container appears on its own: name, image, status, health, ports.
+- **Automatic domains** — homeport reads your reverse proxy, so it already knows `webapp → app.example.com`.
+- **Live** — updates the instant a container starts, stops, or goes unhealthy (Docker events, not polling).
+- **Graphs & uptime** — per-container CPU/RAM sparklines, per-stack totals, and a fleet graph with a 1h/6h/24h range (containers vs. whole-machine, straight from procfs) — plus optional up/down pings.
+- **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, custom webhooks, or email, with anti-flap debounce.
+
+### 🛠️ Manage — opt-in, only what you enable
+- **A page per container** — live logs, a **web terminal**, an **env editor** (secrets stay write-only), and one-click **image updates**.
+- **Lifecycle controls** — start / stop / restart / recreate / delete (off by default).
+- **Compose stacks** — edit the YAML in the browser (validated before it lands) and deploy / down / restart / pull with output streamed live.
+- **Updates in one place** — every outdated image grouped by stack, with opt-in scheduled auto-updates.
+
+### 🌐 Domains, proxy & apps
+- **Proxy management** — create / edit / remove routes from the UI (Nginx Proxy Manager, Caddy, or Traefik).
+- **App catalog** — one-click install curated + Portainer-compatible templates, plus **Docker Hub & GitHub** tabs that auto-dockerize any image or repo — including [a reverse proxy itself](#get-your-first-service-online).
+- **Git-backed stacks** — deploy straight from a repo and update with one click when it moves.
+
+_Plus real app logos, systemd services, multi-host aggregation, backup & restore, and an in-app settings page for all of it._
+
+**Read-only out of the box** — every capability that writes is a separate opt-in you control. See [Security](#security).
+
+## How it compares
+
+Most self-hosted dashboards make you choose between *seeing* your fleet and *managing* it.
+homeport is the overlap — it discovers everything on its own, reads your reverse proxy so it
+already knows your domains, and stays read-only until you decide to turn management on.
+
+| | **homeport** | Portainer | Dockge | Homepage / Dashy |
+|---|---|---|---|---|
+| Setup | **Zero-config** — auto-discovers every container | Manual | Point at compose dirs | Hand-write a tile per service |
+| First job | Status hub (read-only by default) | Full management console | Compose editor | Static launcher |
+| Domain mapping | **Automatic** — reads NPM / Caddy / Traefik / Nginx | — | — | Manual links |
+| Live updates | Docker events (instant) | Polling | — | — |
+| Management | **Opt-in, tiered** (controls · updates · stacks · terminal) | Always on | Compose ops | None |
+| Compose stacks | ✅ edit + deploy in-browser | limited | ✅ (its focus) | — |
+| Reverse-proxy admin | ✅ create/edit routes from the UI | — | — | — |
+
+Coming from one of those? homeport isn't a replacement for a full container platform — it's the
+"what's running, is it up, and what's its URL" layer that stays out of your way until you need more.
 
 Every container has its own page — overview, logs, terminal, domains, and updates:
 
@@ -58,7 +106,24 @@ docker run --rm -p 3004:3000 -e HOMEPORT_DEMO=true -e HOMEPORT_ADMIN_PASSWORD=de
 # open http://localhost:3004  ·  log in with "demo"
 ```
 
-**Run it for real** — one command, Docker socket mounted read-only:
+**Install on a server — one command** (recommended). Installs Docker if it's missing,
+creates the reverse-proxy network, fetches the hardened compose setup (read-only Docker
+socket proxy), generates a session secret, and starts it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JustinAlink/homeport/main/install.sh | sh
+# → open http://<your-server>:3004 and create your admin password
+```
+
+Rather read the script before running it (a good habit for any `curl | sh`)?
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/JustinAlink/homeport/main/install.sh
+less install.sh        # inspect it
+sh install.sh
+```
+
+**Simplest — just point it at Docker** (raw socket, mounted read-only, no proxy):
 
 ```bash
 docker run -d --name homeport -p 3004:3000 \
@@ -72,19 +137,41 @@ No env vars required: on first visit homeport walks you through **setting an adm
 password** (and generates a session secret for you). Prefer headless? Set
 `HOMEPORT_ADMIN_PASSWORD` instead and skip the setup screen.
 
-**Hardened (recommended for a server)** — Docker socket behind a read-only proxy + domain
-mapping. Grab [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example):
+<details>
+<summary><b>Set it up by hand</b> — what <code>install.sh</code> automates</summary>
 
 ```bash
+docker network create npm-network        # shared reverse-proxy network (compose needs it)
 curl -O https://raw.githubusercontent.com/JustinAlink/homeport/main/docker-compose.yml
 curl -o .env https://raw.githubusercontent.com/JustinAlink/homeport/main/.env.example
-# edit .env: set HOMEPORT_ADMIN_PASSWORD + HOMEPORT_SESSION_SECRET (+ your NPM path)
+# (optional) edit .env — it runs fine on defaults; the session secret is auto-generated
 docker compose up -d
 ```
 
 The compose file pulls the official image and runs homeport against a
 `tecnativa/docker-socket-proxy` (read-only Docker API — the app never gets the raw socket).
-Put it behind your reverse proxy with a real domain + HTTPS once it's up.
+
+</details>
+
+Once it's up, put it behind your reverse proxy with a real domain + HTTPS —
+see **[Get your first service online](#get-your-first-service-online)**.
+
+### Get your first service online
+
+homeport *shows* what's running; a **reverse proxy** is what puts it on a real domain with
+HTTPS. On a fresh box the flow is:
+
+1. **Point a domain at your server** — a DNS `A` record like `home.example.com → your.server.ip`.
+   A wildcard `*.example.com` lets every service get its own subdomain.
+2. **Run a reverse proxy.** [Nginx Proxy Manager](https://nginxproxymanager.com) is the friendly
+   default (it handles Let's Encrypt HTTPS for you). Don't have one yet? Install it straight from
+   homeport's **[App catalog](#app-catalog)** (Docker Hub → *nginx-proxy-manager*), or bring your own
+   (Caddy / Traefik / plain Nginx all work). Then point homeport at it (`NPM_HOST_CONF_DIR`) so it
+   reads your domains automatically.
+3. **Add a route** — forward `home.example.com` → `homeport:3000`. With **[proxy management](#manage-domains-proxy-admin)**
+   enabled you can do this from homeport's own *Add domain* button, no proxy UI needed.
+
+That's it — homeport now shows each service with its live domain and an up/down dot.
 
 ### Build & publish your own image (no CI required)
 
@@ -444,6 +531,12 @@ those in git (or use git-backed stacks and they already are).
 
 - More reverse-proxy providers (the `DomainProvider` interface keeps these small — PRs welcome)
 - Have an idea? [Open an issue](../../issues) — small, focused features fit this project best.
+
+## Support
+
+homeport is free and GPL-3.0, built and maintained by one person over many evenings. If it
+saves you time, a coffee will be much appreciated _(donation link goes live with the public
+launch)_ — and a ⭐ on the repo already helps others find it. Thank you!
 
 ## License
 

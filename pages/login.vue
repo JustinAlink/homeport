@@ -9,6 +9,11 @@
 
       <!-- first-run setup -->
       <form v-if="needsSetup" class="space-y-3" @submit.prevent="doSetup">
+        <div v-if="!writable" class="rounded-md border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-300">
+          The data volume is read-only, so a password can't be saved here. Set
+          <code>HOMEPORT_ADMIN_PASSWORD</code> (env) or fix the volume mount — or set
+          <code>HOMEPORT_ALLOW_OPEN=true</code> to run without a login.
+        </div>
         <input
           v-model="password"
           type="password"
@@ -22,6 +27,7 @@
           placeholder="Confirm password"
           class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
         />
+        <p class="text-[11px] text-slate-500">Use at least {{ minLen }} characters — this login guards your whole fleet.</p>
         <button
           type="submit"
           :disabled="busy"
@@ -61,12 +67,16 @@ const confirm = ref('')
 const err = ref('')
 const busy = ref(false)
 const needsSetup = ref(false)
+const writable = ref(true)
+const minLen = ref(10)
 
 onMounted(async () => {
   try {
-    const s = await $fetch<{ needsSetup: boolean; open: boolean }>('/api/setup')
+    const s = await $fetch<{ needsSetup: boolean; open: boolean; writable?: boolean; minPasswordLength?: number }>('/api/setup')
     if (s.open) return navigateTo('/') // no auth → straight in
     needsSetup.value = s.needsSetup
+    if (typeof s.writable === 'boolean') writable.value = s.writable
+    if (typeof s.minPasswordLength === 'number') minLen.value = s.minPasswordLength
   } catch {
     // fall back to the sign-in form
   }
@@ -86,6 +96,10 @@ async function submit() {
 }
 
 async function doSetup() {
+  if (password.value.length < minLen.value) {
+    err.value = `Password must be at least ${minLen.value} characters`
+    return
+  }
   if (password.value !== confirm.value) {
     err.value = 'Passwords do not match'
     return
@@ -94,7 +108,7 @@ async function doSetup() {
   err.value = ''
   try {
     await $fetch('/api/setup', { method: 'POST', body: { password: password.value } })
-    await navigateTo('/')
+    await navigateTo('/welcome') // first-run wizard
   } catch (e: any) {
     err.value = errMsg(e, 'Setup failed')
   } finally {

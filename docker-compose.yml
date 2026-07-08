@@ -1,7 +1,13 @@
 # Production — pulls the prebuilt image from GHCR (built by GitHub Actions).
 # Local build instead:  docker compose -f docker-compose.build.yml up -d --build
 #
-# Copy .env.example -> .env and fill it in before running.
+# Easiest setup (does everything below for you):
+#   curl -fsSL https://raw.githubusercontent.com/JustinAlink/homeport/main/install.sh | sh
+#
+# Manual setup:
+#   1. docker network create npm-network        # the shared reverse-proxy network (required)
+#   2. cp .env.example .env  &&  edit it
+#   3. docker compose up -d
 
 services:
   homeport:
@@ -14,14 +20,16 @@ services:
       HOMEPORT_SESSION_SECRET: ${HOMEPORT_SESSION_SECRET:-}
       # Talk to Docker via the read-only socket proxy below (never the raw socket).
       DOCKER_HOST: tcp://docker-socket-proxy:2375
-      # In-container path where the NPM confs are mounted (see volume below).
-      NPM_CONF_DIR: /npm
       # Where the settings page persists its config.
       HOMEPORT_DATA_DIR: /data
+      # Domain mapping from Nginx Proxy Manager (optional): set NPM_HOST_CONF_DIR
+      # in .env and uncomment this + the matching volume below.
+      # NPM_CONF_DIR: /npm
     volumes:
       - homeport-data:/data
-      # Reverse-proxy domain mapping: mount your NPM proxy-host confs read-only.
-      - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
+      # Reverse-proxy domain mapping (optional): point NPM_HOST_CONF_DIR (in .env) at your
+      # Nginx Proxy Manager proxy-host confs, then uncomment this line + NPM_CONF_DIR above.
+      # - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
       # Stack manager (HOMEPORT_ALLOW_STACKS=true): mount your compose dir.
       # Each subdirectory containing a compose.yaml is a stack.
       # - /opt/stacks:/stacks
