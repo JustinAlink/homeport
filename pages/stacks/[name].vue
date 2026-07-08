@@ -39,7 +39,7 @@
           ><Icon name="square" class="h-3.5 w-3.5" /> {{ bulkBusy === 'stop' ? 'Stopping…' : 'Stop all' }}</button>
         </template>
       </div>
-      <div v-else class="ml-auto flex items-center gap-2">
+      <div v-else-if="caps.control" class="ml-auto flex items-center gap-2">
         <button
           v-if="gitInfo"
           :disabled="opRunning"
@@ -82,7 +82,7 @@
           <input v-model="del.images" type="checkbox" class="h-3 w-3" />
           also delete its images (re-downloaded on a future install)
         </label>
-        <label v-if="caps.proxyAdmin" class="flex items-center gap-2">
+        <label v-if="caps.proxyAdmin && !caps.viewer" class="flex items-center gap-2">
           <input v-model="del.proxyRoutes" type="checkbox" class="h-3 w-3" />
           also remove its domains from the reverse proxy
         </label>
@@ -155,10 +155,12 @@
       <div ref="editorEl" class="max-h-[55vh] min-h-[16rem] overflow-auto text-[13px]" />
       <div class="flex items-center gap-3 border-t border-white/5 px-3 py-2">
         <button
+          v-if="caps.control"
           :disabled="saving || !dirty"
           class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
           @click="save"
         >{{ saving ? 'Saving…' : 'Save' }}</button>
+        <span v-else class="text-[11px] text-slate-600">read-only account — changes can't be saved</span>
         <span v-if="dirty" class="text-[11px] text-amber-300/80">unsaved changes</span>
         <span v-if="saveMsg" class="whitespace-pre-line text-[11px]" :class="saveOk ? 'text-accent-light' : 'text-red-400'">{{ saveMsg }}</span>
       </div>
@@ -214,7 +216,7 @@
     </div>
 
     <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" :stack="name" :compose-file="file" class="mt-6" />
+    <StackFiles v-if="!notManaged && !isNew" :stack="name" :compose-file="file" :read-only="!caps.control" class="mt-6" />
 
     <!-- services in this stack (compose project) -->
     <section v-if="rows.length" class="mt-6">
@@ -368,6 +370,7 @@ async function setupEditor(content: string) {
       EditorView.updateListener.of((u: any) => {
         if (u.docChanged) dirty.value = view.state.doc.toString() !== savedContent
       }),
+      EditorView.editable.of(caps.value.control),
       EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
     ],
   })

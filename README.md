@@ -94,12 +94,13 @@ status-and-domains layer on top, and it stays out of your way until you turn man
 
 **Not (yet) for you if…**
 
-- You need **native OIDC / OAuth SSO or 2FA** — homeport supports **forward-auth** (put it behind
-  Authelia / Authentik / oauth2-proxy and it trusts their `Remote-User` header), but there's no
-  built-in OIDC or TOTP yet.
+- You need **native OIDC / OAuth SSO** — homeport supports **forward-auth** (put it behind
+  Authelia / Authentik / oauth2-proxy and it trusts their `Remote-User` header) and **built-in
+  TOTP 2FA** on the admin account, but there's no built-in OIDC yet.
 - You run **Podman, Kubernetes, or Swarm** — homeport talks to the Docker API only.
-- You want to edit **container CPU/RAM limits or healthchecks** from the UI — not there yet (you can
-  edit restart policy and the full compose file).
+- You want to edit a container's **healthcheck** from the UI — not there yet, and can't be live-updated
+  by the Docker Engine API even if it were (needs a recreate). CPU/RAM limits, restart policy, and the
+  full compose file can all be edited live.
 
 Every container has its own page — overview, logs, terminal, domains, and updates:
 
@@ -419,6 +420,14 @@ count) groups them by compose project:
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.
 
+### Two-factor auth (TOTP)
+
+Turn on **Settings → Two-factor auth** to require a 6-digit code from an authenticator app
+(Google Authenticator, Aegis, 1Password, …) in addition to your password at login. Enrollment
+shows a QR code plus the raw key, and confirms with a live code before it's turned on. A set of
+one-time recovery codes is generated at enroll (and on regenerate) in case you lose the device;
+each works once. Disabling 2FA or regenerating codes both require re-entering your password.
+
 ### Forward-auth (SSO via your proxy)
 
 Already run [Authelia](https://www.authelia.com/), [Authentik](https://goauthentik.io/),
@@ -436,6 +445,15 @@ login still works for requests without the header.
 > ⚠️ **Only enable this if homeport is reachable *exclusively* through that proxy.** A directly
 > reachable instance lets anyone forge the header and walk straight in. Configure your proxy to
 > **strip the header from inbound requests** before it injects its own.
+
+### Viewer accounts (read-only role)
+
+Share the dashboard with a partner or housemate without handing over management: create a viewer
+account in **Settings → Accounts** (username + password). Viewer sessions can see everything the
+admin can — status, logs, graphs, domains, updates — but every write is blocked, enforced
+server-side regardless of what the UI shows: no start/stop/restart, no compose editing, no
+terminal, no proxy admin, and no access to backups, API tokens, or 2FA settings. Deleting a viewer
+account revokes its session instantly.
 
 ### Scoped API tokens
 

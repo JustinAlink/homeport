@@ -1,5 +1,42 @@
 # Changelog
 
+## v2.25.0 — 2026-07-09
+
+Multi-user access, live resource-limit editing, and installable-app support —
+the last of the "yeah, but it can't even…" gaps.
+
+- **Multi-user + read-only viewer role.** Share the dashboard with a
+  partner/household without handing over management. The admin creates viewer
+  accounts (Settings → Accounts) with their own username + password; a
+  viewer's session cookie carries only an opaque account id, never a baked-in
+  role, so access is re-checked fresh on every request and deleting the
+  account revokes it instantly. Enforcement is entirely server-side — a
+  viewer's requests are restricted to `GET`/`HEAD`, and `/api/backup`,
+  `/api/users`, `/api/tokens`, and `/api/totp` are blocked outright — the UI
+  hiding mutating controls to match is a convenience, not the boundary. A
+  post-ship adversarial security review (4-reviewer audit + independent
+  verify pass) found and fixed four issues before this shipped: two read-deny
+  gaps (`/api/tokens`, `/api/totp` were reachable by a viewer), a shared
+  brute-force bucket that let a mistyped viewer password lock out the admin
+  from the same IP (now separate per-credential limiters), a few UI
+  inconsistencies that left mutating buttons visible-but-403 for viewers, and
+  a timing side-channel in login that could be used to enumerate valid
+  usernames.
+- **Container resource-limit editing (CPU + memory).** Set CPU cores and
+  memory limits on a running container straight from its service page, no
+  recreate needed — the same live-update mechanism the existing restart-policy
+  editor uses. Compose-managed containers are flagged, since the compose
+  file's own `deploy.resources`/`mem_limit` wins on the next recreate.
+  Clearing a limit back to "unset" isn't possible through a live update (the
+  Docker Engine API has no way to express that short of recreating the
+  container) — homeport says so plainly instead of failing silently.
+- **Installable as an app (PWA).** A web manifest and offline-cache service
+  worker mean the dashboard can be added to a phone or tablet home screen and
+  opened like a native app.
+- **Changelog links on the Updates view.** Where an image's registry and repo
+  can be confidently mapped to its GitHub releases page, an available update
+  now links straight to the changelog instead of leaving you to go find it.
+
 ## v2.23.0 — 2026-07-07
 
 Public-launch prep: one-command install, security hardening, and installing a

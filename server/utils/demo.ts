@@ -463,6 +463,36 @@ export function demoSetRestartPolicy(id: string, policy: string) {
   return { ok: true, policy }
 }
 
+// In-memory CPU/memory limits so the resources editor round-trips in demo.
+interface DemoResources {
+  cpuShares: number
+  cpuQuota: number
+  cpuPeriod: number
+  cpusetCpus: string
+  memory: number
+  memoryReservation: number
+  memorySwap: number
+}
+const DEMO_RESOURCES_DEFAULT: DemoResources = {
+  cpuShares: 0,
+  cpuQuota: 0,
+  cpuPeriod: 0,
+  cpusetCpus: '',
+  memory: 0,
+  memoryReservation: 0,
+  memorySwap: 0,
+}
+const demoResourcesById: Record<string, DemoResources> = {}
+export function demoResources(id: string) {
+  const r = demoResourcesById[id] ?? DEMO_RESOURCES_DEFAULT
+  return { ...r, composeManaged: true }
+}
+export function demoSetResources(id: string, patch: Partial<DemoResources>) {
+  const current = demoResourcesById[id] ?? { ...DEMO_RESOURCES_DEFAULT }
+  demoResourcesById[id] = { ...current, ...patch }
+  return { ok: true }
+}
+
 export function demoStackDelete(name: string, opts?: { volumes?: boolean; images?: boolean; proxyRoutes?: boolean }): string {
   return startOp(`delete ${name}`, async (emit) => {
     await new Promise((r) => setTimeout(r, 400))

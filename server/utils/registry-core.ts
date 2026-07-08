@@ -52,6 +52,34 @@ export function parseImageRef(image: string): ImageRef {
 }
 
 /**
+ * Best-effort changelog/releases URL for an image, inferred from its registry + repo —
+ * no network calls, no verification the target actually exists.
+ *   ghcr.io/owner/repo → GitHub releases (GHCR repo path mirrors the GitHub org/repo)
+ *   docker.io/user/app → guess the same org/repo exists on GitHub (heuristic — can 404)
+ *   anything else → undefined; we don't guess when there's no reliable convention
+ *     (e.g. lscr.io/linuxserver/sonarr is really github.com/linuxserver/docker-sonarr —
+ *     the linuxserver.io naming doesn't map cleanly, so it's deliberately excluded)
+ */
+export function changelogUrlFor(image: string): string | undefined {
+  const { registry, repo } = parseImageRef(image)
+  const parts = repo.split('/')
+
+  if (registry === 'ghcr.io') {
+    if (parts.length !== 2) return undefined // subpath packages (owner/group/pkg) — no clean mapping
+    const [owner, name] = parts
+    return `https://github.com/${owner}/${name}/releases`
+  }
+
+  if (registry === 'docker.io') {
+    if (parts.length !== 2 || parts[0] === 'library') return undefined // official images have no single owner/org
+    const [owner, name] = parts
+    return `https://github.com/${owner}/${name}/releases`
+  }
+
+  return undefined // quay.io, lscr.io, self-hosted, gcr.io, etc — no reliable inference
+}
+
+/**
  * A bare image *ID* — the container's image lost its repo:tag (e.g. `docker pull`
  * replaced `:latest` and the old tag was pruned), so the daemon reports it as a
  * plain digest. There's no repository to query, so it can't be update-checked;

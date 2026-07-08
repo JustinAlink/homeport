@@ -5,7 +5,7 @@
       <h1 class="text-xl font-semibold text-slate-100">Domains</h1>
       <span v-if="provider" class="font-mono text-xs text-slate-600">via {{ provider }}</span>
       <button
-        v-if="caps.create"
+        v-if="caps.create && !hpCaps.viewer"
         class="ml-auto rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
         @click="adding = !adding"
       >{{ adding ? 'Close' : '+ Add domain' }}</button>
@@ -37,8 +37,8 @@
             </div>
             <span v-if="!r.managed" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase text-slate-500" title="Not created by homeport">read-only</span>
             <template v-else>
-              <button v-if="caps.update" class="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="editId = r.id">Edit</button>
-              <button v-if="caps.delete" class="rounded border border-red-500/20 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10" @click="remove(r)">Delete</button>
+              <button v-if="caps.update && !hpCaps.viewer" class="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="editId = r.id">Edit</button>
+              <button v-if="caps.delete && !hpCaps.viewer" class="rounded border border-red-500/20 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10" @click="remove(r)">Delete</button>
             </template>
           </div>
           <DomainForm
@@ -67,6 +67,7 @@ interface AdminRoute {
 
 const { confirm } = useConfirm()
 const toast = useToast()
+const { caps: hpCaps, load: loadHpCaps } = useCapabilities()
 const routes = ref<AdminRoute[]>([])
 const provider = ref('')
 const caps = ref({ create: false, update: false, delete: false })
@@ -106,6 +107,9 @@ async function remove(r: AdminRoute) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadHpCaps()
+})
 useHead({ title: 'Domains — homeport' })
 </script>

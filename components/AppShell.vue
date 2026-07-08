@@ -101,7 +101,7 @@ const items = computed(() => [
   { to: '/catalog', label: 'Catalog', icon: 'catalog' },
   { to: '/activity', label: 'Activity', icon: 'clock' },
   ...(caps.value.proxyAdmin ? [{ to: '/domains', label: 'Domains', icon: 'globe' }] : []),
-  { to: '/settings', label: 'Settings', icon: 'sliders' },
+  ...(caps.value.viewer ? [] : [{ to: '/settings', label: 'Settings', icon: 'sliders' }]),
 ])
 
 onMounted(() => {

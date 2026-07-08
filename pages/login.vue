@@ -41,7 +41,13 @@
       </form>
 
       <!-- normal sign-in -->
-      <form v-else class="space-y-4" @submit.prevent="submit">
+      <form v-else-if="!awaitingTotp" class="space-y-4" @submit.prevent="submit">
+        <input
+          v-model="username"
+          type="text"
+          placeholder="Username (leave blank if you're the admin)"
+          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+        />
         <input
           v-model="password"
           type="password"
@@ -56,12 +62,44 @@
         >{{ busy ? '…' : 'Sign in' }}</button>
       </form>
 
+      <!-- 2FA step -->
+      <form v-else class="space-y-3" @submit.prevent="submitTotp">
+        <p class="text-center text-xs text-slate-500">
+          {{ useRecovery ? 'Enter one of your recovery codes.' : 'Enter the 6-digit code from your authenticator app.' }}
+        </p>
+        <input
+          v-if="!useRecovery"
+          v-model="totpCode"
+          inputmode="numeric"
+          maxlength="6"
+          placeholder="6-digit code"
+          autofocus
+          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-center text-sm tracking-widest text-slate-100 outline-none focus:border-accent/50"
+        />
+        <input
+          v-else
+          v-model="recoveryCode"
+          placeholder="Recovery code"
+          autofocus
+          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-center text-sm text-slate-100 outline-none focus:border-accent/50"
+        />
+        <button
+          type="submit"
+          :disabled="busy"
+          class="w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-60"
+        >{{ busy ? '…' : 'Verify' }}</button>
+        <button type="button" class="w-full text-center text-[11px] text-slate-500 hover:text-slate-300" @click="useRecovery = !useRecovery">
+          {{ useRecovery ? 'Use my authenticator app instead' : 'Use a recovery code instead' }}
+        </button>
+      </form>
+
       <p v-if="err" class="text-center text-xs text-red-400">{{ err }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+const username = ref('')
 const password = ref('')
 const confirm = ref('')
 const err = ref('')
@@ -69,6 +107,12 @@ const busy = ref(false)
 const needsSetup = ref(false)
 const writable = ref(true)
 const minLen = ref(10)
+
+const awaitingTotp = ref(false)
+const pendingToken = ref('')
+const totpCode = ref('')
+const recoveryCode = ref('')
+const useRecovery = ref(false)
 
 onMounted(async () => {
   try {
@@ -86,10 +130,36 @@ async function submit() {
   busy.value = true
   err.value = ''
   try {
-    await $fetch('/api/auth/login', { method: 'POST', body: { password: password.value } })
+    const r = await $fetch<{ ok: true; needsTotp?: boolean; pending?: string }>('/api/auth/login', {
+      method: 'POST',
+      body: { username: username.value.trim() || undefined, password: password.value },
+    })
+    if (r.needsTotp && r.pending) {
+      pendingToken.value = r.pending
+      awaitingTotp.value = true
+      return
+    }
     await navigateTo('/')
   } catch (e: any) {
     err.value = errMsg(e, 'Login failed')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function submitTotp() {
+  busy.value = true
+  err.value = ''
+  try {
+    await $fetch('/api/auth/totp', {
+      method: 'POST',
+      body: useRecovery.value
+        ? { pending: pendingToken.value, recovery: recoveryCode.value }
+        : { pending: pendingToken.value, code: totpCode.value },
+    })
+    await navigateTo('/')
+  } catch (e: any) {
+    err.value = errMsg(e, useRecovery.value ? 'Incorrect recovery code' : 'Incorrect code')
   } finally {
     busy.value = false
   }

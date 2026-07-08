@@ -13,7 +13,11 @@
       You can still configure everything via environment variables.
     </div>
 
-    <div v-if="loaded" class="gap-8 md:flex">
+    <div v-if="loaded && caps.viewer" class="grid place-items-center py-24 text-center">
+      <p class="text-sm text-slate-500">Settings aren't available for read-only accounts.</p>
+    </div>
+
+    <div v-else-if="loaded" class="gap-8 md:flex">
       <!-- section nav (sticky on desktop) -->
       <nav class="mb-4 hidden w-44 shrink-0 md:block">
         <ul class="sticky top-6 space-y-0.5 text-sm">
@@ -648,6 +652,18 @@
         </div>
       </section>
 
+      <!-- Two-factor auth (self-contained enroll/disable flow, own endpoints) -->
+      <section :id="'two-factor'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Two-factor auth</h2>
+        <TwoFactorAuth />
+      </section>
+
+      <!-- User accounts (self-contained CRUD, own endpoints) -->
+      <section :id="'user-accounts'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">User accounts</h2>
+        <UserAccounts />
+      </section>
+
       <!-- API tokens (self-contained CRUD, own endpoints) -->
       <section :id="'api-tokens'" class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">API tokens</h2>
@@ -725,6 +741,8 @@ const sections = computed(() =>
     { id: 'backup', label: 'Backup' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
+    { id: 'two-factor', label: 'Two-factor auth' },
+    { id: 'user-accounts', label: 'User accounts' },
     { id: 'api-tokens', label: 'API tokens' },
     { id: 'about', label: 'About' },
   ],

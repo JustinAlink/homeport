@@ -40,4 +40,7 @@ test('scopeAllows: full = everything; read = safe GETs minus secret exports', ()
   assert.equal(scopeAllows('read', 'DELETE', '/api/tokens'), false)
   // read scope must not export secrets even via GET
   assert.equal(scopeAllows('read', 'GET', '/api/backup'), false)
+  // read scope (viewer sessions too) must not reach user-account management
+  assert.equal(scopeAllows('read', 'GET', '/api/users'), false)
+  assert.equal(scopeAllows('full', 'GET', '/api/users'), true)
 })

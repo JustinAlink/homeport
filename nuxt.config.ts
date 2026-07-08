@@ -27,6 +27,14 @@ export default defineNuxtConfig({
         { name: 'description', content: 'A zero-config status hub for your self-hosted Docker fleet.' },
         { name: 'theme-color', content: '#0a0e15' },
         { name: 'robots', content: 'noindex' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'apple-mobile-web-app-title', content: 'homeport' },
+      ],
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/icon.svg' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       ],
       htmlAttrs: { lang: 'en' },
       script: [

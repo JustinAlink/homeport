@@ -1,7 +1,7 @@
 import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
-import { verifyCookieHeader } from '../utils/session'
+import { decodeCookieHeader } from '../utils/session'
 import { trustedAuthHeader } from '../utils/auth'
 import { forwardAuthUser } from '../utils/auth-core'
 import { splitServiceId } from '../utils/service-id'
@@ -28,8 +28,10 @@ export default defineWebSocketHandler({
     // forward-auth header set by the upstream proxy.
     const th = trustedAuthHeader()
     const forwardAuthed = !!th && !!forwardAuthUser(th, (n) => req.headers.get(n))
-    if (!forwardAuthed && !verifyCookieHeader(req.headers.get('cookie'))) {
-      return new Response('Unauthorized', { status: 401 })
+    if (!forwardAuthed) {
+      const session = decodeCookieHeader(req.headers.get('cookie'))
+      if (!session) return new Response('Unauthorized', { status: 401 })
+      if (session.uid) return new Response('Viewers cannot open a terminal', { status: 403 })
     }
     const cfg = getConfig()
     if (!cfg.allowTerminal && !cfg.demo) {

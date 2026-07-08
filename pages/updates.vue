@@ -80,6 +80,14 @@
               <span class="block truncate text-sm text-slate-200 hover:text-accent-light">{{ s.displayName }}</span>
               <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
             </NuxtLink>
+            <a
+              v-if="updates.changelogUrlFor(s)"
+              :href="updates.changelogUrlFor(s)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="shrink-0 text-[11px] text-slate-500 hover:text-accent-light hover:underline"
+              @click.stop
+            >changelog ↗</a>
             <span v-if="rowNote[s.id]" class="shrink-0 text-[11px]" :class="rowNote[s.id].startsWith('failed') ? 'text-red-400' : 'text-slate-500'">{{ rowNote[s.id] }}</span>
             <label
               v-if="autoLoaded && caps.updates && !g.project"

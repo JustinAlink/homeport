@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, mergeRegistryCredSecrets } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, mergeRegistryCredSecrets, changelogUrlFor } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
 
 // ---- mergeRegistryCredSecrets (masked-token keep-existing on save) ----
@@ -66,6 +66,34 @@ test('parseImageRef: user repos, tags, registries, ports, digests', () => {
   })
   assert.equal(parseImageRef('nginx@sha256:abc123').digestPinned, true)
   assert.deepEqual(parseImageRef('lscr.io/linuxserver/sonarr:4.0.9').repo, 'linuxserver/sonarr')
+})
+
+// ---- changelogUrlFor ----
+
+test('changelogUrlFor: ghcr.io owner/repo → GitHub releases', () => {
+  assert.equal(changelogUrlFor('ghcr.io/owner/repo'), 'https://github.com/owner/repo/releases')
+  assert.equal(changelogUrlFor('ghcr.io/owner/repo:1.2.3'), 'https://github.com/owner/repo/releases')
+})
+
+test('changelogUrlFor: ghcr.io subpath packages → undefined', () => {
+  assert.equal(changelogUrlFor('ghcr.io/owner/repo/subimage'), undefined)
+})
+
+test('changelogUrlFor: docker.io two-segment non-library → best-effort GitHub releases', () => {
+  assert.equal(changelogUrlFor('someuser/someapp'), 'https://github.com/someuser/someapp/releases')
+  assert.equal(changelogUrlFor('someuser/someapp:latest'), 'https://github.com/someuser/someapp/releases')
+})
+
+test('changelogUrlFor: docker.io official single-segment images → undefined', () => {
+  assert.equal(changelogUrlFor('nginx'), undefined)
+  assert.equal(changelogUrlFor('postgres'), undefined)
+  assert.equal(changelogUrlFor('library/redis'), undefined)
+})
+
+test('changelogUrlFor: other registries → undefined (no reliable inference)', () => {
+  assert.equal(changelogUrlFor('quay.io/x/y'), undefined)
+  assert.equal(changelogUrlFor('lscr.io/linuxserver/sonarr'), undefined)
+  assert.equal(changelogUrlFor('myregistry.example.com:5000/x/y'), undefined)
 })
 
 // ---- isBareImageId ----

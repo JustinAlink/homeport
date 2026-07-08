@@ -11,18 +11,20 @@
         </template>
       </nav>
       <div class="ml-auto flex items-center gap-1.5">
-        <button
-          class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
-          :class="naming?.mode === 'file' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
-          @click="openNaming('file')"
-        >+ File</button>
-        <button
-          class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
-          :class="naming?.mode === 'folder' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
-          @click="openNaming('folder')"
-        >+ Folder</button>
-        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="uploadInput?.click()">Upload</button>
-        <input ref="uploadInput" type="file" multiple class="hidden" @change="upload" />
+        <template v-if="!readOnly">
+          <button
+            class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
+            :class="naming?.mode === 'file' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+            @click="openNaming('file')"
+          >+ File</button>
+          <button
+            class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
+            :class="naming?.mode === 'folder' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+            @click="openNaming('folder')"
+          >+ Folder</button>
+          <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="uploadInput?.click()">Upload</button>
+          <input ref="uploadInput" type="file" multiple class="hidden" @change="upload" />
+        </template>
         <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5" :disabled="loading" @click="load">
           {{ loading ? '…' : 'Refresh' }}
         </button>
@@ -91,8 +93,10 @@
               class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
               :download="e.name"
             >download</a>
-            <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="openNaming('rename', e)">rename</button>
-            <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="pendingDelete = e.name">delete</button>
+            <template v-if="!readOnly">
+              <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="openNaming('rename', e)">rename</button>
+              <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="pendingDelete = e.name">delete</button>
+            </template>
           </template>
         </div>
       </div>
@@ -113,10 +117,12 @@
         <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto text-[13px]" />
         <div class="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
           <button
+            v-if="!readOnly"
             :disabled="fileSaving"
             class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
             @click="saveFile"
           >{{ fileSaving ? 'Saving…' : 'Save' }}</button>
+          <span v-else class="text-[11px] text-slate-600">read-only account — changes can't be saved</span>
           <span v-if="fileMsg" class="whitespace-pre-line text-[11px]" :class="fileOk ? 'text-accent-light' : 'text-red-400'">{{ fileMsg }}</span>
         </div>
       </div>
@@ -125,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ stack: string; composeFile?: string }>()
+const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean }>()
 
 interface Entry {
   name: string
@@ -203,6 +209,7 @@ async function setupFileEditor(content: string, yamlMode: boolean) {
       basicSetup,
       ...(yamlExt ? [yamlExt.yaml()] : []),
       oneDark,
+      EditorView.editable.of(!props.readOnly),
       EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
     ],
   })

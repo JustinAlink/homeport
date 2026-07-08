@@ -104,6 +104,56 @@
           </span>
         </div>
 
+        <!-- resource limits: live CPU/memory caps via docker update (no recreate) -->
+        <div
+          v-if="service.kind === 'container' && resources.loaded"
+          class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-white/5 bg-ink-900 px-3 py-2.5 text-xs"
+        >
+          <span class="basis-full uppercase tracking-wider text-slate-500">Resource limits</span>
+
+          <label class="flex items-center gap-1.5">
+            <span class="text-slate-400">CPU limit (cores)</span>
+            <input
+              v-model.number="resources.cpus"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="unlimited"
+              :disabled="!caps.control"
+              class="w-20 rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
+            />
+            <span v-if="facts[2]" class="text-slate-600">currently using {{ facts[2].value }}</span>
+          </label>
+
+          <label class="flex items-center gap-1.5">
+            <span class="text-slate-400">Memory limit</span>
+            <input
+              v-model="resources.memory"
+              type="text"
+              placeholder="unlimited (e.g. 512m, 2g)"
+              :disabled="!caps.control"
+              class="w-36 rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
+            />
+            <span v-if="facts[3]" class="text-slate-600">currently using {{ facts[3].value }}</span>
+          </label>
+
+          <button
+            v-if="resourcesDirty"
+            :disabled="resources.saving"
+            class="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            @click="saveResources"
+          >{{ resources.saving ? 'Applying…' : 'Apply' }}</button>
+
+          <span v-if="resources.msg" class="text-[11px]" :class="resources.ok ? 'text-accent-light' : 'text-red-400'">{{ resources.msg }}</span>
+          <span v-if="!caps.control" class="text-[11px] text-slate-600">needs the start/stop capability</span>
+          <span v-else-if="resources.composeManaged" class="basis-full text-[11px] text-slate-600">
+            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> compose-managed: this applies immediately, but the compose file's static <code>deploy.resources</code>/<code>mem_limit</code> wins if the stack is recreated — update it there too for a permanent change.
+          </span>
+          <span v-if="caps.control && service.state === 'restarting'" class="basis-full text-[11px] text-amber-300/80">
+            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> the container is restarting — Docker may accept this without actually applying it; re-check once it settles.
+          </span>
+        </div>
+
         <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1.5">
           <a
             v-for="d in service.domains"
@@ -181,7 +231,7 @@
               <input v-model="deleteImage" type="checkbox" class="h-3 w-3" />
               also delete its image
             </label>
-            <label v-if="caps.proxyAdmin && matchedRoutes.length" class="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <label v-if="caps.proxyAdmin && matchedRoutes.length && !caps.viewer" class="flex items-center gap-1.5 text-[11px] text-slate-400">
               <input v-model="deleteProxyRoutes" type="checkbox" class="h-3 w-3" />
               also remove its domain{{ matchedRoutes.length > 1 ? 's' : '' }} from the proxy
               ({{ matchedRoutes.flatMap((r) => r.domains).join(', ') }})
@@ -308,6 +358,12 @@
             <div v-if="updateEntry.localDigest" class="truncate"><dt class="inline text-slate-600">local: </dt><dd class="inline">{{ updateEntry.localDigest }}</dd></div>
             <div v-if="updateEntry.remoteDigest" class="truncate"><dt class="inline text-slate-600">remote: </dt><dd class="inline">{{ updateEntry.remoteDigest }}</dd></div>
             <div><dt class="inline text-slate-600">checked: </dt><dd class="inline">{{ new Date(updateEntry.checkedAt).toLocaleString() }}</dd></div>
+            <div v-if="changelogUrl" class="truncate">
+              <dt class="inline text-slate-600">changelog: </dt>
+              <dd class="inline">
+                <a :href="changelogUrl" target="_blank" rel="noopener noreferrer" class="text-accent-light hover:underline">{{ changelogUrl }} ↗</a>
+              </dd>
+            </div>
             <div v-if="updateEntry.error" class="text-amber-300/90">{{ updateEntry.error }}</div>
           </dl>
           <p v-else class="mt-2 text-xs text-slate-500">
@@ -407,7 +463,7 @@ const tabs = computed(() => [
   ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs' }] : []),
   ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal' }] : []),
   ...(caps.value.updates ? [{ key: 'env' as Tab, label: 'Environment' }] : []),
-  ...(caps.value.proxyAdmin ? [{ key: 'domains' as Tab, label: 'Domains' }] : []),
+  ...(caps.value.proxyAdmin && !caps.value.viewer ? [{ key: 'domains' as Tab, label: 'Domains' }] : []),
   ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
 ])
 
@@ -430,7 +486,7 @@ async function loadRoutes() {
 }
 watch(
   // overview needs them too — the delete cleanup checkbox shows matching routes
-  () => (tab.value === 'domains' || tab.value === 'overview') && caps.value.proxyAdmin,
+  () => (tab.value === 'domains' || tab.value === 'overview') && caps.value.proxyAdmin && !caps.value.viewer,
   (on) => { if (on && !routesLoaded.value) loadRoutes() },
   { immediate: true },
 )
@@ -487,6 +543,73 @@ async function saveRestartPolicy() {
     restart.msg = errMsg(e, 'could not change the restart policy')
   } finally {
     restart.saving = false
+  }
+}
+
+// --- resource limits (CPU cores + memory, live docker update) ---
+// CPU is exposed to the user as "cores" (docker update --cpus style); the
+// backend stores/returns raw cpuQuota/cpuPeriod so round-tripping stays exact.
+// Duplicated from server/utils/resources-core.ts (no shared/ dir in this app —
+// server code isn't imported into the client bundle; kept in sync by hand).
+function quotaToCores(cpuQuota: number | undefined | null, cpuPeriod: number | undefined | null): number | null {
+  if (!cpuQuota || cpuQuota <= 0 || !cpuPeriod || cpuPeriod <= 0) return null
+  return Math.round((cpuQuota / cpuPeriod) * 1000) / 1000
+}
+const SIZE_UNITS: Record<string, number> = { b: 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3 }
+function formatByteSize(bytes: number | undefined | null): string {
+  if (!bytes || bytes <= 0) return ''
+  if (bytes % SIZE_UNITS.g === 0) return `${bytes / SIZE_UNITS.g}g`
+  if (bytes % SIZE_UNITS.m === 0) return `${bytes / SIZE_UNITS.m}m`
+  if (bytes % SIZE_UNITS.k === 0) return `${bytes / SIZE_UNITS.k}k`
+  return String(bytes)
+}
+
+const resources = reactive({
+  loaded: false,
+  cpus: null as number | null, // current-loaded value
+  memory: '', // current-loaded value, e.g. "512m"
+  composeManaged: false,
+  saving: false,
+  msg: '',
+  ok: false,
+})
+const resourcesLoadedCpus = ref<number | null>(null)
+const resourcesLoadedMemory = ref('')
+const resourcesDirty = computed(
+  () => resources.cpus !== resourcesLoadedCpus.value || resources.memory !== resourcesLoadedMemory.value,
+)
+
+async function loadResources() {
+  try {
+    const r = await $fetch<{ cpuQuota: number; cpuPeriod: number; memory: number; composeManaged: boolean }>('/api/resources', { query: { id } })
+    resources.cpus = quotaToCores(r.cpuQuota, r.cpuPeriod)
+    resources.memory = formatByteSize(r.memory)
+    resources.composeManaged = r.composeManaged
+    resourcesLoadedCpus.value = resources.cpus
+    resourcesLoadedMemory.value = resources.memory
+    resources.loaded = true
+  } catch {
+    resources.loaded = false // endpoint unavailable (e.g. host down) — hide the block
+  }
+}
+
+async function saveResources() {
+  resources.saving = true
+  resources.msg = ''
+  try {
+    const body: Record<string, unknown> = { id }
+    if (resources.cpus !== resourcesLoadedCpus.value) body.cpus = resources.cpus || 0
+    if (resources.memory !== resourcesLoadedMemory.value) body.memory = resources.memory || '0'
+    await $fetch('/api/resources', { method: 'POST', body })
+    resourcesLoadedCpus.value = resources.cpus
+    resourcesLoadedMemory.value = resources.memory
+    resources.ok = true
+    resources.msg = 'applied.'
+  } catch (e: any) {
+    resources.ok = false
+    resources.msg = errMsg(e, 'could not change resource limits')
+  } finally {
+    resources.saving = false
   }
 }
 
@@ -630,6 +753,7 @@ watch(
   { immediate: true },
 )
 const updateEntry = computed(() => (service.value ? updates.entryFor(service.value) : undefined))
+const changelogUrl = computed(() => (service.value ? updates.changelogUrlFor(service.value) : undefined))
 const updateLabel = computed(() => {
   switch (updateEntry.value?.status) {
     case 'update': return 'update available'
@@ -752,6 +876,7 @@ async function applyEnv() {
 
 onMounted(() => {
   loadRestartPolicy()
+  loadResources()
   start()
   stats.start()
   loadCaps()

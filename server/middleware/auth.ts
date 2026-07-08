@@ -1,7 +1,8 @@
-import { SESSION_COOKIE, verifySessionToken } from '../utils/session'
+import { SESSION_COOKIE, decodeSessionToken } from '../utils/session'
 import { authMode, trustedAuthHeader } from '../utils/auth'
 import { forwardAuthUser } from '../utils/auth-core'
 import { verifyApiToken } from '../utils/api-tokens'
+import { getUser } from '../utils/users'
 import { scopeAllows } from '../utils/api-tokens-core'
 
 // Gate the API (pages redirect client-side). Fail-closed: a valid session is
@@ -10,7 +11,10 @@ import { scopeAllows } from '../utils/api-tokens-core'
 export default defineEventHandler((event) => {
   const path = getRequestURL(event).pathname
   if (!path.startsWith('/api/')) return
-  if (path === '/api/auth/login' || path === '/api/auth/logout' || path === '/api/setup') return
+  // /api/auth/totp is the second (2FA) step of login, gated by its own
+  // short-lived pending token + rate limit rather than a session — a caller
+  // here hasn't finished logging in yet, so no session cookie exists.
+  if (path === '/api/auth/login' || path === '/api/auth/logout' || path === '/api/auth/totp' || path === '/api/setup') return
 
   // open mode (no password, user skipped it or the volume is read-only) → no auth
   if (authMode() === 'open') return
@@ -29,12 +33,31 @@ export default defineEventHandler((event) => {
     // Tokens can't manage tokens — a leaked token must not mint or revoke others.
     if (path === '/api/tokens' || path.startsWith('/api/tokens/'))
       throw createError({ statusCode: 403, statusMessage: 'API tokens cannot manage tokens' })
+    // Nor manage 2FA — a leaked token must not read the enrollment secret,
+    // disable 2FA, or mint fresh recovery codes.
+    if (path === '/api/totp' || path.startsWith('/api/totp/'))
+      throw createError({ statusCode: 403, statusMessage: 'API tokens cannot manage 2FA' })
+    // Nor manage user accounts — a leaked token must not create/delete viewers.
+    if (path === '/api/users' || path.startsWith('/api/users/'))
+      throw createError({ statusCode: 403, statusMessage: 'API tokens cannot manage user accounts' })
     if (!scopeAllows(t.scope, event.method, path))
       throw createError({ statusCode: 403, statusMessage: 'this token is read-only' })
     return
   }
 
-  if (!verifySessionToken(getCookie(event, SESSION_COOKIE))) {
+  // Session cookie. A viewer's role is resolved fresh on every request — the
+  // token only ever carries `uid` (the account id), never a baked-in role —
+  // so deleting the account revokes it instantly, with no separate bookkeeping.
+  const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
+  if (!session) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
   }
+  if (session.uid) {
+    const viewer = getUser(session.uid)
+    if (!viewer) throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
+    if (!scopeAllows('read', event.method, path))
+      throw createError({ statusCode: 403, statusMessage: 'this account is read-only' })
+    return
+  }
+  // No uid → the admin. Full access, exactly today's behavior.
 })

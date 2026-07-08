@@ -11,6 +11,7 @@
       </div>
       <div class="ml-auto flex items-center gap-2">
         <button
+          v-if="caps.control"
           class="rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
           @click="creating = !creating"
         >+ New network</button>
@@ -73,7 +74,7 @@
               {{ n.containers ? `${n.containers} container${n.containers > 1 ? 's' : ''}` : 'unused' }}
             </span>
             <button
-              v-if="!n.builtin && n.containers === 0"
+              v-if="caps.control && !n.builtin && n.containers === 0"
               :disabled="busy === n.name"
               class="rounded-md border border-red-500/25 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/10 disabled:opacity-40"
               @click="remove(n.name)"
@@ -87,13 +88,14 @@
             >
               <NuxtLink :to="`/services/${encodeURIComponent(c.id)}`" class="hover:text-slate-200">{{ c.name }}</NuxtLink>
               <button
+                v-if="caps.control"
                 class="text-slate-600 hover:text-red-300"
                 :title="`Detach ${c.name} from ${n.name}`"
                 @click="detach(n.name, c)"
               ><Icon name="x" class="h-2.5 w-2.5" /></button>
             </span>
             <select
-              v-if="attachable(n).length"
+              v-if="caps.control && attachable(n).length"
               class="rounded-md border border-white/10 bg-ink-950 px-1.5 py-0.5 text-[11px] text-slate-400 outline-none focus:border-accent/50"
               :value="''"
               @change="attach(n.name, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
@@ -129,6 +131,7 @@ interface NetRow {
 }
 
 const { confirm } = useConfirm()
+const { caps, load: loadCaps } = useCapabilities()
 const networks = ref<NetRow[]>([])
 const loaded = ref(false)
 const loading = ref(false)
@@ -218,6 +221,7 @@ async function detach(network: string, c: { id: string; name: string }) {
 
 onMounted(() => {
   load()
+  loadCaps()
   svcStart()
 })
 onBeforeUnmount(svcStop)

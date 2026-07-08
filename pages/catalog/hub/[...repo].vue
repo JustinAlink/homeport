@@ -113,14 +113,17 @@
 
         <div class="mt-6 flex flex-wrap items-center gap-3">
           <button
-            :disabled="installing || !caps.stacks"
+            :disabled="installing || !caps.stacks || caps.viewer"
             class="rounded-md bg-accent px-4 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
             @click="install"
           >{{ installing ? 'Installing…' : 'Install' }}</button>
           <NuxtLink :to="editorLink" class="text-[11px] text-slate-500 hover:text-slate-300 hover:underline">
             open in the stack editor instead →
           </NuxtLink>
-          <span v-if="!caps.stacks && capsLoaded" class="text-[11px] text-slate-500">
+          <span v-if="caps.viewer && capsLoaded" class="text-[11px] text-slate-500">
+            read-only accounts can't install
+          </span>
+          <span v-else-if="!caps.stacks && capsLoaded" class="text-[11px] text-slate-500">
             enable <b>Compose stacks</b> in Settings → Capabilities to install
           </span>
           <span v-if="installError" class="whitespace-pre-line text-[11px] text-red-400">{{ installError }}</span>

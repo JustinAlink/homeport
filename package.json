@@ -1,6 +1,6 @@
 {
   "name": "homeport",
-  "version": "2.24.0",
+  "version": "2.25.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "confbox": "^0.2.0",
     "dockerode": "^4.0.2",
     "nuxt": "^3.16.0",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.0",
     "vue-router": "^4.5.0"
   },

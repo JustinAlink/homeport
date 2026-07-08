@@ -10,6 +10,7 @@ export interface Capabilities {
   passwordEnvLocked: boolean
   forwardAuth: boolean
   demo: boolean
+  viewer: boolean
 }
 
 const NONE: Capabilities = {
@@ -24,6 +25,7 @@ const NONE: Capabilities = {
   passwordEnvLocked: false,
   forwardAuth: false,
   demo: false,
+  viewer: false,
 }
 
 /** Fetched once, shared app-wide; everything hidden until known. */

@@ -50,9 +50,14 @@ export function matchToken(token: string, records: ApiTokenRecord[]): ApiTokenRe
   return null
 }
 
-// Paths a read-only token must never reach even via GET — they export secrets.
-// (Token management is blocked for ALL tokens separately, in the middleware.)
-const READ_DENY = ['/api/backup']
+// Paths a read-only caller must never reach even via GET — shared by both
+// read-scope API tokens and viewer sessions (see server/middleware/auth.ts).
+// /api/backup exports secrets; /api/users exposes/manages viewer accounts;
+// /api/tokens exposes the API token inventory; /api/totp exposes 2FA status.
+// (Token/user management is blocked for ALL bearer tokens separately, in the
+// middleware — this list is what keeps a read-scope token or a viewer session
+// from even *listing* them.)
+const READ_DENY = ['/api/backup', '/api/users', '/api/tokens', '/api/totp']
 
 /** May a token of this scope perform (method, path)? full = everything. */
 export function scopeAllows(scope: TokenScope, method: string, path: string): boolean {
