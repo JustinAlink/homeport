@@ -535,8 +535,8 @@ those in git (or use git-backed stacks and they already are).
 ## Support
 
 homeport is free and GPL-3.0, built and maintained by one person over many evenings. If it
-saves you time, a coffee will be much appreciated _(donation link goes live with the public
-launch)_ — and a ⭐ on the repo already helps others find it. Thank you!
+saves you time, you can [buy me a coffee ☕](https://ko-fi.com/junipergray) — and a ⭐ on the
+repo already helps others find it. Thank you!
 
 ## License
 
