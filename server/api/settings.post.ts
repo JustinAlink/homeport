@@ -5,7 +5,7 @@ import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
-const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'custom']
+const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']
 
 function sanitizeChannels(input: unknown): WebhookChannel[] {
   if (!Array.isArray(input)) throw createError({ statusCode: 400, statusMessage: 'alertChannels must be an array' })
@@ -19,7 +19,7 @@ function sanitizeChannels(input: unknown): WebhookChannel[] {
       const preset = (str(o.preset) || 'custom') as WebhookPreset
       if (!PRESETS.includes(preset))
         throw createError({ statusCode: 400, statusMessage: 'invalid channel preset' })
-      return { name: str(o.name) || preset, url, preset, template: str(o.template) || undefined }
+      return { name: str(o.name) || preset, url, preset, template: str(o.template) || undefined, urls: str(o.urls) || undefined }
     })
     .filter((c) => c.url)
 }

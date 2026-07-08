@@ -8,6 +8,7 @@ export interface Capabilities {
   proxyAdmin: boolean
   loginDisabled: boolean
   passwordEnvLocked: boolean
+  forwardAuth: boolean
   demo: boolean
 }
 
@@ -21,6 +22,7 @@ const NONE: Capabilities = {
   proxyAdmin: false,
   loginDisabled: false,
   passwordEnvLocked: false,
+  forwardAuth: false,
   demo: false,
 }
 

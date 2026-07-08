@@ -27,6 +27,17 @@ const envPassword = () => process.env.HOMEPORT_ADMIN_PASSWORD || ''
 const envSecret = () => process.env.HOMEPORT_SESSION_SECRET || ''
 const envAllowOpen = () => process.env.HOMEPORT_ALLOW_OPEN === 'true' || process.env.HOMEPORT_ALLOW_OPEN === '1'
 
+/**
+ * Forward-auth header name (env-only). When set, homeport trusts an upstream
+ * proxy (Authelia / Authentik / oauth2-proxy / …) to authenticate the user and
+ * pass their name in this header. Empty = off. SECURITY: only safe when
+ * homeport is reachable ONLY through that proxy — a directly-reachable instance
+ * lets any client forge the header. See auth-core `forwardAuthUser`.
+ */
+export function trustedAuthHeader(): string {
+  return (process.env.HOMEPORT_TRUSTED_HEADER || '').trim()
+}
+
 let cache: AuthFile | null = null
 let memorySecret = '' // fallback secret when the data dir isn't writable
 

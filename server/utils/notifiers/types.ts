@@ -15,11 +15,12 @@ export interface Notifier {
   send(event: AlertEvent): Promise<{ ok: boolean; error?: string }>
 }
 
-export type WebhookPreset = 'discord' | 'slack' | 'ntfy' | 'custom'
+export type WebhookPreset = 'discord' | 'slack' | 'ntfy' | 'apprise' | 'custom'
 
 export interface WebhookChannel {
   name: string
   url: string
   preset: WebhookPreset
   template?: string // used when preset === 'custom'
+  urls?: string // apprise: stateless service URLs (comma/space separated); blank = config key in the URL
 }

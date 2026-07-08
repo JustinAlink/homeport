@@ -125,6 +125,22 @@ test('webhook buildBody: presets shape the payload', () => {
   assert.deepEqual(JSON.parse(custom.body), { msg: 'web exited' })
 })
 
+test('webhook buildBody: apprise maps kind→type and passes stateless urls', () => {
+  const base = { id: 'h::c', name: 'web', host: 'vps', from: 'running', to: 'exited', at: 0 }
+  // down → failure; stateless urls included when provided
+  const down = JSON.parse(buildBody({ name: 'a', url: 'x', preset: 'apprise', urls: 'pover://u@t' }, { ...base, kind: 'down' }).body)
+  assert.equal(down.type, 'failure')
+  assert.equal(down.urls, 'pover://u@t')
+  assert.equal(down.body, eventText({ ...base, kind: 'down' }))
+  // recovered → success; no urls key when omitted (stateful config key in the endpoint)
+  const rec = JSON.parse(buildBody({ name: 'a', url: 'x', preset: 'apprise' }, { ...base, kind: 'recovered' }).body)
+  assert.equal(rec.type, 'success')
+  assert.equal('urls' in rec, false)
+  // unhealthy → warning; update → info
+  assert.equal(JSON.parse(buildBody({ name: 'a', url: 'x', preset: 'apprise' }, { ...base, kind: 'unhealthy' }).body).type, 'warning')
+  assert.equal(JSON.parse(buildBody({ name: 'a', url: 'x', preset: 'apprise' }, { ...base, kind: 'update' }).body).type, 'info')
+})
+
 test('eventText: update kind reads as an update, not a failure', () => {
   const text = eventText({ id: 'default|ghcr.io/x/y:latest', name: 'jellyfin', host: 'vps', kind: 'update', from: 'ghcr.io/x/y:latest', to: 'sha256:abc', at: 0 })
   assert.match(text, /jellyfin/)

@@ -34,7 +34,8 @@ services:
       # Each subdirectory containing a compose.yaml is a stack.
       # - /opt/stacks:/stacks
     ports:
-      - "3004:3000"
+      # Host port to publish (set HOMEPORT_PORT in .env). Container always listens on 3000.
+      - "${HOMEPORT_PORT:-3004}:3000"
     networks:
       - npm-network # reachable by the reverse proxy
       - internal # reach the socket proxy
@@ -44,7 +45,10 @@ services:
   # Read-only Docker API proxy — exposes only what homeport needs, so the app
   # never gets raw (root-equivalent) access to /var/run/docker.sock.
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    # Pinned by digest — this is the most security-sensitive dependency, so don't
+    # float on :latest. Update: docker pull tecnativa/docker-socket-proxy:latest &&
+    # docker inspect --format '{{index .RepoDigests 0}}' tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:latest@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     container_name: homeport-socket-proxy
     restart: unless-stopped
     environment:

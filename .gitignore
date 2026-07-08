@@ -8,8 +8,9 @@
 node_modules/
 dist/
 
-# Our private working doc — never goes to the public repo
+# Our private working docs — never go to the public repo
 CONTEXT.md
+LAUNCH.md
 
 # Local fixtures / scratch
 fixtures/npm-live/

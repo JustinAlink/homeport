@@ -29,6 +29,20 @@ export function constantEquals(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb)
 }
 
+/**
+ * Forward-auth: the username a trusted upstream proxy (Authelia / Authentik /
+ * oauth2-proxy / …) asserted for a request, or '' when none. Pure/testable —
+ * pass the configured header name and a header getter. A non-empty return means
+ * "already authenticated by the proxy".
+ */
+export function forwardAuthUser(
+  headerName: string,
+  getHeader: (name: string) => string | null | undefined,
+): string {
+  if (!headerName) return ''
+  return (getHeader(headerName) || '').trim()
+}
+
 // A publicly reachable admin login: give it a real floor, not 6.
 export const MIN_PASSWORD_LENGTH = 10
 

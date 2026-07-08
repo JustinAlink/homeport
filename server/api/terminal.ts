@@ -2,6 +2,8 @@ import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
 import { verifyCookieHeader } from '../utils/session'
+import { trustedAuthHeader } from '../utils/auth'
+import { forwardAuthUser } from '../utils/auth-core'
 import { splitServiceId } from '../utils/service-id'
 import { parseClientFrame, SHELL_CMD, demoShellRespond, demoPrompt } from '../utils/terminal-core'
 
@@ -22,7 +24,11 @@ const sessions = new Map<string, TermSession>()
 
 export default defineWebSocketHandler({
   upgrade(req) {
-    if (!verifyCookieHeader(req.headers.get('cookie'))) {
+    // Same auth as the HTTP middleware: a valid session cookie OR a trusted
+    // forward-auth header set by the upstream proxy.
+    const th = trustedAuthHeader()
+    const forwardAuthed = !!th && !!forwardAuthUser(th, (n) => req.headers.get(n))
+    if (!forwardAuthed && !verifyCookieHeader(req.headers.get('cookie'))) {
       return new Response('Unauthorized', { status: 401 })
     }
     const cfg = getConfig()

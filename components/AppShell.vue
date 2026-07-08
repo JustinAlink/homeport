@@ -57,12 +57,16 @@
           <span class="capitalize">{{ theme.choice.value }} theme</span>
         </button>
         <button
+          v-if="!caps.forwardAuth"
           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] text-slate-400 hover:bg-white/5 hover:text-slate-200"
           @click="logout"
         >
           <Icon name="logout" class="h-[18px] w-[18px] shrink-0" />
           Log out
         </button>
+        <p v-else class="px-3 py-2 text-[11px] text-slate-500" title="Authenticated by your reverse proxy (forward-auth)">
+          signed in via proxy
+        </p>
       </div>
     </aside>
 

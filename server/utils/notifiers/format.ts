@@ -30,6 +30,20 @@ export function buildBody(ch: WebhookChannel, e: AlertEvent): { body: string; he
       return { body: JSON.stringify({ text }) }
     case 'ntfy':
       return { body: text, headers: { 'content-type': 'text/plain', Title: `homeport · ${e.name}`, Tags: e.kind } }
+    case 'apprise': {
+      // POST to an Apprise API server (caronc/apprise-api). One integration reaches
+      // 100+ services (Gotify/Pushover/Telegram/Matrix/…). `url` is the /notify
+      // endpoint (a config key in the path = stateful; otherwise pass service `urls`).
+      const type =
+        e.kind === 'recovered' ? 'success'
+          : e.kind === 'update' ? 'info'
+            : e.kind === 'updated' ? (e.to ? 'failure' : 'success')
+              : e.kind === 'unhealthy' ? 'warning'
+                : 'failure' // down
+      const payload: Record<string, string> = { body: text, title: `homeport · ${e.name}`, type, tag: e.kind }
+      if (ch.urls) payload.urls = ch.urls
+      return { body: JSON.stringify(payload) }
+    }
     case 'custom':
     default: {
       const vars = { name: e.name, kind: e.kind, host: e.host || '', from: e.from, to: e.to, id: e.id, text }

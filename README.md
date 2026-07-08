@@ -2,7 +2,7 @@
 
 # ⚓ homeport
 
-**A zero-config status hub for your self-hosted Docker fleet.**
+**A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/JustinAlink/homeport?sort=semver&color=2ea44f)](https://github.com/JustinAlink/homeport/releases)
@@ -56,7 +56,7 @@ all live and builds the page for you. **Zero tiles to configure.**
 - **Automatic domains** — homeport reads your reverse proxy, so it already knows `webapp → app.example.com`.
 - **Live** — updates the instant a container starts, stops, or goes unhealthy (Docker events, not polling).
 - **Graphs & uptime** — per-container CPU/RAM sparklines, per-stack totals, and a fleet graph with a 1h/6h/24h range (containers vs. whole-machine, straight from procfs) — plus optional up/down pings.
-- **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, custom webhooks, or email, with anti-flap debounce.
+- **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
 
 ### 🛠️ Manage — opt-in, only what you enable
 - **A page per container** — live logs, a **web terminal**, an **env editor** (secrets stay write-only), and one-click **image updates**.
@@ -90,7 +90,16 @@ already knows your domains, and stays read-only until you decide to turn managem
 | Reverse-proxy admin | ✅ create/edit routes from the UI | — | — | — |
 
 Coming from one of those? homeport isn't a replacement for a full container platform — it's the
-"what's running, is it up, and what's its URL" layer that stays out of your way until you need more.
+status-and-domains layer on top, and it stays out of your way until you turn management on.
+
+**Not (yet) for you if…**
+
+- You need **native OIDC / OAuth SSO or 2FA** — homeport supports **forward-auth** (put it behind
+  Authelia / Authentik / oauth2-proxy and it trusts their `Remote-User` header), but there's no
+  built-in OIDC or TOTP yet.
+- You run **Podman, Kubernetes, or Swarm** — homeport talks to the Docker API only.
+- You want to edit **container CPU/RAM limits or healthchecks** from the UI — not there yet (you can
+  edit restart policy and the full compose file).
 
 Every container has its own page — overview, logs, terminal, domains, and updates:
 
@@ -132,6 +141,11 @@ docker run -d --name homeport -p 3004:3000 \
   ghcr.io/justinalink/homeport:latest
 # open http://<host>:3004 → create your admin password on first run
 ```
+
+> **For a quick local look only.** A `:ro` socket mount isn't a real security boundary — the
+> Docker API is root-equivalent, so anything in the container could still control Docker. For a
+> server (or anything exposed), use the one-command install above: it runs homeport behind a
+> locked-down `docker-socket-proxy` that only exposes the calls it needs.
 
 No env vars required: on first visit homeport walks you through **setting an admin
 password** (and generates a session secret for you). Prefer headless? Set
@@ -411,8 +425,10 @@ the page.
   off with `HOMEPORT_HISTORY=false`.
 - **Alerts** detect down / unhealthy / recovered transitions, debounced over N samples to
   avoid flapping, with a re-notify cooldown. Configure on the settings page: pick which
-  transitions to notify on and add **webhook channels** — Discord, Slack, ntfy, or a custom
-  JSON body with `{{name}} {{kind}} {{host}} {{from}} {{to}}` placeholders. A **Send test**
+  transitions to notify on and add **webhook channels** — Discord, Slack, ntfy, **Apprise**
+  (point it at an [Apprise API](https://github.com/caronc/apprise-api) server to reach Gotify /
+  Pushover / Telegram / Matrix / 100+ more), or a custom JSON body with
+  `{{name}} {{kind}} {{host}} {{from}} {{to}}` placeholders. A **Send test**
   button verifies each channel. Alert state + a recent-events log persist under
   `${HOMEPORT_DATA_DIR}/alerts/` so a homeport restart doesn't re-page every down service.
   Exclude a container with the `hub.noalert=true` label. Enable with `HOMEPORT_ALERTS=true`
@@ -472,6 +488,38 @@ count) groups them by compose project:
 - The reverse-proxy config is mounted **read-only**.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
   it behind HTTPS via your reverse proxy.
+
+### Forward-auth (SSO via your proxy)
+
+Already run [Authelia](https://www.authelia.com/), [Authentik](https://goauthentik.io/),
+[Pocket-ID](https://github.com/pocket-id/pocket-id), or oauth2-proxy? Let it handle login and
+have homeport trust the authenticated username it forwards:
+
+```bash
+HOMEPORT_TRUSTED_HEADER=Remote-User   # the header your forward-auth proxy sets
+```
+
+Any request carrying a non-empty value for that header is treated as authenticated (homeport is
+single-user, so the value is informational — shown as "signed in via proxy"). The local password
+login still works for requests without the header.
+
+> ⚠️ **Only enable this if homeport is reachable *exclusively* through that proxy.** A directly
+> reachable instance lets anyone forge the header and walk straight in. Configure your proxy to
+> **strip the header from inbound requests** before it injects its own.
+
+### Scoped API tokens
+
+For automation — scripts, a bot, a status page — mint an API token in **Settings → API tokens**
+instead of handing out the admin password:
+
+```bash
+curl -H "Authorization: Bearer hp_xxx" https://homeport.example.com/api/services
+```
+
+- **Read-only** tokens can only make `GET` requests (and never `/api/backup`, which exports secrets).
+- **Full** tokens can do anything the admin can.
+- Tokens are stored **hashed** (shown once at creation) and can be revoked any time. No token can
+  mint or revoke tokens — that always needs a real login.
 
 ## App catalog
 

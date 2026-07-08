@@ -430,7 +430,7 @@
           </div>
 
           <div class="space-y-3">
-            <p class="text-xs text-slate-500">Webhook channels (Discord / Slack / ntfy / custom). Add <code>hub.noalert=true</code> on a container to exclude it.</p>
+            <p class="text-xs text-slate-500">Webhook channels (Discord / Slack / ntfy / Apprise / custom). Add <code>hub.noalert=true</code> on a container to exclude it.</p>
             <div
               v-for="(ch, i) in form.alertChannels"
               :key="i"
@@ -442,6 +442,7 @@
                   <option value="discord">Discord</option>
                   <option value="slack">Slack</option>
                   <option value="ntfy">ntfy</option>
+                  <option value="apprise">Apprise</option>
                   <option value="custom">Custom</option>
                 </select>
                 <button
@@ -452,7 +453,17 @@
                   Remove
                 </button>
               </div>
-              <input v-model="ch.url" :class="fieldCls" placeholder="Webhook URL (https://…)" />
+              <input
+                v-model="ch.url"
+                :class="fieldCls"
+                :placeholder="ch.preset === 'apprise' ? 'Apprise API endpoint — http://apprise:8000/notify/<key>' : 'Webhook URL (https://…)'"
+              />
+              <input
+                v-if="ch.preset === 'apprise'"
+                v-model="ch.urls"
+                :class="fieldCls"
+                placeholder="Apprise URLs (optional) — e.g. pover://user@token, tgram://bot/chat"
+              />
               <textarea
                 v-if="ch.preset === 'custom'"
                 v-model="ch.template"
@@ -637,6 +648,12 @@
         </div>
       </section>
 
+      <!-- API tokens (self-contained CRUD, own endpoints) -->
+      <section :id="'api-tokens'" class="scroll-mt-6 space-y-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">API tokens</h2>
+        <ApiTokens />
+      </section>
+
       <!-- About / self-update -->
       <section :id="'about'" class="scroll-mt-6 space-y-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">About</h2>
@@ -708,6 +725,7 @@ const sections = computed(() =>
     { id: 'backup', label: 'Backup' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
+    { id: 'api-tokens', label: 'API tokens' },
     { id: 'about', label: 'About' },
   ],
 )
@@ -878,8 +896,9 @@ const capabilityToggles = [
 interface ChannelRow {
   name: string
   url: string
-  preset: 'discord' | 'slack' | 'ntfy' | 'custom'
+  preset: 'discord' | 'slack' | 'ntfy' | 'apprise' | 'custom'
   template?: string
+  urls?: string
 }
 
 interface RegistryCredRow {

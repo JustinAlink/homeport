@@ -75,6 +75,7 @@ function toService(s: Seed, i: number): Service {
     health: s.health ?? null,
     createdAt: Date.now() - (i + 1) * DAY,
     ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
+    internalPorts: (s.ports || []).slice(),
     networks: [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])],
     group: s.group,
     project: s.group,

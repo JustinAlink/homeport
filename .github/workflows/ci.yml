@@ -24,3 +24,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Smoke test (demo build, every page)
         run: npm run smoke
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # install.sh is served as `curl … | sh`, so lint it. shellcheck ships on the runner.
+      - run: shellcheck -s sh install.sh

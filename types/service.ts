@@ -26,6 +26,7 @@ export interface Service {
   health: HealthState
   createdAt: number // unix ms
   ports: ServicePort[]
+  internalPorts?: number[] // container-internal ports incl. exposed-but-unpublished (proxy-upstream hint)
   networks?: string[] // docker networks the container is attached to
   group: string // hub.group label > compose project > "Other"
   project: string | null

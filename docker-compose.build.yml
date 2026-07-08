@@ -16,7 +16,7 @@ services:
       - homeport-data:/data
       - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
     ports:
-      - "3004:3000"
+      - "${HOMEPORT_PORT:-3004}:3000"
     networks:
       - npm-network
       - internal
@@ -24,7 +24,8 @@ services:
       - docker-socket-proxy
 
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    # Pinned by digest (see docker-compose.yml for how to refresh it).
+    image: tecnativa/docker-socket-proxy:latest@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     container_name: homeport-socket-proxy
     restart: unless-stopped
     environment:

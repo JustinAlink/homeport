@@ -442,7 +442,7 @@ const domainInitial = computed(() => {
   const s = service.value!
   const m = matchedRoute.value
   if (m) return { id: m.id, domains: m.domains, upstreamHost: m.upstreamHost, upstreamPort: m.upstreamPort, ssl: m.ssl }
-  return { domains: s.domains.map((d) => d.domain), upstreamHost: s.name, upstreamPort: s.ports[0]?.hostPort ?? 80, ssl: s.domains[0]?.ssl ?? true }
+  return { domains: s.domains.map((d) => d.domain), upstreamHost: s.name, upstreamPort: s.ports[0]?.containerPort ?? s.internalPorts?.[0] ?? s.ports[0]?.hostPort ?? 80, ssl: s.domains[0]?.ssl ?? true }
 })
 // remount the form once routes resolve so it re-reads `initial`
 const domainFormKey = computed(() => (matchedRoute.value?.id ?? (routesLoaded.value ? 'new' : 'loading')))

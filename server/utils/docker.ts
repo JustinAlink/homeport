@@ -59,6 +59,7 @@ export interface RawContainer {
   health: HealthState
   createdAt: number
   ports: ServicePort[]
+  internalPorts: number[] // container-internal ports (incl. exposed-but-unpublished)
   project: string | null
   service: string | null
   networks: string[]
@@ -85,6 +86,16 @@ function publishedPorts(ports: Docker.Port[] | undefined): ServicePort[] {
   return out.sort((a, b) => a.hostPort - b.hostPort)
 }
 
+// Every distinct container-internal port, including ones only EXPOSEd (not host-published).
+// That's what a reverse proxy targeting the container name on a shared network connects to.
+function internalPorts(ports: Docker.Port[] | undefined): number[] {
+  const seen = new Set<number>()
+  for (const p of ports || []) {
+    if (p.PrivatePort) seen.add(p.PrivatePort)
+  }
+  return [...seen].sort((a, b) => a - b)
+}
+
 function mapContainer(c: Docker.ContainerInfo): RawContainer {
   const name = (c.Names?.[0] || '').replace(/^\//, '')
   const labels = c.Labels || {}
@@ -97,6 +108,7 @@ function mapContainer(c: Docker.ContainerInfo): RawContainer {
     health: parseHealth(c.Status),
     createdAt: c.Created * 1000,
     ports: publishedPorts(c.Ports),
+    internalPorts: internalPorts(c.Ports),
     project: labels['com.docker.compose.project'] || null,
     service: labels['com.docker.compose.service'] || null,
     networks: Object.keys(c.NetworkSettings?.Networks || {}),

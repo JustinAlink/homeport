@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hashPassword, verifyHash, constantEquals, recordFailure, lockRemaining, FREE_FAILS, LOCK_BASE_MS, LOCK_MAX_MS, QUIET_MS, recordGlobalFailure, globalLockRemaining, GLOBAL_FREE_FAILS, GLOBAL_LOCK_BASE_MS, GLOBAL_LOCK_MAX_MS, GLOBAL_WINDOW_MS, MIN_PASSWORD_LENGTH } from '../server/utils/auth-core.ts'
+import { hashPassword, verifyHash, constantEquals, forwardAuthUser, recordFailure, lockRemaining, FREE_FAILS, LOCK_BASE_MS, LOCK_MAX_MS, QUIET_MS, recordGlobalFailure, globalLockRemaining, GLOBAL_FREE_FAILS, GLOBAL_LOCK_BASE_MS, GLOBAL_LOCK_MAX_MS, GLOBAL_WINDOW_MS, MIN_PASSWORD_LENGTH } from '../server/utils/auth-core.ts'
 
 test('hashPassword: salted, verifies, rejects wrong password', () => {
   const stored = hashPassword('correct horse')
@@ -17,6 +17,18 @@ test('verifyHash: handles missing/garbage stored value', () => {
   assert.equal(verifyHash('x', undefined), false)
   assert.equal(verifyHash('x', ''), false)
   assert.equal(verifyHash('x', 'nocolon'), false)
+})
+
+test('forwardAuthUser: extracts a trusted header, trims, empty when off/absent', () => {
+  const headers: Record<string, string> = { 'remote-user': '  alice  ', 'x-empty': '   ' }
+  const get = (n: string) => headers[n.toLowerCase()]
+  // configured header present → authenticated as the trimmed user
+  assert.equal(forwardAuthUser('Remote-User', get), 'alice')
+  // no header name configured → never authenticated (feature off)
+  assert.equal(forwardAuthUser('', get), '')
+  // configured but header absent or blank → not authenticated
+  assert.equal(forwardAuthUser('X-Missing', get), '')
+  assert.equal(forwardAuthUser('X-Empty', get), '')
 })
 
 test('constantEquals', () => {
