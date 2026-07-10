@@ -62,6 +62,7 @@ services:
       #   apply updates             → IMAGES: 1, POST: 1
       #   compose stacks            → POST: 1, IMAGES: 1, NETWORKS: 1, VOLUMES: 1
       #   web terminal              → EXEC: 1, POST: 1
+      #   edit files in containers  → POST: 1   (PUT on /containers/*/archive)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:

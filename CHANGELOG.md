@@ -1,5 +1,31 @@
 # Changelog
 
+## v2.26.0 — 2026-07-10
+
+Stacks quality-of-life: a cleaner delete, and — finally — a way to see and edit
+the files an installed app actually keeps, wherever they live.
+
+- **Deleting a stack no longer leaves you stranded.** The page now navigates back
+  to the stacks list as soon as the stack is actually gone, even when the live
+  operation stream drops mid-delete (it re-checks server-side instead of waiting
+  on a stream event that may never arrive). No more "did that work?" refresh.
+- **"Data & mounts" on every stack.** A new section shows where each service
+  keeps its files — config living in the stack folder (editable in the file
+  browser, one click away), named volumes (linked to Storage), and external host
+  paths (with a read-only/read-write badge). Installing an app no longer hides
+  its data: you can see exactly what's a volume and what's a bind.
+- **Edit files inside containers and volumes.** Opt-in
+  (`HOMEPORT_ALLOW_CONTAINER_FILES`, off by default), this reaches config that
+  lives in a **named volume** rather than the compose file — the common case for
+  apps installed from a Docker Hub image (e.g. SearXNG's `/etc/searxng`). Browse
+  and edit right from a mount's **browse** button. It works via `docker cp`, so
+  no shell is needed in the container and even stopped or distroless containers
+  are editable. Read-only mounts are view-only, viewers are blocked entirely
+  (container files can hold secrets), and path traversal is guarded. Needs the
+  socket proxy to allow `PUT` on `/containers/*/archive` (the same `POST: 1` that
+  Stacks/terminal already use) — Settings → "Probe proxy permissions" now checks
+  it for you and shows red if it's blocked.
+
 ## v2.25.0 — 2026-07-09
 
 Multi-user access, live resource-limit editing, and installable-app support —

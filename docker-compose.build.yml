@@ -33,6 +33,13 @@ services:
       INFO: 1
       EVENTS: 1
       PING: 1
+      # everything else stays denied (default 0). Per-capability extras:
+      #   start/stop/restart        → POST: 1
+      #   update checks             → DISTRIBUTION: 1
+      #   apply updates             → IMAGES: 1, POST: 1
+      #   compose stacks            → POST: 1, IMAGES: 1, NETWORKS: 1, VOLUMES: 1
+      #   web terminal              → EXEC: 1, POST: 1
+      #   edit files in containers  → POST: 1   (PUT on /containers/*/archive)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
