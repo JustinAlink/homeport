@@ -1,5 +1,5 @@
 <template>
-  <section>
+  <section ref="rootEl">
     <div class="mb-2 flex flex-wrap items-center gap-2">
       <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Files</h2>
       <!-- breadcrumb -->
@@ -145,6 +145,7 @@ const entries = ref<Entry[]>([])
 const loading = ref(false)
 const err = ref('')
 const uploadInput = ref<HTMLInputElement | null>(null)
+const rootEl = ref<HTMLElement | null>(null)
 
 const crumbs = computed(() => (path.value ? path.value.split('/') : []))
 const parentPath = computed(() => crumbs.value.slice(0, -1).join('/'))
@@ -340,6 +341,14 @@ async function upload(ev: Event) {
     err.value = errMsg(e, 'Upload failed')
   }
 }
+
+// jump the browser to a folder (a "Data & mounts" bind-mount row uses this) and
+// scroll it into view — the relative path comes straight from the mount source
+function goto(rel: string) {
+  cd(rel)
+  nextTick(() => rootEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+defineExpose({ goto })
 
 onMounted(load)
 onBeforeUnmount(() => fileView?.destroy())

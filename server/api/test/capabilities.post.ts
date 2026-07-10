@@ -29,6 +29,11 @@ async function runProbe(docker: any, name: ProbeName): Promise<ProbeVerdict> {
       case 'volumes':
         await docker.listVolumes(oneShot())
         break
+      case 'archive':
+        // PUT an (empty) tar to a nonexistent container: proxies that block PUT on
+        // the archive endpoint answer 403; a permitted call reaches the daemon → 404.
+        await docker.getContainer(PROBE_TARGET).putArchive(Buffer.alloc(0), { path: '/', ...oneShot() })
+        break
     }
     return 'allowed'
   } catch (e: any) {

@@ -342,6 +342,61 @@ export function demoStackSave(name: string, content: string, _create: boolean) {
   return { ok: true, stack: { name, file: 'compose.yaml', content, source: 'stacks', dir: `/stacks/${name}` } }
 }
 
+// Representative "Data & mounts" rows so the discovery view is demoable: a bit of
+// editable in-folder config, a named volume, and a read-only host bind. `container`
+// is a fake service id the demo container-file editor accepts.
+export function demoStackMounts(name: string) {
+  const dir = `/stacks/${name}`
+  if (name === 'media') {
+    return {
+      dir,
+      mounts: [
+        { kind: 'bind-internal', rel: 'config', dest: '/config', rw: true, services: ['jellyfin'], container: 'demo::jellyfin' },
+        { kind: 'volume', name: 'media_cache', anonymous: false, dest: '/cache', rw: true, services: ['jellyfin'], container: 'demo::jellyfin' },
+        { kind: 'bind-external', source: '/mnt/media', dest: '/media', rw: false, services: ['jellyfin'], container: 'demo::jellyfin' },
+      ],
+    }
+  }
+  return {
+    dir,
+    mounts: [{ kind: 'volume', name: `${name}-data`, anonymous: false, dest: '/data', rw: true, services: [name], container: `demo::${name}` }],
+  }
+}
+
+// A tiny fake in-container filesystem so the container file editor is demoable —
+// this is exactly the searxng case: config that lives in a named volume, not the
+// stack folder. Writes persist for the session so "save" round-trips.
+const demoContainerFiles = new Map<string, string>([
+  ['settings.yml', 'use_default_settings: true\nsearch:\n  safe_search: 0\n  autocomplete: "duckduckgo"\nserver:\n  secret_key: "change_me"\n  limiter: true\n'],
+  ['uwsgi.ini', '[uwsgi]\nworkers = 4\nthreads = 4\n'],
+  ['limiter.toml', '[botdetection.ip_limit]\nlink_token = true\n'],
+])
+
+export function demoContainerList(_id: string, root: string, rel: string) {
+  if (rel) throw createError({ statusCode: 400, statusMessage: 'not a directory' })
+  const entries = [...demoContainerFiles.entries()]
+    .map(([name, content]) => ({ name, type: 'file' as const, size: content.length, mtime: Date.now() - 3600_000 }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return { root, path: rel, abs: root, entries, truncated: false }
+}
+
+export function demoContainerRead(event: any, _id: string, _root: string, rel: string, download: boolean) {
+  const content = demoContainerFiles.get(rel)
+  if (content === undefined) throw createError({ statusCode: 404, statusMessage: 'no such file' })
+  if (download) {
+    setHeader(event, 'content-type', 'application/octet-stream')
+    setHeader(event, 'content-disposition', `attachment; filename="${rel.split('/').pop()}"`)
+    return Buffer.from(content)
+  }
+  return { path: rel, content }
+}
+
+export function demoContainerWrite(_id: string, _root: string, rel: string, content: string) {
+  if (!rel) throw createError({ statusCode: 400, statusMessage: 'invalid path' })
+  demoContainerFiles.set(rel, content)
+  return { ok: true, path: rel }
+}
+
 // One demo stack presents as git-backed so the from-git flow is demoable.
 const DEMO_GIT_STACK = 'media'
 

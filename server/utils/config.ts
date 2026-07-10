@@ -66,6 +66,8 @@ export interface HomeportConfig {
   catalogUrls: string[]
   /** Web terminal: exec into containers (needs EXEC=1 POST=1). Off by default. */
   allowTerminal: boolean
+  /** Browse + edit files inside containers/volumes via docker cp (needs CONTAINERS=1 + PUT). Off by default. */
+  allowContainerFiles: boolean
   /** Manage the reverse proxy (create/edit domains) via provider APIs. Off by default. */
   allowProxyAdmin: boolean
   /** Actively HTTP-ping mapped domains for an up/down indicator. On by default. */
@@ -244,6 +246,10 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined
         ? process.env.HOMEPORT_ALLOW_TERMINAL === 'true'
         : !!s.allowTerminal,
+    allowContainerFiles:
+      envStr('HOMEPORT_ALLOW_CONTAINER_FILES') !== undefined
+        ? process.env.HOMEPORT_ALLOW_CONTAINER_FILES === 'true'
+        : !!s.allowContainerFiles,
     allowProxyAdmin:
       envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined
         ? process.env.HOMEPORT_ALLOW_PROXY_ADMIN === 'true'
@@ -326,6 +332,7 @@ export function getEnvLocks() {
     composeRoots: envStr('HOMEPORT_COMPOSE_ROOTS') !== undefined,
     catalogUrls: envStr('HOMEPORT_CATALOG_URLS') !== undefined,
     allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
+    allowContainerFiles: envStr('HOMEPORT_ALLOW_CONTAINER_FILES') !== undefined,
     allowProxyAdmin: envStr('HOMEPORT_ALLOW_PROXY_ADMIN') !== undefined,
     pingEnabled: envStr('HOMEPORT_PING') !== undefined,
     systemdEnabled: envStr('HOMEPORT_SYSTEMD') !== undefined,
@@ -371,6 +378,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     composeRoots: s.composeRoots ?? [],
     catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal: !!s.allowTerminal,
+    allowContainerFiles: !!s.allowContainerFiles,
     allowProxyAdmin: !!s.allowProxyAdmin,
     pingEnabled: s.pingEnabled ?? true,
     systemdEnabled: !!s.systemdEnabled,

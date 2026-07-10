@@ -867,6 +867,7 @@ const form = reactive({
   composeRoots: [] as string[],
   catalogUrls: [] as string[],
   allowTerminal: false,
+  allowContainerFiles: false,
   allowProxyAdmin: false,
   pingEnabled: true,
   systemdEnabled: false,
@@ -908,6 +909,7 @@ const capabilityToggles = [
   { key: 'allowUpdates', lock: 'allowUpdates', env: 'HOMEPORT_ALLOW_UPDATES', label: 'Apply image updates (pull + recreate)', hint: 'needs IMAGES=1 POST=1' },
   { key: 'allowStacks', lock: 'allowStacks', env: 'HOMEPORT_ALLOW_STACKS', label: 'Compose stack management', hint: 'needs POST=1 CONTAINERS=1 IMAGES=1 NETWORKS=1 VOLUMES=1 + a mounted stacks dir' },
   { key: 'allowTerminal', lock: 'allowTerminal', env: 'HOMEPORT_ALLOW_TERMINAL', label: 'Web terminal (exec into containers)', hint: 'needs EXEC=1 POST=1 — full shell access, enable with care' },
+  { key: 'allowContainerFiles', lock: 'allowContainerFiles', env: 'HOMEPORT_ALLOW_CONTAINER_FILES', label: 'Browse + edit files inside containers/volumes', hint: 'reads/writes container files via docker cp — needs CONTAINERS=1 + PUT allowed on the socket proxy' },
   { key: 'allowProxyAdmin', lock: 'allowProxyAdmin', env: 'HOMEPORT_ALLOW_PROXY_ADMIN', label: 'Manage the reverse proxy (domains)', hint: 'talks to your proxy, not Docker — needs provider credentials below' },
 ] as const
 
@@ -938,6 +940,7 @@ const PROBE_CAP_OF: Record<string, string> = {
   allowUpdates: 'updates',
   allowStacks: 'stacks',
   allowTerminal: 'terminal',
+  allowContainerFiles: 'containerFiles',
 }
 interface ProbeHost { name: string; probes: Record<string, string>; caps: Record<string, string> }
 const probing = ref(false)

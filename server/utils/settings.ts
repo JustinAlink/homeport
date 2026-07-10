@@ -28,6 +28,7 @@ export interface PersistedSettings {
   /** Extra app-catalog template source URLs (native or Portainer format). */
   catalogUrls?: string[]
   allowTerminal?: boolean
+  allowContainerFiles?: boolean
   allowProxyAdmin?: boolean
   pingEnabled?: boolean
   systemdEnabled?: boolean

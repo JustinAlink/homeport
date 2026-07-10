@@ -36,6 +36,12 @@ test('capVerdict: unknown capability name has no requirements → allowed', () =
   assert.equal(capVerdict({}, 'nonsense'), 'allowed')
 })
 
+test('capVerdict: container files hinge on the archive (PUT) probe', () => {
+  assert.equal(capVerdict({ archive: 'allowed' }, 'containerFiles'), 'allowed')
+  assert.equal(capVerdict({ archive: 'blocked' }, 'containerFiles'), 'blocked') // proxy blocks PUT
+  assert.equal(capVerdict({}, 'containerFiles'), 'unknown') // unprobed
+})
+
 test('every capability requirement is a real probe', () => {
   for (const needs of Object.values(CAP_REQUIREMENTS)) {
     for (const n of needs) assert.ok((PROBES as readonly string[]).includes(n), n)

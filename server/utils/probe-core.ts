@@ -7,7 +7,7 @@
 
 export type ProbeVerdict = 'allowed' | 'blocked' | 'unknown'
 
-export const PROBES = ['post', 'exec', 'distribution', 'images', 'networks', 'volumes'] as const
+export const PROBES = ['post', 'exec', 'distribution', 'images', 'networks', 'volumes', 'archive'] as const
 export type ProbeName = (typeof PROBES)[number]
 
 /** Classify a probe call outcome. `null` = the call succeeded. */
@@ -25,6 +25,9 @@ export const CAP_REQUIREMENTS: Record<string, readonly ProbeName[]> = {
   updates: ['post', 'images'],
   stacks: ['post', 'images', 'networks', 'volumes'],
   terminal: ['post', 'exec'],
+  // reading containers is the app's baseline (CONTAINERS=1); the uncertain bit is
+  // whether the proxy also permits PUT on /containers/*/archive to WRITE files.
+  containerFiles: ['archive'],
 }
 
 /** Roll individual probe results up into a per-capability verdict. */

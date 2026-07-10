@@ -121,6 +121,42 @@ export async function listContainersFor(host: HostConfig): Promise<RawContainer[
   return list.map(mapContainer)
 }
 
+export interface ContainerMount {
+  type: string // bind | volume | tmpfs
+  name?: string // volume name (type === 'volume')
+  source?: string // host path (type === 'bind')
+  destination: string // path inside the container
+  rw: boolean
+}
+
+/**
+ * Per-service mounts for a compose project (running OR stopped containers — a
+ * stopped container still owns its data). Powers the stack "Data & mounts" view;
+ * kept off the hot RawContainer/Service path so the dashboard payload stays lean.
+ */
+export async function listMountsForProject(
+  host: HostConfig,
+  project: string,
+): Promise<{ service: string; id: string; mounts: ContainerMount[] }[]> {
+  const list = await getDockerFor(host).listContainers({ all: true, ...oneShot() })
+  const out: { service: string; id: string; mounts: ContainerMount[] }[] = []
+  for (const c of list) {
+    const labels = c.Labels || {}
+    if (labels['com.docker.compose.project'] !== project) continue
+    const service = labels['com.docker.compose.service'] || (c.Names?.[0] || '').replace(/^\//, '')
+    const mounts: ContainerMount[] = (c.Mounts || []).map((m: any) => ({
+      type: m.Type || '',
+      name: m.Name || undefined,
+      source: m.Source || undefined,
+      destination: m.Destination || '',
+      rw: m.RW !== false,
+    }))
+    // service id form (host::containerId) so the client can open the file editor
+    out.push({ service, id: `${host.id}::${c.Id}`, mounts })
+  }
+  return out
+}
+
 export async function controlContainerFor(
   host: HostConfig,
   id: string,

@@ -10,6 +10,7 @@
         :title="`Managed in place at ${stackDir} — not in homeport's stacks directory`"
       >external</span>
       <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
+      <span v-if="deleting" class="inline-flex items-center gap-1 rounded-full border border-red-400/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-red-300"><span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />deleting…</span>
       <span v-if="notManaged && rows.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
       <div v-if="notManaged" class="ml-auto flex items-center gap-2">
         <button
@@ -216,7 +217,11 @@
     </div>
 
     <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" :stack="name" :compose-file="file" :read-only="!caps.control" class="mt-6" />
+    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" class="mt-6" />
+
+    <!-- where the stack's data actually lives: named volumes + host binds that
+         sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
+    <StackMounts v-if="!notManaged && !isNew" :stack="name" class="mt-6" @browse="onBrowse" />
 
     <!-- services in this stack (compose project) -->
     <section v-if="rows.length" class="mt-6">
@@ -338,6 +343,11 @@ async function bulk(action: 'start' | 'stop' | 'restart') {
   svcRefresh()
 }
 const editorEl = ref<HTMLElement | null>(null)
+// the file browser, so a "Data & mounts" bind-mount row can jump straight to it
+const filesRef = ref<{ goto: (rel: string) => void } | null>(null)
+function onBrowse(rel: string) {
+  filesRef.value?.goto(rel)
+}
 const dirty = ref(false)
 const saving = ref(false)
 const saveMsg = ref('')
@@ -442,7 +452,7 @@ const opOk = ref<boolean | null>(null)
 const opDropped = ref(false)
 let es: EventSource | null = null
 
-function attachOp(opId: string, onDone?: () => void) {
+function attachOp(opId: string, onDone?: () => void, onDropped?: () => void) {
   es?.close()
   es = new EventSource(`/api/ops/${opId}`)
   es.onmessage = (e) => {
@@ -458,8 +468,12 @@ function attachOp(opId: string, onDone?: () => void) {
     } catch {}
   }
   es.onerror = () => {
-    // A dropped stream isn't a failure — the op runs server-side. Don't paint it red.
-    if (opOk.value === null) opDropped.value = true
+    // A dropped stream isn't a failure — the op runs server-side. Don't paint it
+    // red; let the caller confirm the real outcome (delete re-checks the stack).
+    if (opOk.value === null) {
+      opDropped.value = true
+      onDropped?.()
+    }
     opRunning.value = false
     es?.close()
   }
@@ -547,6 +561,7 @@ async function removeNetwork(netName: string) {
 }
 
 const deletePanel = ref(false)
+const deleting = ref(false)
 const del = reactive({ volumes: false, images: false, proxyRoutes: false })
 
 async function deleteStack() {
@@ -565,19 +580,43 @@ async function deleteStack() {
   opOk.value = null
   opDropped.value = false
   opRunning.value = true
+  deleting.value = true
   try {
     const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(name)}/delete`, {
       method: 'POST',
       body: { volumes: del.volumes, images: del.images, proxyRoutes: del.proxyRoutes },
     })
-    attachOp(opId, () => {
-      if (opOk.value) setTimeout(() => navigateTo('/stacks', { replace: true }), 1200)
-    })
+    // Leave for /stacks once the stack is actually gone — on a clean finish OR a
+    // dropped stream (which still means the delete ran server-side). Relying only
+    // on a live "done, ok" event left the page stuck here whenever the stream dropped.
+    attachOp(
+      opId,
+      () => {
+        if (opOk.value !== false) leaveWhenGone()
+      },
+      () => leaveWhenGone(),
+    )
   } catch (e: any) {
     opLines.value.push(errMsg(e, 'could not start the delete'))
     opOk.value = false
     opRunning.value = false
+    deleting.value = false
   }
+}
+
+// After the delete op ends, confirm the stack is really gone (it may still be
+// finishing when a stream drops), then navigate away. If it's still there after
+// a few seconds the delete failed — stay so the op log explains why.
+async function leaveWhenGone() {
+  for (let i = 0; i < 12; i++) {
+    try {
+      await $fetch(`/api/stacks/${encodeURIComponent(name)}`)
+    } catch (e: any) {
+      if ((e?.statusCode ?? e?.response?.status) === 404) return navigateTo('/stacks', { replace: true })
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  deleting.value = false
 }
 
 // --- git-backed stacks ---

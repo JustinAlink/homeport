@@ -16,6 +16,7 @@ export default defineEventHandler((event) => {
     updates: cfg.allowUpdates && !viewer,
     stacks: cfg.allowStacks,
     terminal: cfg.allowTerminal && !viewer,
+    containerFiles: cfg.allowContainerFiles && !viewer,
     proxyAdmin: cfg.allowProxyAdmin,
     // first-run / account hints (not secrets)
     loginDisabled: authMode() === 'open', // running without a login

@@ -150,6 +150,7 @@ export default defineEventHandler(async (event) => {
       })
   }
   if (body.allowTerminal !== undefined) patch.allowTerminal = !!body.allowTerminal
+  if (body.allowContainerFiles !== undefined) patch.allowContainerFiles = !!body.allowContainerFiles
   if (body.allowProxyAdmin !== undefined) patch.allowProxyAdmin = !!body.allowProxyAdmin
   if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
   if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled

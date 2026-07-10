@@ -413,6 +413,7 @@ count) groups them by compose project:
   | Private registry logins | `HOMEPORT_REGISTRY_AUTH` | none | — (used for check + pull) |
   | Compose stacks | `HOMEPORT_ALLOW_STACKS` | off | `POST=1 IMAGES=1 NETWORKS=1 VOLUMES=1` |
   | Web terminal | `HOMEPORT_ALLOW_TERMINAL` | off | `EXEC=1 POST=1` |
+  | Edit files in containers/volumes | `HOMEPORT_ALLOW_CONTAINER_FILES` | off | `CONTAINERS=1` + `PUT` on `/containers/*/archive` |
   | Proxy management | `HOMEPORT_ALLOW_PROXY_ADMIN` | off | none (talks to your proxy, not Docker) |
 - **Settings → Capabilities → “Probe proxy permissions”** checks what the socket proxy
   actually allows, per capability — so a toggle that would 403 at the proxy shows red
