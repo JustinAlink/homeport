@@ -32,7 +32,13 @@
               <span class="font-mono text-slate-400">{{ m.anonymous ? m.name.slice(0, 12) + '…' : m.name }}</span>
             </template>
             <template v-else-if="m.kind === 'bind-internal'">
-              in this stack's files · <span class="font-mono text-slate-400">{{ m.rel || '(stack root)' }}</span>
+              <template v-if="m.hostVisible !== false">
+                in this stack's files · <span class="font-mono text-slate-400">{{ m.rel || '(stack root)' }}</span>
+              </template>
+              <template v-else>
+                in the container · <span class="font-mono text-slate-400">{{ m.dest }}</span>
+                <span class="text-amber-300/70">· host path not visible to homeport</span>
+              </template>
             </template>
             <template v-else>
               host path <span class="font-mono text-slate-400">{{ m.source }}</span>
@@ -48,11 +54,21 @@
           class="hidden shrink-0 truncate font-mono text-[10px] text-slate-600 sm:block"
           :title="m.services.join(', ')"
         >{{ m.services.join(', ') }}</span>
-        <button
-          v-if="m.kind === 'bind-internal'"
-          class="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
-          @click="$emit('browse', m.rel)"
-        >open</button>
+        <template v-if="m.kind === 'bind-internal'">
+          <!-- homeport can read the bind → edit it directly in the file browser -->
+          <button
+            v-if="m.hostVisible !== false"
+            class="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+            @click="$emit('browse', m.rel)"
+          >open</button>
+          <!-- host path invisible to homeport (named-volume stacks dir) → go through the container -->
+          <button
+            v-else-if="canBrowse(m)"
+            class="shrink-0 rounded-md border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent-light hover:bg-accent/10"
+            title="homeport can't see this bind on disk — browse it inside the container instead"
+            @click="openContainer(m)"
+          >{{ m.rw ? 'browse' : 'view' }}</button>
+        </template>
         <template v-else>
           <button
             v-if="canBrowse(m)"
@@ -84,7 +100,7 @@
 
 <script setup lang="ts">
 interface VolumeMount { kind: 'volume'; name: string; anonymous: boolean; dest: string; rw: boolean; services: string[]; container: string }
-interface BindInternal { kind: 'bind-internal'; rel: string; dest: string; rw: boolean; services: string[]; container: string }
+interface BindInternal { kind: 'bind-internal'; rel: string; dest: string; rw: boolean; services: string[]; container: string; hostVisible?: boolean }
 interface BindExternal { kind: 'bind-external'; source: string; dest: string; rw: boolean; services: string[]; container: string }
 type Mount = VolumeMount | BindInternal | BindExternal
 

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { getConfig } from '../../../utils/config'
 import { getHosts } from '../../../utils/hosts'
 import { resolveStack } from '../../../utils/stacks'
@@ -27,5 +29,15 @@ export default defineEventHandler(async (event) => {
   } catch {
     // host down or no mount visibility — return nothing rather than error the page
   }
-  return { dir, mounts: aggregateStackMounts(perService, dir) }
+
+  const mounts = aggregateStackMounts(perService, dir)
+  // A bind whose SOURCE path is under the stack dir is only actually editable in
+  // the host file browser if homeport can READ it. When the stacks dir is a named
+  // volume (not a same-path host mount), the daemon writes the bind on the host,
+  // out of homeport's view — flag those so the UI routes them to the container
+  // editor instead of deep-linking into a folder that ENOENTs.
+  for (const m of mounts) {
+    if (m.kind === 'bind-internal') m.hostVisible = !!dir && existsSync(join(dir, m.rel))
+  }
+  return { dir, mounts }
 })

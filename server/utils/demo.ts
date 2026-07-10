@@ -351,7 +351,9 @@ export function demoStackMounts(name: string) {
     return {
       dir,
       mounts: [
-        { kind: 'bind-internal', rel: 'config', dest: '/config', rw: true, services: ['jellyfin'], container: 'demo::jellyfin' },
+        { kind: 'bind-internal', rel: 'config', dest: '/config', rw: true, services: ['jellyfin'], container: 'demo::jellyfin', hostVisible: true },
+        // a bind whose host path homeport can't see → routes to the container editor
+        { kind: 'bind-internal', rel: 'searxng', dest: '/etc/searxng', rw: true, services: ['jellyfin'], container: 'demo::jellyfin', hostVisible: false },
         { kind: 'volume', name: 'media_cache', anonymous: false, dest: '/cache', rw: true, services: ['jellyfin'], container: 'demo::jellyfin' },
         { kind: 'bind-external', source: '/mnt/media', dest: '/media', rw: false, services: ['jellyfin'], container: 'demo::jellyfin' },
       ],

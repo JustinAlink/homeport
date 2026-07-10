@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.26.1 — 2026-07-10
+
+Fix for a bind mount whose files homeport can't see on disk.
+
+- **Stack files: no more raw `ENOENT` on a bind mount homeport can't read.** When
+  the stacks directory is a named volume (rather than a same-path host mount), a
+  container's relative bind (e.g. SearXNG's `./searxng:/etc/searxng`) is created
+  by Docker on the host, outside homeport's view — so trying to open that folder
+  in the file browser threw `ENOENT: … scandir …`. "Data & mounts" now detects
+  whether homeport can actually read a bind and, when it can't, routes that row to
+  the **container file editor** (which reads it inside the container via
+  `docker cp`) instead of a dead "open" link. The file browser also explains the
+  situation instead of surfacing the raw error.
+
 ## v2.26.0 — 2026-07-10
 
 Stacks quality-of-life: a cleaner delete, and — finally — a way to see and edit

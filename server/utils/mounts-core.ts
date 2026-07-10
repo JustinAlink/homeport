@@ -15,9 +15,14 @@ export interface RawMount {
 
 // `container` = a service id (host::containerId) of one container that has this
 // mount, so the client can open the in-container file editor rooted at `dest`.
+// `hostVisible` (bind-internal only) = whether homeport can actually read the bind
+// source on its own filesystem. A bind whose SOURCE path sits under the stack dir
+// still isn't readable when the stacks dir is a named volume (the daemon creates
+// the bind on the host, out of homeport's view) — those must use the container
+// editor, not the host file browser, or the browser throws a raw ENOENT.
 export type StackMount =
   | { kind: 'volume'; name: string; anonymous: boolean; dest: string; rw: boolean; services: string[]; container: string }
-  | { kind: 'bind-internal'; rel: string; dest: string; rw: boolean; services: string[]; container: string }
+  | { kind: 'bind-internal'; rel: string; dest: string; rw: boolean; services: string[]; container: string; hostVisible?: boolean }
   | { kind: 'bind-external'; source: string; dest: string; rw: boolean; services: string[]; container: string }
 
 // Docker names anonymous volumes with a 64-char hex id — worth flagging, they
