@@ -675,15 +675,17 @@
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">About</h2>
         <p class="text-xs text-slate-500">
           homeport <b class="text-slate-300">v{{ appVersion || '…' }}</b>
+          <span v-if="selfState.updateAvailable" class="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-px text-[10px] uppercase tracking-wider text-accent-light">update available</span>
           <template v-if="caps.demo"> · demo mode</template>
         </p>
         <div class="flex items-center gap-3">
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
+            class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs disabled:opacity-40"
+            :class="selfState.updateAvailable ? 'border-accent/40 bg-accent/10 text-accent-light hover:bg-accent/20' : 'border-accent/30 text-accent-light hover:bg-accent/10'"
             :disabled="selfUpdating || !caps.updates && !caps.demo"
             @click="selfUpdate"
-          ><Icon name="arrow-up" class="h-3.5 w-3.5" /> Update homeport</button>
+          ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ selfState.updateAvailable ? 'Update homeport now' : 'Update homeport' }}</button>
           <span v-if="!caps.updates && !caps.demo" class="text-[11px] text-slate-500">needs the “Apply image updates” capability</span>
           <span v-if="selfUpdateMsg" class="text-[11px]" :class="selfUpdateOk ? 'text-accent-light' : 'text-red-400'">{{ selfUpdateMsg }}</span>
         </div>
@@ -751,54 +753,10 @@ const sections = computed(() =>
 const { caps, load: loadCaps } = useCapabilities()
 const { confirm } = useConfirm()
 
-// --- about / self-update ---
-const appVersion = ref('')
-const selfUpdating = ref(false)
-const selfUpdateMsg = ref('')
-const selfUpdateOk = ref(false)
-
-async function selfUpdate() {
-  if (!(await confirm({ message: 'Update homeport to the latest image? The UI will briefly disconnect while the container is recreated.', confirmLabel: 'Update homeport' }))) return
-  selfUpdating.value = true
-  selfUpdateOk.value = false
-  selfUpdateMsg.value = 'starting the update helper…'
-  const before = appVersion.value
-  try {
-    await $fetch('/api/self-update', { method: 'POST' })
-  } catch (e: any) {
-    selfUpdateMsg.value = errMsg(e, 'could not start the update')
-    selfUpdating.value = false
-    return
-  }
-  if (caps.value.demo) {
-    await new Promise((r) => setTimeout(r, 4000))
-    selfUpdateOk.value = true
-    selfUpdateMsg.value = 'updated (demo) — already current.'
-    selfUpdating.value = false
-    return
-  }
-  selfUpdateMsg.value = 'pulling the new image… the page will reconnect by itself.'
-  const deadline = Date.now() + 5 * 60_000
-  const poll = async () => {
-    try {
-      const v = await $fetch<{ version: string }>('/api/version', { timeout: 4000 })
-      if (v.version && v.version !== before) {
-        selfUpdateMsg.value = `updated to v${v.version} — reloading…`
-        selfUpdateOk.value = true
-        setTimeout(() => window.location.reload(), 1200)
-        return
-      }
-    } catch {
-      selfUpdateMsg.value = 'homeport is restarting… reconnecting.'
-    }
-    if (Date.now() < deadline) setTimeout(poll, 3000)
-    else {
-      selfUpdateMsg.value = 'still waiting — if this persists, check `docker ps` on the host.'
-      selfUpdating.value = false
-    }
-  }
-  setTimeout(poll, 4000)
-}
+// --- about / self-update --- (shared flow lives in useSelfUpdate so the sidebar
+// indicator and this page stay in sync)
+const { state: selfState, refresh: refreshSelfUpdate, run: selfUpdate, busy: selfUpdating, msg: selfUpdateMsg, ok: selfUpdateOk } = useSelfUpdate()
+const appVersion = computed(() => selfState.value.version)
 
 // change password
 const pw = reactive({ current: '', next: '', confirm: '' })
@@ -1135,9 +1093,7 @@ function addHost() {
 
 onMounted(async () => {
   loadCaps()
-  $fetch<{ version: string }>('/api/version')
-    .then((v) => (appVersion.value = v.version))
-    .catch(() => {})
+  refreshSelfUpdate()
   try {
     const r = await $fetch<any>('/api/settings')
     Object.assign(form, r.settings)

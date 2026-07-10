@@ -9,11 +9,15 @@
           <code class="text-slate-400">{{ data?.dir || '/stacks' }}</code><template v-if="data?.roots?.length">
             or a configured compose root (<code class="text-slate-400">{{ data.roots.join(', ') }}</code>)</template>,
           plus running projects whose files homeport can see. Deploy, edit, or update them from git;
-          catalog installs land here too.
+          apps installed from the <NuxtLink to="/catalog" class="text-accent-light hover:underline">Catalog</NuxtLink> land here too.
         </p>
       </div>
+      <NuxtLink
+        to="/catalog"
+        class="ml-auto rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+      >Install an app ↗</NuxtLink>
       <button
-        class="ml-auto rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
+        class="rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
         @click="creating = true"
       >+ New stack</button>
     </header>
@@ -112,6 +116,11 @@
                 :title="`Managed in place at ${s.dir}`"
               >external</span>
               <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ s.file }}</span>
+              <span
+                v-if="stackUpdates(s.name)"
+                class="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-accent-light"
+                :title="`${stackUpdates(s.name)} service${stackUpdates(s.name) > 1 ? 's have' : ' has'} a newer image — open to update the stack`"
+              ><Icon name="arrow-up" class="h-2.5 w-2.5" />{{ stackUpdates(s.name) }} update{{ stackUpdates(s.name) > 1 ? 's' : '' }}</span>
             </div>
             <p class="mt-1 truncate text-xs text-slate-500">
               <template v-if="stackServices(s.name).length">{{ stackServices(s.name).join(' · ') }}</template>
@@ -177,8 +186,13 @@ const data = ref<StacksResponse | null>(null)
 // enrich rows with what actually runs inside each stack (compose project)
 const { data: svcData, start: svcStart, stop: svcStop } = useServices()
 const { stats, start: statsStart, stop: statsStop } = useStats()
+const updates = useUpdates()
 function stackServices(name: string): string[] {
   return (svcData.value?.services ?? []).filter((s) => s.project === name).map((s) => s.displayName)
+}
+// how many of a stack's services have a newer image waiting
+function stackUpdates(name: string): number {
+  return (svcData.value?.services ?? []).filter((s) => s.project === name && updates.entryFor(s)?.status === 'update').length
 }
 function stackTotals(name: string): { cpu: number; mem: number } | null {
   const ids = (svcData.value?.services ?? []).filter((s) => s.project === name && s.state === 'running').map((s) => s.id)
@@ -262,6 +276,7 @@ onMounted(() => {
   load()
   svcStart()
   statsStart()
+  updates.refresh()
   poll = setInterval(load, 10_000)
 })
 onBeforeUnmount(() => {

@@ -48,6 +48,24 @@
       </nav>
 
       <div class="mt-auto flex flex-col gap-1 border-t border-white/5 pt-3">
+        <!-- homeport's own update — the one thing that isn't a normal container recreate -->
+        <button
+          v-if="caps.updates && selfUpdate.state.value.updateAvailable && !selfUpdate.busy.value"
+          class="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5 text-[13px] font-medium text-accent-light hover:bg-accent/20"
+          title="A newer homeport image is available — click to update"
+          @click="selfUpdate.run()"
+        >
+          <Icon name="arrow-up" class="h-[18px] w-[18px] shrink-0" />
+          Update homeport
+          <span class="ml-auto h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent-light" />
+        </button>
+        <div
+          v-else-if="selfUpdate.busy.value"
+          class="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5 text-[12px] text-accent-light/90"
+        >
+          <Icon name="arrow-up" class="h-[18px] w-[18px] shrink-0 animate-pulse" />
+          <span class="min-w-0 truncate" :title="selfUpdate.msg.value">{{ selfUpdate.msg.value || 'updating…' }}</span>
+        </div>
         <button
           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] text-slate-400 hover:bg-white/5 hover:text-slate-200"
           :title="`Theme: ${theme.choice.value}`"
@@ -83,6 +101,7 @@ const drawer = ref(false)
 const { caps } = useCapabilities()
 const theme = useTheme()
 const updates = useUpdates()
+const selfUpdate = useSelfUpdate()
 
 const bare = computed(() => route.path === '/login')
 
@@ -105,7 +124,10 @@ const items = computed(() => [
 ])
 
 onMounted(() => {
-  if (!bare.value) updates.refresh()
+  if (!bare.value) {
+    updates.refresh()
+    selfUpdate.refresh()
+  }
 })
 
 function isActive(to: string) {

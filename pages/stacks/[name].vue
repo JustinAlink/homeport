@@ -41,6 +41,15 @@
         </template>
       </div>
       <div v-else-if="caps.control" class="ml-auto flex items-center gap-2">
+        <!-- clear whole-stack image update: pull newer images + recreate. Shown
+             when services actually have updates; git stacks update via git below. -->
+        <button
+          v-if="caps.updates && updatable.length && !gitInfo"
+          :disabled="opRunning"
+          class="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent-light hover:bg-accent/20 disabled:opacity-40"
+          :title="`${updatable.length} service${updatable.length > 1 ? 's' : ''} have a newer image — pull and recreate the stack`"
+          @click="runAction('pull')"
+        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> Update stack ({{ updatable.length }})</button>
         <button
           v-if="gitInfo"
           :disabled="opRunning"

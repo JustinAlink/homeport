@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.27.0 — 2026-07-10
+
+Updating, apps, and stacks — made clearer.
+
+- **Update a whole stack in one click.** Managed stacks now show a clear
+  **"Update stack (N)"** button when their services have newer images (pulls and
+  recreates the whole project), and each stack in the list carries an **"N
+  updates"** badge. No more guessing that "Pull & up" was the update — that stays
+  as an advanced action.
+- **homeport tells you when *it* has an update.** A new **"Update homeport"**
+  indicator appears in the sidebar the moment a newer image is available, with a
+  one-click update — instead of being buried in Settings with no signal. Settings
+  → About shows the same "update available" state, and the flow is now shared so
+  the two never disagree.
+- **Apps and Stacks are connected.** The Catalog marks apps you've **already
+  installed** with a badge, and an app's page links straight to **its stack**
+  ("an installed app is just a stack"). Stacks gains an **"Install an app"** link
+  to the Catalog. Same features, one mental model.
+
 ## v2.26.1 — 2026-07-10
 
 Fix for a bind mount whose files homeport can't see on disk.

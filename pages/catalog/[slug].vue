@@ -29,6 +29,16 @@
         <NuxtLink to="/stacks" class="text-accent-light hover:underline">compose stack</NuxtLink> you can edit afterwards.
       </div>
 
+      <!-- already running here (an installed app is just a stack) -->
+      <div v-if="installedServiceId" class="mb-4 rounded-lg border border-ok/25 bg-ok/5 px-4 py-3 text-sm text-slate-300">
+        <span class="font-medium text-ok">✓ Already installed</span> — it's running here as a stack.
+        <NuxtLink
+          :to="installedProject ? `/stacks/${encodeURIComponent(installedProject)}` : `/services/${encodeURIComponent(installedServiceId)}`"
+          class="text-accent-light hover:underline"
+        >Open it ↗</NuxtLink>
+        <span class="mt-0.5 block text-xs text-slate-500">Installing again creates a second, separate stack.</span>
+      </div>
+
       <!-- install form -->
       <div class="rounded-lg border border-white/10 bg-ink-900 p-5">
         <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Install</h2>
@@ -157,6 +167,10 @@ const installEnabled = ref(false)
 const stackName = ref('')
 const values = reactive<Record<string, string>>({})
 const publishedPorts = ref<Map<number, string>>(new Map())
+// set when this app's image is already running here (installed = it's a stack).
+// imageRepo (utils/image.ts) normalizes registry/tag/digest for the match.
+const installedProject = ref<string | null>(null)
+const installedServiceId = ref('')
 
 async function load() {
   try {
@@ -180,6 +194,13 @@ async function load() {
     const map = new Map<number, string>()
     for (const s of svc.services) for (const p of s.ports ?? []) map.set(p.hostPort, s.name)
     publishedPorts.value = map
+    // is this app already running here? match on image repo (ignore tag/digest)
+    const repo = imageRepo(app.value?.image || '')
+    const match = repo ? svc.services.find((s) => imageRepo(s.image) === repo) : undefined
+    if (match) {
+      installedProject.value = match.project
+      installedServiceId.value = match.id
+    }
   } catch {
     // warning only — never block the page on it
   }

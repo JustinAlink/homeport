@@ -294,6 +294,11 @@
             <div class="flex items-center gap-2">
               <span class="truncate text-sm font-medium text-slate-100 group-hover:text-white">{{ app.name }}</span>
               <span
+                v-if="isInstalled(app)"
+                class="shrink-0 rounded-full border border-ok/40 bg-ok/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-ok"
+                title="Already running here — an installed app is just a stack"
+              >installed</span>
+              <span
                 v-if="app.categories[0]"
                 class="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-slate-600"
               >{{ app.categories[0] }}</span>
@@ -353,6 +358,17 @@ const PAGE_SIZE = 24
 const data = ref<CatalogResponse | null>(null)
 const error = ref('')
 const refreshing = ref(false)
+
+// which catalog apps are already running here (an installed app is just a stack) —
+// matched best-effort on the image repo (imageRepo strips registry/tag/digest).
+const { data: svcData, refresh: refreshServices } = useServices()
+function installedMatch(app: CatalogAppRow): { project: string | null; id: string } | null {
+  const repo = imageRepo(app.image)
+  if (!repo) return null
+  const svc = (svcData.value?.services ?? []).find((s) => imageRepo(s.image) === repo)
+  return svc ? { project: svc.project, id: svc.id } : null
+}
+const isInstalled = (app: CatalogAppRow): boolean => !!installedMatch(app)
 const sourcesOpen = ref(false)
 
 // filters live in the URL (?q&cat&sort&page) so links/back-button/refresh keep them
@@ -612,6 +628,9 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => load())
+onMounted(() => {
+  load()
+  refreshServices()
+})
 useHead({ title: 'App catalog — homeport' })
 </script>
