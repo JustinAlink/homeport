@@ -68,6 +68,7 @@ export async function launchSelfUpdate(): Promise<{ ok: true; helper: string } |
     projectDir: plan.projectDir,
     dockerHost: process.env.DOCKER_HOST || '',
     networks: plan.networks,
+    service: plan.service,
   })
   try {
     const helper = await docker.createContainer(payload as any)

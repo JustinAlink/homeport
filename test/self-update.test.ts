@@ -8,6 +8,7 @@ const INSPECT = {
     Labels: {
       'com.docker.compose.project': 'homeport',
       'com.docker.compose.project.working_dir': '/home/juniper/docker/homeport',
+      'com.docker.compose.service': 'homeport',
     },
   },
   NetworkSettings: { Networks: { 'homeport_internal': {}, 'npm-network': {} } },
@@ -19,6 +20,7 @@ test('selfUpdatePlan: extracts compose project facts', () => {
   if (p.ok) {
     assert.equal(p.project, 'homeport')
     assert.equal(p.projectDir, '/home/juniper/docker/homeport')
+    assert.equal(p.service, 'homeport')
     assert.deepEqual(p.networks, ['homeport_internal', 'npm-network'])
   }
 })
@@ -36,6 +38,7 @@ test('buildHelperPayload: detached, auto-removing, project-mounted, proxy-wired'
     projectDir: '/home/juniper/docker/homeport',
     dockerHost: 'tcp://docker-socket-proxy:2375',
     networks: ['homeport_internal'],
+    service: 'homeport',
   })
   assert.match(pay.name, /^homeport-self-update-/)
   assert.equal(pay.Image, 'ghcr.io/justinalink/homeport:latest')
@@ -48,4 +51,30 @@ test('buildHelperPayload: detached, auto-removing, project-mounted, proxy-wired'
   assert.equal(pay.HostConfig.AutoRemove, false)
   assert.equal(pay.Labels[HELPER_LABEL], 'true')
   assert.ok(pay.NetworkingConfig?.EndpointsConfig?.homeport_internal)
+})
+
+// Regression: a whole-project `up -d` also recreated the docker-socket-proxy the
+// helper talks to, killing its own connection mid-update (2026-08-05).
+test('buildHelperPayload: updates only homeport itself, never its socket-proxy sibling', () => {
+  const cmd = buildHelperPayload({
+    image: 'ghcr.io/justinalink/homeport:latest',
+    project: 'homeport',
+    projectDir: '/home/juniper/docker/homeport',
+    dockerHost: 'tcp://docker-socket-proxy:2375',
+    networks: ['homeport_internal'],
+    service: 'homeport',
+  }).Cmd[0]
+  assert.match(cmd, /docker compose -p homeport pull homeport &&/)
+  assert.match(cmd, /docker compose -p homeport up -d --no-deps homeport$/)
+})
+
+test('buildHelperPayload: no service label falls back to a whole-project update', () => {
+  const cmd = buildHelperPayload({
+    image: 'ghcr.io/justinalink/homeport:latest',
+    project: 'homeport',
+    projectDir: '/home/juniper/docker/homeport',
+    dockerHost: '',
+    networks: [],
+  }).Cmd[0]
+  assert.match(cmd, /pull && docker compose -p homeport up -d$/)
 })

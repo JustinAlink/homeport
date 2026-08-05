@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.27.2 , 2026-08-05
+
+Fix: self-update no longer takes down its own socket proxy.
+
+- **"Update homeport" could leave the stack half-recreated.** The updater ran
+  `compose up -d` for the WHOLE project, so it also recreated homeport's
+  `docker-socket-proxy` sibling, which is the very thing it reaches the Docker
+  daemon through. Stopping it severed the updater's own connection mid-run
+  (`error during connect: ... EOF`), leaving the proxy down, a half-created
+  replacement behind, and homeport running but blind to Docker. The updater now
+  targets homeport's own compose service only (`pull <service>` and
+  `up -d --no-deps <service>`), so siblings are left alone. Recovery for an
+  instance already in that state: `docker compose up -d` in the homeport
+  project dir, from the host shell.
+
 ## v2.27.1 — 2026-08-05
 
 Fix: private images now pull inside stacks too.
