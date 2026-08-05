@@ -567,8 +567,9 @@
         <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Registry credentials</h2>
         <p class="text-xs text-slate-500">
           Logins for checking and pulling <strong>private</strong> images (e.g. your own
-          <code>ghcr.io</code> packages). Without these, homeport checks registries anonymously and private
-          images fail with a <code>401</code>. For GHCR use a token with <code>read:packages</code> (add
+          <code>ghcr.io</code> packages), used by update checks, container updates and stack
+          <code>compose pull</code> alike. Without these, homeport talks to registries anonymously and private
+          images fail with <code>unauthorized</code>. For GHCR use a token with <code>read:packages</code> (add
           <code>write:packages</code> only if you also apply updates). Stored in <code>settings.json</code> on the
           data volume — set its file permissions accordingly.
         </p>

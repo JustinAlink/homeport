@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, mergeRegistryCredSecrets, changelogUrlFor } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, dockerConfigJson, mergeRegistryCredSecrets, changelogUrlFor } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
 
 // ---- mergeRegistryCredSecrets (masked-token keep-existing on save) ----
@@ -132,6 +132,25 @@ test('authForImage: matches by registry, maps docker.io serveraddress, else unde
   assert.equal(authForImage('nginx', creds)?.serveraddress, 'https://index.docker.io/v1/')
   assert.equal(authForImage('ghcr.io/other/app', []), undefined) // no creds
   assert.equal(authForImage('lscr.io/linuxserver/sonarr', creds), undefined) // no match
+})
+
+// ---- dockerConfigJson (compose CLI auth) ----
+
+test('dockerConfigJson: one auths entry per cred, docker.io keyed by the v1 URL', () => {
+  const out = JSON.parse(
+    dockerConfigJson([
+      { registry: 'https://ghcr.io/', username: 'justinalink', token: 'ghp_abc' },
+      { registry: 'index.docker.io', username: 'me', token: 'dckr_xyz' },
+    ])!,
+  )
+  assert.deepEqual(Object.keys(out.auths), ['ghcr.io', 'https://index.docker.io/v1/'])
+  assert.equal(Buffer.from(out.auths['ghcr.io'].auth, 'base64').toString(), 'justinalink:ghp_abc')
+})
+
+test('dockerConfigJson: nothing to write → undefined (no DOCKER_CONFIG override)', () => {
+  assert.equal(dockerConfigJson(undefined), undefined)
+  assert.equal(dockerConfigJson([]), undefined)
+  assert.equal(dockerConfigJson([{ registry: 'ghcr.io', username: 'me', token: '' }]), undefined)
 })
 
 // ---- digestMatches ----

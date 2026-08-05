@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.27.1 — 2026-08-05
+
+Fix: private images now pull inside stacks too.
+
+- **Stack `pull` / `up` no longer fails with `unauthorized` on private images.**
+  Registry credentials from Settings were only used for update checks and
+  single-container updates, which talk to the registry through the Docker API.
+  Stack operations shell out to the compose CLI, which reads logins from a
+  `config.json` and had none — so `docker compose pull` of a private
+  `ghcr.io` image 401'd even with a valid token saved. Compose now runs with a
+  `DOCKER_CONFIG` written from those same credentials.
+
 ## v2.27.0 — 2026-07-10
 
 Updating, apps, and stacks — made clearer.

@@ -18,6 +18,7 @@ import {
   type ExternalProject,
 } from './stacks-core'
 import { detectNetworkError, findSubnetConflicts, subnetsFromComposeConfig } from './networks-core'
+import { dockerConfigJson } from './registry-core'
 
 // Compose stacks come from three places, in resolution priority order:
 //   1. HOMEPORT_STACKS_DIR subdirs (dirname = project name) — homeport's own,
@@ -242,7 +243,13 @@ export async function saveStack(name: string, content: string, createNew = false
   return { name: safe, file, content, source, dir }
 }
 
-/** Env for the compose CLI: route it at the same daemon homeport watches. */
+/**
+ * Env for the compose CLI: route it at the same daemon homeport watches, and
+ * hand it the registry logins from settings. The compose CLI sends the auth
+ * itself (the daemon has none), and it only reads them from a config.json, so
+ * without this a `pull` of a private image 401s even though the same cred works
+ * for update checks. Written per call so a settings change takes effect at once.
+ */
 export function composeEnv(): NodeJS.ProcessEnv {
   const cfg = getConfig()
   const env: NodeJS.ProcessEnv = { ...process.env }
@@ -251,6 +258,18 @@ export function composeEnv(): NodeJS.ProcessEnv {
   }
   if (cfg.dockerHost) env.DOCKER_HOST = cfg.dockerHost
   else delete env.DOCKER_HOST // local socket (DOCKER_SOCKET default path)
+
+  const auth = dockerConfigJson(cfg.registryCreds)
+  if (auth) {
+    try {
+      const dir = join(process.env.HOMEPORT_DATA_DIR || '/data', 'docker-cli')
+      mkdirSync(dir, { recursive: true, mode: 0o700 })
+      writeFileSync(join(dir, 'config.json'), auth, { mode: 0o600 })
+      env.DOCKER_CONFIG = dir
+    } catch {
+      // best-effort: an unwritable data dir shouldn't break public-image stacks
+    }
+  }
   return env
 }
 

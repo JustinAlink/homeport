@@ -151,6 +151,24 @@ export function authForImage(image: string, creds: RegistryCred[] | undefined): 
   }
 }
 
+/**
+ * The same logins as a docker CLI `config.json` body, for the compose CLI —
+ * dockerode takes an authconfig per call, but `docker compose pull` only reads
+ * a config file, so stored creds have to be materialised for it (see
+ * composeEnv() in stacks.ts). Returns undefined when there's nothing to write.
+ */
+export function dockerConfigJson(creds: RegistryCred[] | undefined): string | undefined {
+  const auths: Record<string, { auth: string }> = {}
+  for (const c of creds ?? []) {
+    if (!c.token) continue
+    const registry = normalizeRegistry(c.registry)
+    // Docker Hub is keyed by the legacy v1 URL in config.json, everything else by host.
+    const key = registry === 'docker.io' ? 'https://index.docker.io/v1/' : registry
+    auths[key] = { auth: Buffer.from(`${c.username || ''}:${c.token}`).toString('base64') }
+  }
+  return Object.keys(auths).length ? JSON.stringify({ auths }) : undefined
+}
+
 export type UpdateStatus = 'current' | 'update' | 'local' | 'pinned' | 'error'
 
 export interface UpdateEntry {
