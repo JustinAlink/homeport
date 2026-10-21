@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **`HOMEPORT_BIND` limits which host address the port is published on.** Set
+  `HOMEPORT_BIND=127.0.0.1` in `.env` once a reverse proxy fronts homeport: Docker
+  publishes ports past ufw/firewalld, so the default leaves `:3004` reachable from
+  the internet over plain HTTP. Unset keeps the old binding (every interface, IPv4
+  and IPv6). Compose files only, no new image needed.
+
 ## v2.27.2 , 2026-08-05
 
 Fix: self-update no longer takes down its own socket proxy.

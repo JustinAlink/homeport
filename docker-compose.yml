@@ -35,7 +35,9 @@ services:
       # - /opt/stacks:/stacks
     ports:
       # Host port to publish (set HOMEPORT_PORT in .env). Container always listens on 3000.
-      - "${HOMEPORT_PORT:-3004}:3000"
+      # HOMEPORT_BIND=127.0.0.1 publishes on loopback only (see .env.example); unset
+      # keeps every interface, IPv4 and IPv6.
+      - "${HOMEPORT_BIND:+${HOMEPORT_BIND}:}${HOMEPORT_PORT:-3004}:3000"
     networks:
       - npm-network # reachable by the reverse proxy
       - internal # reach the socket proxy

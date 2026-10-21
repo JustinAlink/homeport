@@ -171,7 +171,9 @@ The compose file pulls the official image and runs homeport against a
 </details>
 
 Once it's up, put it behind your reverse proxy with a real domain + HTTPS —
-see **[Get your first service online](#get-your-first-service-online)**.
+see **[Get your first service online](#get-your-first-service-online)**. Then set
+`HOMEPORT_BIND=127.0.0.1` in `.env` and `docker compose up -d`: Docker-published ports
+bypass ufw/firewalld, so without it `:3004` stays open to the internet over plain HTTP.
 
 ### Get your first service online
 

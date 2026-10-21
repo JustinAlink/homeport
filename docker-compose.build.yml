@@ -16,7 +16,7 @@ services:
       - homeport-data:/data
       - ${NPM_HOST_CONF_DIR:-/path/to/nginx-proxy-manager/data/nginx/proxy_host}:/npm:ro
     ports:
-      - "${HOMEPORT_PORT:-3004}:3000"
+      - "${HOMEPORT_BIND:+${HOMEPORT_BIND}:}${HOMEPORT_PORT:-3004}:3000"
     networks:
       - npm-network
       - internal
