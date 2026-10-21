@@ -1,69 +1,66 @@
 <template>
-  <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/catalog" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <template v-if="app">
-        <ServiceIcon :name="app.name" :icon="app.icon" :size="34" />
-        <div>
-          <h1 class="text-xl font-semibold text-slate-100">{{ app.name }}</h1>
-          <div class="font-mono text-[11px] text-slate-600">{{ app.image }}</div>
+  <div class="page-narrow">
+    <PageHeader :title="app?.name ?? 'App'" :crumbs="[{ label: 'App catalog', to: '/catalog' }]">
+      <template v-if="app" #icon>
+        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/[0.04] ring-1 ring-inset ring-white/[0.08]">
+          <ServiceIcon :name="app.name" :icon="app.icon" :size="32" />
         </div>
-        <span
-          v-for="c in app.categories"
-          :key="c"
-          class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500"
-        >{{ c }}</span>
       </template>
-    </header>
+      <template v-if="app" #badges>
+        <span v-for="c in app.categories" :key="c" class="badge">{{ c }}</span>
+      </template>
+      <template v-if="app" #subtitle><span class="font-mono text-xs">{{ app.image }}</span></template>
+    </PageHeader>
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
-    <div v-else-if="!app" class="py-20 text-center text-slate-500">Loading…</div>
+    <div v-if="error" class="callout callout-warn">{{ error }}</div>
+    <div v-else-if="!app" class="card h-72" />
 
     <template v-else>
-      <p class="mb-4 text-sm leading-relaxed text-slate-400">{{ app.description }}</p>
-      <p v-if="app.notes" class="mb-4 rounded-lg border border-sky-400/15 bg-sky-400/5 px-4 py-3 text-xs leading-relaxed text-sky-200/80">
-        {{ notesText }}
-      </p>
-      <div class="mb-6 text-xs text-slate-600">
-        From <span class="font-mono text-slate-500">{{ app.source }}</span> — installs as a
-        <NuxtLink to="/stacks" class="text-accent-light hover:underline">compose stack</NuxtLink> you can edit afterwards.
+      <p class="mb-4 text-[14px] leading-relaxed text-slate-300">{{ app.description }}</p>
+      <div v-if="app.notes" class="callout callout-info mb-4 text-xs"><Icon name="info" /><span>{{ notesText }}</span></div>
+      <div class="mb-6 text-xs text-slate-500">
+        From <span class="font-mono text-slate-400">{{ app.source }}</span>. Installs as a
+        <NuxtLink to="/stacks" class="link">compose stack</NuxtLink> you can edit afterwards.
       </div>
 
       <!-- already running here (an installed app is just a stack) -->
-      <div v-if="installedServiceId" class="mb-4 rounded-lg border border-ok/25 bg-ok/5 px-4 py-3 text-sm text-slate-300">
-        <span class="font-medium text-ok">✓ Already installed</span> — it's running here as a stack.
-        <NuxtLink
-          :to="installedProject ? `/stacks/${encodeURIComponent(installedProject)}` : `/services/${encodeURIComponent(installedServiceId)}`"
-          class="text-accent-light hover:underline"
-        >Open it ↗</NuxtLink>
-        <span class="mt-0.5 block text-xs text-slate-500">Installing again creates a second, separate stack.</span>
+      <div v-if="installedServiceId" class="callout mb-4 border-ok/25 bg-ok/[0.06]">
+        <Icon name="check" class="text-ok" />
+        <div>
+          <span class="font-medium text-ok">Already installed.</span> It's running here as a stack.
+          <NuxtLink
+            :to="installedProject ? `/stacks/${encodeURIComponent(installedProject)}` : `/services/${encodeURIComponent(installedServiceId)}`"
+            class="link"
+          >Open it</NuxtLink>
+          <span class="mt-0.5 block text-xs text-slate-500">Installing again creates a second, separate stack.</span>
+        </div>
       </div>
 
       <!-- install form -->
-      <div class="rounded-lg border border-white/10 bg-ink-900 p-5">
-        <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Install</h2>
+      <div class="card p-5 sm:p-6">
+        <h2 class="mb-5 text-[15px] font-semibold text-slate-100">Install</h2>
 
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs text-slate-400">Stack name</label>
+            <label class="field-label">Stack name</label>
             <input
               v-model="stackName"
-              class="w-full rounded-md border bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-              :class="attempted && !stackNameValid ? 'border-red-400/60' : 'border-white/10'"
+              class="input"
+              :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
             />
-            <p class="mt-1 text-[11px]" :class="attempted && !stackNameValid ? 'text-red-400' : 'text-slate-600'">
+            <p class="field-hint" :class="attempted && !stackNameValid ? '!text-red-400' : ''">
               {{ attempted && !stackNameValid ? 'letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
             </p>
           </div>
 
           <div v-for="input in visibleInputs" :key="input.name">
-            <label class="mb-1 block text-xs text-slate-400">
+            <label class="field-label">
               {{ input.label }}<span v-if="input.required" class="text-red-400"> *</span>
             </label>
             <select
               v-if="input.select"
               v-model="values[input.name]"
-              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+              class="input"
             >
               <option v-for="opt in input.select" :key="opt.value" :value="opt.value">{{ opt.text }}</option>
             </select>
@@ -72,20 +69,20 @@
               v-model="values[input.name]"
               :type="/password|secret|token/i.test(input.name) ? 'password' : 'text'"
               :placeholder="input.default"
-              class="w-full rounded-md border bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-              :class="attempted && isMissing(input) ? 'border-red-400/60' : 'border-white/10'"
+              class="input"
+              :class="attempted && isMissing(input) ? '!border-red-400/60' : ''"
             />
             <p v-if="attempted && isMissing(input)" class="mt-1 text-[11px] text-red-400">required</p>
-            <p v-else-if="input.description" class="mt-1 text-[11px] text-slate-600">{{ input.description }}</p>
+            <p v-else-if="input.description" class="field-hint">{{ input.description }}</p>
             <p v-if="portClash(input)" class="mt-1 text-[11px] text-amber-300">
               <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> host port {{ effective(input) }} is already published by “{{ portClash(input) }}”
             </p>
           </div>
         </div>
 
-        <details class="mt-5 rounded-md border border-white/5 bg-ink-950/60">
-          <summary class="cursor-pointer select-none px-3 py-2 text-xs text-slate-400 hover:text-slate-200">
-            What will run — compose preview
+        <details class="mt-5 overflow-hidden rounded-lg border border-white/[0.08] bg-ink-950/50">
+          <summary class="cursor-pointer select-none px-3.5 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200">
+            What will run: compose preview
           </summary>
           <pre class="max-h-72 overflow-auto border-t border-white/5 p-3 font-mono text-[11px] leading-relaxed text-slate-400">{{ app.compose }}</pre>
           <p class="border-t border-white/5 px-3 py-1.5 text-[10px] text-slate-600">
@@ -96,32 +93,32 @@
         <div class="mt-5 flex items-center gap-3">
           <button
             :disabled="installing || !installEnabled"
-            class="rounded-md bg-accent px-4 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            class="btn btn-primary"
             @click="install"
           >{{ installing ? 'Installing…' : 'Install' }}</button>
-          <span v-if="!installEnabled" class="text-[11px] text-slate-500">
-            enable <b>Compose stacks</b> in Settings → Capabilities to install
+          <span v-if="!installEnabled" class="text-xs text-slate-500">
+            Turn on <b>Compose stack management</b> in Settings → Capabilities to install.
           </span>
           <span v-if="installError" class="whitespace-pre-line text-[11px] text-red-400">{{ installError }}</span>
         </div>
       </div>
 
       <!-- op output -->
-      <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
+      <div v-if="opLines.length || opRunning" class="card mt-4 p-4">
         <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
           <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opDropped ? 'bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
           {{ opRunning ? 'installing…' : opDropped ? 'connection to the installer dropped — it may still be running' : opOk ? 'installed' : 'failed' }}
         </div>
         <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
         <div v-if="opDropped" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Check the stack</NuxtLink>
-          <NuxtLink to="/" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">View on dashboard</NuxtLink>
+          <NuxtLink :to="`/stacks/${installedAs}`" class="btn btn-sm">Check the stack</NuxtLink>
+          <NuxtLink to="/" class="btn btn-sm">View on dashboard</NuxtLink>
         </div>
         <div v-else-if="opOk" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <span v-if="following" class="animate-pulse text-slate-400">waiting for the app to come up — opening its page…</span>
           <template v-else>
-            <NuxtLink to="/" class="rounded-md border border-accent/30 px-3 py-1.5 text-accent-light hover:bg-accent/10">View on dashboard</NuxtLink>
-            <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Edit stack</NuxtLink>
+            <NuxtLink to="/" class="btn btn-primary btn-sm">View on dashboard</NuxtLink>
+            <NuxtLink :to="`/stacks/${installedAs}`" class="btn btn-sm">Edit stack</NuxtLink>
           </template>
         </div>
       </div>
@@ -300,5 +297,5 @@ async function install() {
 
 onMounted(load)
 onBeforeUnmount(() => es?.close())
-useHead({ title: `${slug} — catalog — homeport` })
+useHead({ title: `${slug} · Catalog · homeport` })
 </script>

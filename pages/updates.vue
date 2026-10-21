@@ -1,118 +1,127 @@
 <template>
-  <div class="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex flex-wrap items-center gap-3">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-100">Updates</h1>
-        <p class="mt-1 text-[13px] text-slate-500">
-          {{ updatable.length ? `${updatable.length} container${updatable.length > 1 ? 's' : ''} with a newer image` : 'image update status across the fleet' }}
-          <template v-if="lastChecked"> · last checked {{ lastChecked }}</template>
-        </p>
-      </div>
-      <button
-        v-if="updates.enabled.value"
-        :disabled="checking || !!busyGroup"
-        class="ml-auto rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
-        @click="checkNow"
-      >{{ checking ? 'Checking…' : 'Check now' }}</button>
-    </header>
+  <div class="page">
+    <PageHeader title="Updates">
+      <template #subtitle>
+        {{ updatable.length ? `${updatable.length} container${updatable.length > 1 ? 's have' : ' has'} a newer image available` : 'Image update status across the fleet' }}<template v-if="lastChecked"> · last checked {{ lastChecked }}</template>
+      </template>
+      <template #actions>
+        <button
+          v-if="updates.enabled.value"
+          :disabled="checking || !!busyGroup"
+          class="btn"
+          @click="checkNow"
+        ><Icon name="refresh" :class="checking ? 'animate-spin' : ''" /> {{ checking ? 'Checking…' : 'Check now' }}</button>
+        <button
+          v-if="runnableGroups.length > 1"
+          :disabled="!!busyGroup || bulkRunning"
+          class="btn btn-primary"
+          @click="updateEverything"
+        ><Icon name="download" /> {{ bulkRunning ? 'Updating…' : `Update everything (${runnableCount})` }}</button>
+      </template>
+    </PageHeader>
 
-    <div v-if="!updates.enabled.value && !caps.updates" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-      Update checks are disabled — enable them in
-      <NuxtLink to="/settings#capabilities" class="text-accent-light hover:underline">Settings → Capabilities</NuxtLink>.
+    <div v-if="!updates.enabled.value && !caps.updates" class="card">
+      <EmptyState icon="arrow-up" title="Update checks are off">
+        Turn on <em>Check for image updates</em> in Settings and homeport compares every running image with its registry once a day.
+        <template #actions><NuxtLink to="/settings?tab=capabilities" class="btn btn-primary btn-sm">Open Settings → Capabilities</NuxtLink></template>
+      </EmptyState>
     </div>
 
-    <div v-else-if="!svcData" class="py-20 text-center text-slate-500">Loading…</div>
+    <div v-else-if="!svcData" class="space-y-3"><div v-for="i in 3" :key="i" class="card h-28" /></div>
 
     <template v-else>
       <!-- all clear -->
-      <div v-if="!groups.length" class="rounded-lg border border-white/5 bg-ink-900 p-10 text-center">
-        <Icon name="check" class="mx-auto h-8 w-8 text-ok" />
-        <p class="mt-3 text-sm text-slate-200">Everything is up to date.</p>
-        <p class="mt-1 text-xs text-slate-500">Containers are checked against their registries daily; “Check now” forces a sweep.</p>
+      <div v-if="!groups.length" class="card">
+        <EmptyState icon="check" title="Everything is up to date">
+          Containers are checked against their registries daily. “Check now” forces a sweep.
+        </EmptyState>
       </div>
 
-      <!-- groups with pending updates -->
-      <div v-for="g in groups" :key="g.key" class="mb-4 rounded-xl border border-white/10 bg-ink-900 p-4">
-        <div class="mb-3 flex flex-wrap items-center gap-2">
-          <component
-            :is="g.project ? NuxtLinkC : 'h2'"
-            v-bind="g.project ? { to: `/stacks/${encodeURIComponent(g.project)}` } : {}"
-            class="text-sm font-semibold text-slate-100"
-            :class="g.project ? 'hover:text-accent-light' : ''"
-          >{{ g.label }}</component>
-          <span
-            v-if="g.managed"
-            class="rounded-full border border-accent/30 px-1.5 py-px text-[10px] uppercase tracking-wider text-accent-light"
-            title="Managed compose stack — updates run through docker compose"
-          >stack</span>
-          <span v-else-if="g.project" class="rounded-full border border-white/10 px-1.5 py-px text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
-          <span class="text-xs text-slate-600">{{ g.services.length }} update{{ g.services.length > 1 ? 's' : '' }}</span>
-          <label
-            v-if="autoLoaded && caps.updates && g.project"
-            class="flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px]"
-            :class="isAuto(g.project) ? 'border-ok/40 text-ok' : 'border-white/10 text-slate-500 hover:text-slate-300'"
-            :title="autoEnabled ? 'Included in the daily automatic update' : 'Saved — takes effect once automatic updates are enabled in Settings'"
-          >
-            <input type="checkbox" class="h-3 w-3" :checked="isAuto(g.project)" @change="toggleAuto(g.project!)" />
-            auto
-          </label>
+      <div class="space-y-4">
+        <!-- groups with pending updates -->
+        <section v-for="g in groups" :key="g.key" class="card overflow-hidden">
+          <div class="card-header">
+            <component
+              :is="g.project ? NuxtLinkC : 'h2'"
+              v-bind="g.project ? { to: `/stacks/${encodeURIComponent(g.project)}` } : {}"
+              class="text-[14.5px] font-semibold text-slate-100"
+              :class="g.project ? 'hover:text-accent-light' : ''"
+            >{{ g.label }}</component>
+            <span v-if="g.managed" class="badge badge-accent" title="Managed compose stack: updates run through docker compose">stack</span>
+            <span v-else-if="g.project" class="badge" title="Compose project homeport can't see the files of: containers are recreated in place">unmanaged</span>
+            <span class="text-xs text-slate-500">{{ g.services.length }} update{{ g.services.length > 1 ? 's' : '' }}</span>
 
-          <div class="ml-auto">
-            <button
-              v-if="g.managed"
-              :disabled="!!busyGroup"
-              class="inline-flex items-center gap-1.5 rounded-md border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-xs text-sky-300 hover:bg-sky-400/20 disabled:opacity-40"
-              @click="pullStack(g)"
-            ><Icon name="download" class="h-3.5 w-3.5" /> {{ busyGroup === g.key ? 'Pulling…' : 'Pull & up' }}</button>
-            <button
-              v-else-if="caps.updates"
-              :disabled="!!busyGroup"
-              class="inline-flex items-center gap-1.5 rounded-md border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-xs text-sky-300 hover:bg-sky-400/20 disabled:opacity-40"
-              @click="updateGroup(g)"
-            ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ busyGroup === g.key ? 'Updating…' : g.services.length > 1 ? `Update all (${g.services.length})` : 'Update' }}</button>
+            <div class="ml-auto flex items-center gap-2">
+              <label
+                v-if="autoLoaded && caps.updates && g.project"
+                class="check items-center rounded-md px-2 py-1 text-xs hover:bg-white/[0.04]"
+                :class="isAuto(g.project) ? 'text-ok' : 'text-slate-400'"
+                :title="autoEnabled ? 'Include this stack in the daily automatic update' : 'Saved now; takes effect once automatic updates are turned on in Settings → Updates'"
+              >
+                <input type="checkbox" class="!mt-0" :checked="isAuto(g.project)" @change="toggleAuto(g.project!)" />
+                Auto-update
+              </label>
+              <button
+                v-if="g.managed"
+                :disabled="!!busyGroup"
+                class="btn btn-sm btn-accent"
+                @click="pullStack(g)"
+              ><Icon name="download" /> {{ busyGroup === g.key ? 'Pulling…' : 'Pull & up' }}</button>
+              <button
+                v-else-if="caps.updates"
+                :disabled="!!busyGroup"
+                class="btn btn-sm btn-accent"
+                @click="updateGroup(g)"
+              ><Icon name="arrow-up" /> {{ busyGroup === g.key ? 'Updating…' : g.services.length > 1 ? `Update all (${g.services.length})` : 'Update' }}</button>
+            </div>
           </div>
-        </div>
 
-        <div class="space-y-1.5">
-          <div v-for="s in g.services" :key="s.id" class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-950/50 px-3 py-2">
-            <ServiceIcon :name="s.displayName" :icon="s.icon" :size="26" :remote="svcData?.remoteIcons ?? true" />
-            <NuxtLink :to="`/services/${encodeURIComponent(s.id)}`" class="min-w-0 flex-1">
-              <span class="block truncate text-sm text-slate-200 hover:text-accent-light">{{ s.displayName }}</span>
-              <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
-            </NuxtLink>
-            <a
-              v-if="updates.changelogUrlFor(s)"
-              :href="updates.changelogUrlFor(s)"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="shrink-0 text-[11px] text-slate-500 hover:text-accent-light hover:underline"
-              @click.stop
-            >changelog ↗</a>
-            <span v-if="rowNote[s.id]" class="shrink-0 text-[11px]" :class="rowNote[s.id].startsWith('failed') ? 'text-red-400' : 'text-slate-500'">{{ rowNote[s.id] }}</span>
-            <label
-              v-if="autoLoaded && caps.updates && !g.project"
-              class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px]"
-              :class="isAuto(s.name) ? 'border-ok/40 text-ok' : 'border-white/10 text-slate-500 hover:text-slate-300'"
-              :title="autoEnabled ? 'Included in the daily automatic update' : 'Saved — takes effect once automatic updates are enabled in Settings'"
-            >
-              <input type="checkbox" class="h-3 w-3" :checked="isAuto(s.name)" @change="toggleAuto(s.name)" />
-              auto
-            </label>
+          <div class="row-list">
+            <div v-for="s in g.services" :key="s.id" class="flex items-center gap-3 px-4 py-2.5 sm:px-5">
+              <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
+              <NuxtLink :to="`/services/${encodeURIComponent(s.id)}?tab=update`" class="group min-w-0 flex-1">
+                <span class="block truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">{{ s.displayName }}</span>
+                <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
+              </NuxtLink>
+              <span
+                v-if="rowNote[s.id]"
+                class="shrink-0 text-xs"
+                :class="rowNote[s.id].startsWith('failed') ? 'text-red-400' : rowNote[s.id] === 'updated' ? 'text-ok' : 'text-slate-400'"
+              >{{ rowNote[s.id] }}</span>
+              <a
+                v-if="updates.changelogUrlFor(s)"
+                :href="updates.changelogUrlFor(s)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-ghost btn-sm shrink-0"
+                @click.stop
+              >Changelog <Icon name="external" /></a>
+              <label
+                v-if="autoLoaded && caps.updates && !g.project"
+                class="check shrink-0 items-center rounded-md px-2 py-1 text-xs hover:bg-white/[0.04]"
+                :class="isAuto(s.name) ? 'text-ok' : 'text-slate-400'"
+                :title="autoEnabled ? 'Include this container in the daily automatic update' : 'Saved now; takes effect once automatic updates are turned on in Settings → Updates'"
+              >
+                <input type="checkbox" class="!mt-0" :checked="isAuto(s.name)" @change="toggleAuto(s.name)" />
+                Auto-update
+              </label>
+            </div>
           </div>
-        </div>
 
-        <!-- live output for this group's operation -->
-        <div v-if="busyGroup === g.key && opLines.length" class="mt-3 rounded-lg border border-white/5 bg-ink-950/60 p-3">
-          <pre class="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
-        </div>
+          <!-- live output for this group's operation -->
+          <pre
+            v-if="busyGroup === g.key && opLines.length"
+            class="max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-white/[0.06] bg-ink-950/60 px-4 py-3 font-mono text-[11.5px] leading-relaxed text-slate-300"
+          >{{ opLines.join('\n') }}</pre>
+        </section>
       </div>
 
       <!-- check errors -->
-      <details v-if="checkErrors.length" class="mt-6 rounded-lg border border-amber-500/15 bg-amber-500/5 p-3 text-xs">
+      <details v-if="checkErrors.length" class="card mt-6 px-4 py-3 text-xs">
         <summary class="cursor-pointer text-amber-300">{{ checkErrors.length }} image{{ checkErrors.length > 1 ? 's' : '' }} could not be checked</summary>
         <div class="mt-2 space-y-1">
           <p v-for="e in checkErrors" :key="e.image" class="truncate font-mono text-slate-500">
-            <span class="text-slate-300">{{ e.image }}</span> — {{ e.error }}
+            <span class="text-slate-300">{{ e.image }}</span> · {{ e.error }}
           </p>
         </div>
       </details>
@@ -186,8 +195,11 @@ const opLines = ref<string[]>([])
 const rowNote = ref<Record<string, string>>({})
 let es: EventSource | null = null
 
-async function pullStack(g: Group) {
-  if (!(await confirm({ message: `Pull new images and redeploy stack “${g.project}”?`, confirmLabel: 'Pull & up' }))) return
+// resolves the in-flight stack operation once its stream finishes (lets "Update everything" run groups in order)
+let opResolve: (() => void) | null = null
+
+async function pullStack(g: Group, ask = true) {
+  if (ask && !(await confirm({ message: `Pull new images and redeploy stack “${g.project}”?`, confirmLabel: 'Pull & up' }))) return
   busyGroup.value = g.key
   opLines.value = []
   try {
@@ -205,6 +217,7 @@ async function pullStack(g: Group) {
       } catch {}
     }
     es.onerror = () => finishOp()
+    await new Promise<void>((r) => (opResolve = r))
   } catch (e: any) {
     opLines.value.push(errMsg(e, 'could not start the operation'))
     busyGroup.value = ''
@@ -216,11 +229,13 @@ function finishOp() {
   busyGroup.value = ''
   svcRefresh()
   updates.refresh()
+  opResolve?.()
+  opResolve = null
 }
 
-async function updateGroup(g: Group) {
+async function updateGroup(g: Group, ask = true) {
   const n = g.services.length
-  if (!(await confirm({ message: `Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`, confirmLabel: 'Update' }))) return
+  if (ask && !(await confirm({ message: `Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`, confirmLabel: 'Update' }))) return
   busyGroup.value = g.key
   opLines.value = []
   for (const s of g.services) {
@@ -234,6 +249,34 @@ async function updateGroup(g: Group) {
   }
   busyGroup.value = ''
   await Promise.all([svcRefresh(), updates.refresh()])
+}
+
+// --- update everything: every group in turn, one confirmation up front ---
+const runnableGroups = computed(() => groups.value.filter((g) => g.managed || caps.value.updates))
+const runnableCount = computed(() => runnableGroups.value.reduce((n, g) => n + g.services.length, 0))
+const bulkRunning = ref(false)
+async function updateEverything() {
+  const gs = [...runnableGroups.value]
+  if (!gs.length) return
+  const stacks = gs.filter((g) => g.managed).length
+  if (
+    !(await confirm({
+      title: `Update ${runnableCount.value} containers?`,
+      message: `Managed stacks are pulled and redeployed with compose${stacks ? ` (${stacks})` : ''}; other containers are pulled and recreated in place, one group at a time.`,
+      confirmLabel: 'Update everything',
+    }))
+  )
+    return
+  bulkRunning.value = true
+  try {
+    for (const g of gs) {
+      if (g.managed) await pullStack(g, false)
+      else await updateGroup(g, false)
+    }
+    toast.success('Updates applied')
+  } finally {
+    bulkRunning.value = false
+  }
 }
 
 // --- auto-update opt-in toggles (persisted in settings.autoUpdateTargets) ---
@@ -288,5 +331,5 @@ onBeforeUnmount(() => {
   es?.close()
 })
 
-useHead({ title: 'Updates — homeport' })
+useHead({ title: 'Updates · homeport' })
 </script>

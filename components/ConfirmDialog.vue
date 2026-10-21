@@ -3,25 +3,33 @@
     <Transition name="cd-fade">
       <div
         v-if="state.open"
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
         @click.self="settle(false)"
         @keydown.esc="settle(false)"
       >
-        <div class="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-xl shadow-black/40">
-          <h2 v-if="state.title" class="mb-2 text-sm font-semibold text-slate-100">{{ state.title }}</h2>
-          <p class="whitespace-pre-line text-sm leading-relaxed text-slate-300">{{ state.message }}</p>
-          <p v-if="state.detail" class="mt-2 text-xs leading-relaxed" :class="state.danger ? 'text-red-300' : 'text-slate-500'">
-            {{ state.detail }}
-          </p>
-          <div class="mt-5 flex justify-end gap-2">
+        <div class="cd-panel w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-5 sm:p-6" style="box-shadow: var(--shadow-pop)" role="alertdialog" aria-modal="true">
+          <div class="flex gap-4">
+            <div
+              class="grid h-10 w-10 shrink-0 place-items-center rounded-full"
+              :class="state.danger ? 'bg-red-500/12 text-red-400' : 'bg-accent/12 text-accent-light'"
+            ><Icon :name="state.danger ? 'alert' : 'info'" class="h-5 w-5" /></div>
+            <div class="min-w-0 pt-0.5">
+              <h2 class="text-[15px] font-semibold text-slate-100">{{ state.title || state.message }}</h2>
+              <p v-if="state.title" class="mt-1.5 whitespace-pre-line text-[13.5px] leading-relaxed text-slate-400">{{ state.message }}</p>
+              <p v-if="state.detail" class="mt-2 text-xs leading-relaxed" :class="state.danger ? 'text-red-300' : 'text-slate-500'">
+                {{ state.detail }}
+              </p>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
             <button
               ref="cancelBtn"
-              class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+              class="btn"
               @click="settle(false)"
             >{{ state.cancelLabel || 'Cancel' }}</button>
             <button
-              class="rounded-md px-3 py-1.5 text-xs font-semibold"
-              :class="state.danger ? 'bg-red-500/90 text-white hover:bg-red-500' : 'bg-accent text-ink-950 hover:bg-accent-light'"
+              class="btn"
+              :class="state.danger ? 'btn-danger-solid' : 'btn-primary'"
               @click="settle(true)"
             >{{ state.confirmLabel || 'Confirm' }}</button>
           </div>
@@ -66,5 +74,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .cd-fade-enter-from,
 .cd-fade-leave-to {
   opacity: 0;
+}
+.cd-fade-enter-active .cd-panel {
+  transition: transform 0.14s ease;
+}
+.cd-fade-enter-from .cd-panel {
+  transform: scale(0.97) translateY(4px);
 }
 </style>

@@ -1,342 +1,336 @@
 <template>
-  <div class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
-    <!-- header -->
-    <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <template v-if="service">
-        <ServiceIcon :name="service.displayName" :icon="service.icon" :size="40" :remote="remoteIcons" />
-        <div class="min-w-0">
-          <h1 class="truncate text-xl font-semibold text-slate-100">{{ service.displayName }}</h1>
-          <p class="truncate font-mono text-xs text-slate-500">{{ service.image }}</p>
-        </div>
-        <div class="ml-auto flex items-center gap-3">
-          <span v-if="updateEntry?.status === 'update'" class="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[11px] text-sky-300">
-            update available
-          </span>
-          <StatusPill :state="service.state" :health="service.health" />
-          <div v-if="caps.control" class="flex items-center overflow-hidden rounded-lg border border-white/10 bg-ink-900 shadow-sm">
-            <template v-if="isUp">
-              <button
-                :disabled="!!busy"
-                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-100 disabled:opacity-40"
-                @click="control('restart')"
-              >
-                <Icon name="refresh" class="h-3.5 w-3.5" :class="busy === 'restart' ? 'animate-spin' : ''" />
-                {{ busy === 'restart' ? 'Restarting…' : 'Restart' }}
-              </button>
-              <div class="h-5 w-px bg-white/10" />
-              <button
-                :disabled="!!busy"
-                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/15 hover:text-red-200 disabled:opacity-40"
-                @click="control('stop')"
-              >
-                <Icon name="square" class="h-3.5 w-3.5" />
-                {{ busy === 'stop' ? 'Stopping…' : 'Stop' }}
-              </button>
-            </template>
-            <button
-              v-else
-              :disabled="!!busy"
-              class="inline-flex items-center gap-1.5 bg-accent px-3.5 py-2 text-xs font-semibold text-on-accent transition-colors hover:bg-accent-light disabled:opacity-40"
-              @click="control('start')"
-            >
-              <Icon name="play" class="h-3.5 w-3.5" />
-              {{ busy === 'start' ? 'Starting…' : 'Start' }}
-            </button>
-          </div>
+  <div class="page">
+    <PageHeader :title="service?.displayName ?? (loading ? '' : 'Container')" :crumbs="crumbs">
+      <template v-if="service" #icon>
+        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/[0.04] ring-1 ring-inset ring-white/[0.08]">
+          <ServiceIcon :name="service.displayName" :icon="service.icon" :size="32" :remote="remoteIcons" />
         </div>
       </template>
-    </header>
+      <template v-if="service" #badges>
+        <StatusPill :state="service.state" :health="service.health" />
+        <button v-if="updateEntry?.status === 'update'" class="badge badge-info h-6 px-2" @click="tab = 'update'">
+          <Icon name="arrow-up" class="h-3 w-3" :weight="2.2" /> update available
+        </button>
+      </template>
+      <template v-if="service" #subtitle>
+        <span class="font-mono text-xs">{{ service.image }}</span>
+      </template>
+      <template v-if="service" #actions>
+        <a
+          v-if="service.domains[0]"
+          :href="service.domains[0].url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn"
+        ><Icon name="external" /> Open</a>
+        <template v-if="caps.control && service.kind === 'container'">
+          <div v-if="isUp" class="btn-group">
+            <button :disabled="!!busy" class="btn" @click="control('restart')">
+              <Icon name="refresh" :class="busy === 'restart' ? 'animate-spin' : ''" />
+              {{ busy === 'restart' ? 'Restarting…' : 'Restart' }}
+            </button>
+            <button :disabled="!!busy" class="btn hover:!border-red-500/40 hover:!bg-red-500/10 hover:!text-red-300" @click="control('stop')">
+              <Icon name="square" />
+              {{ busy === 'stop' ? 'Stopping…' : 'Stop' }}
+            </button>
+          </div>
+          <button v-else :disabled="!!busy" class="btn btn-primary" @click="control('start')">
+            <Icon name="play" />
+            {{ busy === 'start' ? 'Starting…' : 'Start' }}
+          </button>
+        </template>
+      </template>
+    </PageHeader>
 
-    <div v-if="!service && loading" class="py-20 text-center text-slate-500">Loading…</div>
-    <div v-else-if="!service" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-      Service not found — it may have been removed.
-      <NuxtLink to="/" class="text-accent-light hover:underline">Back to the dashboard</NuxtLink>
+    <div v-if="!service && loading" class="space-y-4">
+      <div class="skeleton h-10 w-full max-w-md" />
+      <div class="grid gap-3 sm:grid-cols-4"><div v-for="i in 4" :key="i" class="card h-20" /></div>
+      <div class="card h-64" />
+    </div>
+    <div v-else-if="!service" class="card">
+      <EmptyState icon="box" title="Container not found" text="It may have been removed or recreated under a new id.">
+        <template #actions><NuxtLink to="/" class="btn btn-sm">Back to the dashboard</NuxtLink></template>
+      </EmptyState>
     </div>
 
     <template v-else>
-      <!-- tabs -->
-      <nav class="mb-4 flex items-center gap-1 border-b border-white/5 text-sm">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="-mb-px border-b-2 px-3 py-2"
-          :class="tab === t.key ? 'border-accent text-accent-light' : 'border-transparent text-slate-400 hover:text-slate-200'"
-          @click="tab = t.key"
-        >{{ t.label }}</button>
-      </nav>
+      <TabBar v-model="tab" :tabs="tabs" />
 
       <!-- OVERVIEW -->
-      <section v-if="tab === 'overview'" class="space-y-4">
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div v-for="f in facts" :key="f.label" class="rounded-lg border border-white/5 bg-ink-900 p-3">
-            <p class="text-[11px] uppercase tracking-wider text-slate-500">{{ f.label }}</p>
-            <p class="mt-0.5 truncate text-sm text-slate-200" :title="f.value">{{ f.value }}</p>
+      <section v-if="tab === 'overview'" class="grid gap-5 lg:grid-cols-3">
+        <div class="min-w-0 space-y-5 lg:col-span-2">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div v-for="f in facts" :key="f.label" class="card px-4 py-3">
+              <p class="text-xs text-slate-500">{{ f.label }}</p>
+              <p class="mt-1 truncate text-[15px] font-medium tabular-nums text-slate-100" :title="f.value">{{ f.value }}</p>
+            </div>
+          </div>
+
+          <div v-if="service.state === 'running'" class="card">
+            <div class="card-header">
+              <span class="card-title">Usage</span>
+              <span class="flex items-center gap-3 text-[11.5px] text-slate-400">
+                <span v-for="s in series" :key="s.label" class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :style="{ background: s.color }" />{{ s.label }}</span>
+              </span>
+              <div class="segmented segmented-sm ml-auto">
+                <button v-for="r in (['live', '1h', '6h', '24h'] as const)" :key="r" :aria-pressed="range === r" @click="range = r">{{ r === 'live' ? 'Live' : r }}</button>
+              </div>
+            </div>
+            <div class="px-2 py-3 sm:px-3">
+              <LineGraph v-if="series[0].data.length > 1" :series="series" :height="170" :interval-sec="range === 'live' ? 7 : 60" bare />
+              <p v-else class="grid h-[170px] place-items-center text-xs text-slate-500">Collecting data, the graph fills in within a few seconds.</p>
+            </div>
+          </div>
+
+          <div v-if="service.domains.length || service.ports.length || service.networks?.length" class="card">
+            <div class="card-header"><span class="card-title">Access</span></div>
+            <div class="row-list">
+              <div v-for="d in service.domains" :key="d.domain" class="flex items-center gap-3 px-4 py-2.5 sm:px-5">
+                <Icon :name="d.ssl ? 'lock' : 'globe'" class="h-4 w-4 shrink-0" :class="d.ssl ? 'text-ok' : 'text-slate-500'" />
+                <a :href="d.url" target="_blank" rel="noopener noreferrer" class="min-w-0 truncate text-[13.5px] text-slate-100 hover:text-accent-light">{{ d.domain }}</a>
+                <span v-if="pings.pings.value[d.url]" class="flex items-center gap-1.5 text-[11.5px] text-slate-500">
+                  <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
+                </span>
+                <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon ml-auto" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
+              </div>
+              <div v-if="service.ports.length" class="flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5">
+                <span class="mr-1 w-16 shrink-0 text-xs text-slate-500">Ports</span>
+                <a
+                  v-for="p in service.ports"
+                  :key="p.hostPort + p.type"
+                  :href="`http://${hostName}:${p.hostPort}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="chip font-mono text-[11.5px]"
+                  :title="`host ${p.hostPort} → container ${p.containerPort}/${p.type}`"
+                >:{{ p.hostPort }}<span class="text-slate-500">→{{ p.containerPort }}</span></a>
+              </div>
+              <div v-if="service.networks?.length" class="flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5">
+                <span class="mr-1 w-16 shrink-0 text-xs text-slate-500">Networks</span>
+                <NuxtLink
+                  v-for="n in service.networks"
+                  :key="n"
+                  :to="caps.stacks ? '/networks' : ''"
+                  class="chip font-mono text-[11.5px]"
+                  :title="`docker network ${n}`"
+                >{{ n }}</NuxtLink>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- restart policy: whether this container comes back on reboot -->
-        <div
-          v-if="service.kind === 'container' && restart.policy !== null"
-          class="flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-ink-900 px-3 py-2.5 text-xs"
-        >
-          <span class="uppercase tracking-wider text-slate-500">Start on boot</span>
-          <select
-            v-model="restart.selected"
-            :disabled="!caps.control"
-            class="rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
-          >
-            <option value="unless-stopped">unless-stopped — start on boot (unless you stopped it)</option>
-            <option value="always">always — start on boot, restart on crash</option>
-            <option value="on-failure">on-failure — only restart after crashes</option>
-            <option value="no">no — stays down after a reboot</option>
-          </select>
-          <button
-            v-if="restart.selected !== restart.policy"
-            :disabled="restart.saving"
-            class="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
-            @click="saveRestartPolicy"
-          >{{ restart.saving ? 'Applying…' : 'Apply' }}</button>
-          <span v-if="restart.msg" class="text-[11px]" :class="restart.ok ? 'text-accent-light' : 'text-red-400'">{{ restart.msg }}</span>
-          <span v-if="!caps.control" class="text-[11px] text-slate-600">needs the start/stop capability</span>
-          <span v-else-if="restart.composeManaged" class="basis-full text-[11px] text-slate-600">
-            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> compose-managed: this applies immediately, but the compose file's <code>restart:</code> wins if the stack is recreated — update it there too for a permanent change.
-          </span>
-        </div>
-
-        <!-- resource limits: live CPU/memory caps via docker update (no recreate) -->
-        <div
-          v-if="service.kind === 'container' && resources.loaded"
-          class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-white/5 bg-ink-900 px-3 py-2.5 text-xs"
-        >
-          <span class="basis-full uppercase tracking-wider text-slate-500">Resource limits</span>
-
-          <label class="flex items-center gap-1.5">
-            <span class="text-slate-400">CPU limit (cores)</span>
-            <input
-              v-model.number="resources.cpus"
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="unlimited"
-              :disabled="!caps.control"
-              class="w-20 rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
-            />
-            <span v-if="facts[2]" class="text-slate-600">currently using {{ facts[2].value }}</span>
-          </label>
-
-          <label class="flex items-center gap-1.5">
-            <span class="text-slate-400">Memory limit</span>
-            <input
-              v-model="resources.memory"
-              type="text"
-              placeholder="unlimited (e.g. 512m, 2g)"
-              :disabled="!caps.control"
-              class="w-36 rounded-md border border-white/10 bg-ink-950 px-2 py-1 text-xs text-slate-100 outline-none focus:border-accent/50 disabled:opacity-50"
-            />
-            <span v-if="facts[3]" class="text-slate-600">currently using {{ facts[3].value }}</span>
-          </label>
-
-          <button
-            v-if="resourcesDirty"
-            :disabled="resources.saving"
-            class="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
-            @click="saveResources"
-          >{{ resources.saving ? 'Applying…' : 'Apply' }}</button>
-
-          <span v-if="resources.msg" class="text-[11px]" :class="resources.ok ? 'text-accent-light' : 'text-red-400'">{{ resources.msg }}</span>
-          <span v-if="!caps.control" class="text-[11px] text-slate-600">needs the start/stop capability</span>
-          <span v-else-if="resources.composeManaged" class="basis-full text-[11px] text-slate-600">
-            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> compose-managed: this applies immediately, but the compose file's static <code>deploy.resources</code>/<code>mem_limit</code> wins if the stack is recreated — update it there too for a permanent change.
-          </span>
-          <span v-if="caps.control && service.state === 'restarting'" class="basis-full text-[11px] text-amber-300/80">
-            <Icon name="alert" class="mr-1 inline h-3 w-3 align-[-1px]" /> the container is restarting — Docker may accept this without actually applying it; re-check once it settles.
-          </span>
-        </div>
-
-        <div v-if="service.domains.length || service.ports.length" class="flex flex-wrap items-center gap-1.5">
-          <a
-            v-for="d in service.domains"
-            :key="d.domain"
-            :href="d.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-1 rounded bg-accent/10 px-2 py-1 text-xs text-accent-light hover:bg-accent/20"
-          >
-            <Icon v-if="d.ssl" name="lock" class="h-3 w-3 opacity-70" />{{ d.domain }}
-          </a>
-          <a
-            v-for="p in service.ports"
-            :key="p.hostPort + p.type"
-            :href="`http://${hostName}:${p.hostPort}`"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="rounded bg-white/5 px-2 py-1 font-mono text-xs text-slate-300 hover:bg-white/10"
-          >:{{ p.hostPort }}</a>
-        </div>
-
-        <!-- docker networks this container is attached to -->
-        <div v-if="service.networks?.length" class="flex flex-wrap items-center gap-1.5">
-          <span class="text-[11px] uppercase tracking-wider text-slate-500">Networks</span>
-          <NuxtLink
-            v-for="n in service.networks"
-            :key="n"
-            to="/networks"
-            class="rounded bg-white/5 px-2 py-1 font-mono text-xs text-slate-400 hover:bg-white/10 hover:text-slate-200"
-            :title="`docker network ${n} — open the networks page`"
-          >{{ n }}</NuxtLink>
-        </div>
-
-        <div v-if="service.state === 'running'">
-          <div class="mb-2 flex items-center gap-1 text-[11px]">
-            <button
-              v-for="r in (['live', '1h', '6h', '24h'] as const)"
-              :key="r"
-              class="rounded-md border px-2 py-0.5"
-              :class="range === r ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
-              @click="range = r"
-            >{{ r }}</button>
+        <div class="min-w-0 space-y-5">
+          <!-- restart policy: whether this container comes back on reboot -->
+          <div v-if="service.kind === 'container' && restart.policy !== null" class="card card-pad">
+            <label class="card-title mb-1 block" for="restart-policy">Start on boot</label>
+            <p class="mb-3 text-xs text-slate-500">Docker's restart policy for this container.</p>
+            <select id="restart-policy" v-model="restart.selected" :disabled="!caps.control" class="select">
+              <option v-for="o in restartOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+            <p class="field-hint">{{ restartOptions.find((o) => o.value === restart.selected)?.hint }}</p>
+            <div v-if="restart.selected !== restart.policy || restart.msg" class="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                v-if="restart.selected !== restart.policy"
+                :disabled="restart.saving"
+                class="btn btn-primary btn-sm"
+                @click="saveRestartPolicy"
+              >{{ restart.saving ? 'Applying…' : 'Apply' }}</button>
+              <button v-if="restart.selected !== restart.policy" class="btn btn-ghost btn-sm" @click="restart.selected = restart.policy!">Cancel</button>
+              <span v-if="restart.msg" class="text-xs" :class="restart.ok ? 'text-ok' : 'text-red-400'">{{ restart.msg }}</span>
+            </div>
+            <p v-if="!caps.control" class="field-hint">Changing it needs the start/stop capability.</p>
+            <p v-else-if="restart.composeManaged" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
+              <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick.</span>
+            </p>
           </div>
-          <LineGraph v-if="series[0].data.length > 1" :series="series" :height="160" :interval-sec="range === 'live' ? 7 : 60" />
-          <p v-else class="text-xs text-slate-600">collecting data…</p>
+
+          <!-- resource limits: live CPU/memory caps via docker update (no recreate) -->
+          <div v-if="service.kind === 'container' && resources.loaded" class="card card-pad">
+            <p class="card-title mb-1">Resource limits</p>
+            <p class="mb-3 text-xs text-slate-500">Applied live, no restart. Leave empty for no limit.</p>
+            <div class="space-y-3">
+              <div>
+                <label class="field-label" for="cpu-limit">CPU limit <span class="font-normal text-slate-500">(cores)</span></label>
+                <input
+                  id="cpu-limit"
+                  v-model.number="resources.cpus"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="No limit"
+                  :disabled="!caps.control"
+                  class="input"
+                />
+                <p v-if="facts[2]" class="field-hint">Currently using {{ facts[2].value }}</p>
+              </div>
+              <div>
+                <label class="field-label" for="mem-limit">Memory limit</label>
+                <input
+                  id="mem-limit"
+                  v-model="resources.memory"
+                  type="text"
+                  placeholder="No limit, e.g. 512m or 2g"
+                  :disabled="!caps.control"
+                  class="input"
+                />
+                <p v-if="facts[3]" class="field-hint">Currently using {{ facts[3].value }}</p>
+              </div>
+            </div>
+            <div v-if="resourcesDirty || resources.msg" class="mt-3 flex flex-wrap items-center gap-2">
+              <button v-if="resourcesDirty" :disabled="resources.saving" class="btn btn-primary btn-sm" @click="saveResources">
+                {{ resources.saving ? 'Applying…' : 'Apply limits' }}
+              </button>
+              <span v-if="resources.msg" class="text-xs" :class="resources.ok ? 'text-ok' : 'text-red-400'">{{ resources.msg }}</span>
+            </div>
+            <p v-if="!caps.control" class="field-hint">Changing them needs the start/stop capability.</p>
+            <p v-else-if="resources.composeManaged" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
+              <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated.</span>
+            </p>
+            <p v-if="caps.control && service.state === 'restarting'" class="mt-2 flex gap-1.5 text-xs leading-relaxed text-amber-300/90">
+              <Icon name="alert" class="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>The container is restarting: Docker may accept a change without applying it. Re-check once it settles.</span>
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Details</span></div>
+            <dl class="row-list text-[13px]">
+              <div v-for="d in details" :key="d.label" class="flex items-baseline gap-3 px-4 py-2 sm:px-5">
+                <dt class="w-24 shrink-0 text-xs text-slate-500">{{ d.label }}</dt>
+                <dd class="min-w-0 break-words" :class="d.mono ? 'font-mono text-xs text-slate-300' : 'text-slate-200'">
+                  <NuxtLink v-if="d.to" :to="d.to" class="link">{{ d.value }}</NuxtLink>
+                  <template v-else>{{ d.value }}</template>
+                </dd>
+              </div>
+            </dl>
+          </div>
         </div>
 
         <!-- danger zone: recreate + delete -->
-        <div v-if="caps.control && service.kind === 'container'" class="rounded-lg border border-red-500/15 bg-ink-900 p-4">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-red-300/80">Danger zone</p>
-          <p v-if="composeProject && stackManaged" class="mb-3 text-[11px] leading-relaxed text-slate-500">
-            Part of the managed stack “{{ composeProject }}” — a deleted or recreated container comes back on the
-            stack's next <code>up</code>. For a permanent change, use the
-            <NuxtLink :to="`/stacks/${composeProject}`" class="text-accent-light hover:underline">stack page</NuxtLink>.
-          </p>
-          <div class="flex flex-wrap items-center gap-3">
-            <button
-              :disabled="applying || deleting"
-              class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
-              @click="recreate"
-            ><Icon name="refresh" class="h-3.5 w-3.5" :class="applying ? 'animate-spin' : ''" /> {{ applying ? 'Recreating…' : 'Recreate' }}</button>
-            <span class="text-[11px] text-slate-600">stop and recreate with the same image and settings — for containers in a wedged state</span>
+        <div v-if="caps.control && service.kind === 'container'" class="card overflow-hidden border-red-500/20 lg:col-span-3">
+          <div class="card-header border-red-500/15">
+            <span class="card-title text-red-300">Danger zone</span>
+            <span v-if="composeProject && stackManaged" class="text-xs text-slate-500">
+              Part of the managed stack “{{ composeProject }}”: a deleted or recreated container comes back on the stack's next
+              <code>up</code>. For a permanent change use the <NuxtLink :to="`/stacks/${composeProject}`" class="link">stack page</NuxtLink>.
+            </span>
           </div>
-          <div class="mt-3 flex flex-wrap items-center gap-3 border-t border-white/5 pt-3">
-            <button
-              :disabled="applying || deleting"
-              class="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-              @click="deleteContainer"
-            ><Icon name="x" class="h-3.5 w-3.5" /> {{ deleting ? 'Deleting…' : 'Delete container' }}</button>
-            <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <input v-model="deleteVolumes" type="checkbox" class="h-3 w-3" />
-              also delete its anonymous volumes
-            </label>
-            <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <input v-model="deleteImage" type="checkbox" class="h-3 w-3" />
-              also delete its image
-            </label>
-            <label v-if="caps.proxyAdmin && matchedRoutes.length && !caps.viewer" class="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <input v-model="deleteProxyRoutes" type="checkbox" class="h-3 w-3" />
-              also remove its domain{{ matchedRoutes.length > 1 ? 's' : '' }} from the proxy
-              ({{ matchedRoutes.flatMap((r) => r.domains).join(', ') }})
-            </label>
-          </div>
-          <div v-if="dangerSteps.length" class="mt-3 border-t border-white/5 pt-3">
-            <div v-for="(s, i) in dangerSteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
-              <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
-              <span class="text-slate-300">{{ s.step }}</span>
-              <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
+          <div class="row-list">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-5">
+              <div class="min-w-0 flex-1">
+                <p class="text-[13px] font-medium text-slate-100">Recreate container</p>
+                <p class="mt-0.5 text-xs text-slate-500">Stop and recreate it with the same image and settings. Useful when a container is wedged.</p>
+              </div>
+              <button :disabled="applying || deleting" class="btn" @click="recreate">
+                <Icon name="refresh" :class="applying ? 'animate-spin' : ''" /> {{ applying ? 'Recreating…' : 'Recreate' }}
+              </button>
             </div>
-            <p v-if="redirecting" class="mt-1 animate-pulse text-xs text-accent-light">container recreated — opening its new page…</p>
-            <NuxtLink v-else-if="newPage" :to="newPage" class="mt-1 inline-block text-xs text-accent-light hover:underline">Open the recreated container →</NuxtLink>
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-5">
+              <div class="min-w-0 flex-1">
+                <p class="text-[13px] font-medium text-slate-100">Delete container</p>
+                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+                  <label class="check text-xs text-slate-400"><input v-model="deleteVolumes" type="checkbox" /> Also delete its anonymous volumes</label>
+                  <label class="check text-xs text-slate-400"><input v-model="deleteImage" type="checkbox" /> Also delete its image</label>
+                  <label v-if="caps.proxyAdmin && matchedRoutes.length && !caps.viewer" class="check text-xs text-slate-400">
+                    <input v-model="deleteProxyRoutes" type="checkbox" />
+                    Also remove its domain{{ matchedRoutes.length > 1 ? 's' : '' }} from the proxy ({{ matchedRoutes.flatMap((r) => r.domains).join(', ') }})
+                  </label>
+                </div>
+              </div>
+              <button :disabled="applying || deleting" class="btn btn-danger" @click="deleteContainer">
+                <Icon name="trash" /> {{ deleting ? 'Deleting…' : 'Delete' }}
+              </button>
+            </div>
           </div>
         </div>
+        <OpSteps v-if="dangerSteps.length" class="lg:col-span-3" :steps="dangerSteps" title="Result" :redirecting="redirecting" :new-page="newPage" noun="recreated" />
       </section>
 
       <!-- LOGS -->
-      <section v-else-if="tab === 'logs'" class="h-[65vh]">
+      <section v-else-if="tab === 'logs'" class="card h-[calc(100vh-240px)] min-h-[420px] p-3">
         <LogsView v-if="caps.logs" :id="service.id" class="h-full" />
         <p v-else class="text-sm text-slate-500">Logs are disabled (<code>HOMEPORT_LOGS=false</code>).</p>
       </section>
 
       <!-- TERMINAL -->
-      <section v-else-if="tab === 'terminal'" class="h-[65vh]">
+      <section v-else-if="tab === 'terminal'" class="card h-[calc(100vh-240px)] min-h-[420px] p-3">
         <TerminalView v-if="isUp" :id="service.id" :name="service.displayName" class="h-full" />
-        <p v-else class="text-sm text-slate-500">The container isn't running — start it to open a shell.</p>
+        <EmptyState v-else icon="terminal" title="The container isn't running" text="Start it to open a shell inside.">
+          <template v-if="caps.control" #actions><button class="btn btn-primary btn-sm" @click="control('start')"><Icon name="play" /> Start</button></template>
+        </EmptyState>
       </section>
 
       <!-- ENVIRONMENT -->
-      <section v-else-if="tab === 'env'" class="max-w-2xl space-y-4">
-        <div v-if="composeProject && stackManaged" class="rounded-lg border border-white/5 bg-ink-900 p-4 text-sm text-slate-400">
-          This container belongs to the managed stack “{{ composeProject }}” — set its environment in the compose file,
-          so the change survives redeploys.
-          <NuxtLink :to="`/stacks/${composeProject}`" class="text-accent-light hover:underline">Open the stack →</NuxtLink>
+      <section v-else-if="tab === 'env'" class="max-w-3xl space-y-4">
+        <div v-if="composeProject && stackManaged" class="callout callout-info">
+          <Icon name="info" />
+          <span>
+            This container belongs to the managed stack “{{ composeProject }}”. Set its environment in the compose file so the
+            change survives redeploys. <NuxtLink :to="`/stacks/${composeProject}`" class="link">Open the stack</NuxtLink>
+          </span>
         </div>
         <template v-else>
-          <p v-if="composeProject && stackChecked" class="rounded-lg border border-amber-500/15 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-300/90">
-            Part of the “{{ composeProject }}” compose project (not managed by homeport): changes apply now, but a future
-            <code>docker compose up</code> from its original compose file recreates the container with the old environment —
-            mirror the change there too.
-          </p>
-          <div v-if="!envLoaded" class="py-8 text-center text-sm text-slate-500">Loading…</div>
-          <p v-else-if="envError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ envError }}</p>
-          <template v-else>
-            <div class="space-y-2">
+          <div v-if="composeProject && stackChecked" class="callout callout-warn">
+            <Icon name="alert" />
+            <span>
+              Part of the “{{ composeProject }}” compose project (not managed by homeport). Changes apply now, but a future
+              <code>docker compose up</code> from its original file recreates the container with the old environment, so mirror
+              the change there too.
+            </span>
+          </div>
+          <div v-if="!envLoaded" class="card card-pad space-y-2"><div v-for="i in 4" :key="i" class="skeleton h-9" /></div>
+          <div v-else-if="envError" class="callout callout-warn"><Icon name="alert" /><span>{{ envError }}</span></div>
+          <div v-else class="card">
+            <div class="card-header">
+              <span class="card-title">Environment variables</span>
+              <span class="text-xs text-slate-500">{{ envRows.length }} set</span>
+            </div>
+            <div class="space-y-2 p-4 sm:p-5">
               <div v-for="(row, i) in envRows" :key="i" class="flex items-center gap-2">
                 <input
                   v-model="row.key"
                   placeholder="NAME"
                   spellcheck="false"
-                  class="w-2/5 rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+                  aria-label="Variable name"
+                  class="input w-2/5 font-mono text-xs"
                 />
                 <input
                   v-model="row.value"
                   :type="row.secret ? 'password' : 'text'"
-                  :placeholder="row.keep ? 'unchanged — type to replace' : ''"
+                  :placeholder="row.keep ? 'unchanged, type to replace' : 'value'"
                   spellcheck="false"
-                  class="flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+                  aria-label="Value"
+                  class="input flex-1 font-mono text-xs"
                   @input="row.keep = false"
                 />
                 <button
                   type="button"
-                  class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                  class="btn btn-ghost btn-icon hover:!text-red-300"
+                  :aria-label="`Remove ${row.key || 'variable'}`"
+                  title="Remove"
                   @click="envRows.splice(i, 1)"
-                >Remove</button>
+                ><Icon name="trash" /></button>
               </div>
-              <button
-                type="button"
-                class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-                @click="envRows.push({ key: '', value: '', keep: false, secret: false })"
-              >+ Add variable</button>
+              <button type="button" class="btn btn-sm" @click="envRows.push({ key: '', value: '', keep: false, secret: false })">
+                <Icon name="plus" /> Add variable
+              </button>
             </div>
-            <div class="flex items-center gap-3">
-              <button
-                :disabled="applying"
-                class="rounded-md bg-accent px-4 py-2 text-xs font-semibold text-on-accent hover:bg-accent-light disabled:opacity-40"
-                @click="applyEnv"
-              >{{ applying ? 'Recreating…' : 'Apply & recreate' }}</button>
-              <button
-                type="button"
-                :disabled="applying"
-                class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 disabled:opacity-40"
-                @click="reloadEnv"
-              >Discard changes</button>
-              <span class="text-[11px] text-slate-600">applying stops the container and recreates it with the new environment</span>
+            <div class="flex flex-wrap items-center gap-2 border-t border-white/[0.06] px-4 py-3 sm:px-5">
+              <button :disabled="applying" class="btn btn-primary" @click="applyEnv">{{ applying ? 'Recreating…' : 'Apply & recreate' }}</button>
+              <button type="button" :disabled="applying" class="btn btn-ghost" @click="reloadEnv">Discard changes</button>
+              <span class="text-xs text-slate-500">Applying stops the container and recreates it with the new environment.</span>
             </div>
-            <div v-if="envSteps.length" class="rounded-lg border border-white/5 bg-ink-900 p-4">
-              <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Recreate steps</p>
-              <div v-for="(s, i) in envSteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
-                <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
-                <span class="text-slate-300">{{ s.step }}</span>
-                <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
-              </div>
-              <p v-if="redirecting" class="mt-2 animate-pulse text-xs text-accent-light">container recreated — opening its new page…</p>
-              <NuxtLink v-else-if="newPage" :to="newPage" class="mt-2 inline-block text-xs text-accent-light hover:underline">Open the updated container →</NuxtLink>
-            </div>
-          </template>
+          </div>
+          <OpSteps :steps="envSteps" title="Recreate steps" :redirecting="redirecting" :new-page="newPage" />
         </template>
       </section>
 
       <!-- DOMAINS -->
       <section v-else-if="tab === 'domains'" class="max-w-xl space-y-4">
-        <p class="text-sm text-slate-400">
-          {{ matchedRoute ? 'This container already has a reverse-proxy route — edit it below.' : 'Add a reverse-proxy route pointing a domain at this container.' }}
+        <p class="text-[13px] text-slate-400">
+          {{ matchedRoute ? 'This container already has a reverse-proxy route. Edit it below.' : 'Point a domain at this container through your reverse proxy.' }}
         </p>
         <DomainForm
           :key="domainFormKey"
@@ -344,80 +338,56 @@
           :submit-label="matchedRoute ? 'Update domain' : 'Add domain'"
           @saved="onDomainSaved"
         />
-        <NuxtLink to="/domains" class="inline-block text-xs text-accent-light hover:underline">Manage all domains →</NuxtLink>
+        <NuxtLink to="/domains" class="link inline-flex items-center gap-1 text-xs">Manage all domains <Icon name="arrow-right" class="h-3 w-3" /></NuxtLink>
       </section>
 
       <!-- UPDATE -->
-      <section v-else-if="tab === 'update'" class="max-w-xl space-y-4">
-        <div class="rounded-lg border border-white/5 bg-ink-900 p-4">
-          <div class="flex items-center gap-2">
-            <span class="text-sm text-slate-200">Image status:</span>
-            <span class="rounded-full px-2 py-0.5 text-xs" :class="updateBadgeCls">{{ updateLabel }}</span>
+      <section v-else-if="tab === 'update'" class="max-w-2xl space-y-4">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Image</span>
+            <span class="badge h-6 px-2" :class="updateBadgeCls">{{ updateLabel }}</span>
           </div>
-          <dl v-if="updateEntry" class="mt-3 space-y-1 font-mono text-[11px] text-slate-500">
-            <div v-if="updateEntry.localDigest" class="truncate"><dt class="inline text-slate-600">local: </dt><dd class="inline">{{ updateEntry.localDigest }}</dd></div>
-            <div v-if="updateEntry.remoteDigest" class="truncate"><dt class="inline text-slate-600">remote: </dt><dd class="inline">{{ updateEntry.remoteDigest }}</dd></div>
-            <div><dt class="inline text-slate-600">checked: </dt><dd class="inline">{{ new Date(updateEntry.checkedAt).toLocaleString() }}</dd></div>
-            <div v-if="changelogUrl" class="truncate">
-              <dt class="inline text-slate-600">changelog: </dt>
-              <dd class="inline">
-                <a :href="changelogUrl" target="_blank" rel="noopener noreferrer" class="text-accent-light hover:underline">{{ changelogUrl }} ↗</a>
-              </dd>
-            </div>
-            <div v-if="updateEntry.error" class="text-amber-300/90">{{ updateEntry.error }}</div>
-          </dl>
-          <p v-else class="mt-2 text-xs text-slate-500">
-            {{ updatesEnabled ? 'Not checked yet.' : 'Update checks are disabled — enable them in Settings → Capabilities.' }}
-          </p>
-          <div class="mt-4 flex items-center gap-2">
-            <button
-              v-if="updatesEnabled"
-              :disabled="checking"
-              class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
-              @click="checkNow"
-            >{{ checking ? 'Checking…' : 'Check now' }}</button>
+          <div class="p-4 sm:p-5">
+            <p class="break-all font-mono text-[13px] text-slate-200">{{ service.image }}</p>
+            <dl v-if="updateEntry" class="mt-3 space-y-1.5 text-xs">
+              <div v-if="updateEntry.localDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Running</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.localDigest }}</dd></div>
+              <div v-if="updateEntry.remoteDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Latest</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.remoteDigest }}</dd></div>
+              <div class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Checked</dt><dd class="text-slate-400">{{ new Date(updateEntry.checkedAt).toLocaleString() }}</dd></div>
+              <div v-if="changelogUrl" class="flex gap-3">
+                <dt class="w-20 shrink-0 text-slate-500">Changelog</dt>
+                <dd class="min-w-0 truncate"><a :href="changelogUrl" target="_blank" rel="noopener noreferrer" class="link">{{ changelogUrl }}</a></dd>
+              </div>
+              <div v-if="updateEntry.error" class="text-amber-300/90">{{ updateEntry.error }}</div>
+            </dl>
+            <p v-else class="mt-2 text-xs text-slate-500">
+              {{ updatesEnabled ? 'Not checked yet.' : 'Update checks are off. Turn them on in Settings → Capabilities.' }}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 border-t border-white/[0.06] px-4 py-3 sm:px-5">
             <template v-if="updateEntry?.status === 'update'">
-              <NuxtLink
-                v-if="stackManaged"
-                :to="`/stacks/${composeProject}`"
-                class="rounded-md border border-sky-400/30 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-400/10"
-              >Update via stack “{{ composeProject }}” →</NuxtLink>
+              <NuxtLink v-if="stackManaged" :to="`/stacks/${composeProject}`" class="btn btn-primary">
+                Update via stack “{{ composeProject }}” <Icon name="arrow-right" />
+              </NuxtLink>
               <button
                 v-else-if="caps.updates && (!composeProject || stackChecked)"
                 :disabled="applying"
-                class="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
+                class="btn btn-primary"
                 @click="apply"
-              >{{ applying ? 'Updating…' : 'Update now' }}</button>
-              <span v-else-if="!caps.updates" class="text-[11px] text-slate-500">applying updates is disabled (Settings → Capabilities)</span>
+              ><Icon name="download" /> {{ applying ? 'Updating…' : 'Update now' }}</button>
+              <span v-else-if="!caps.updates" class="text-xs text-slate-500">Applying updates is off (Settings → Capabilities).</span>
             </template>
+            <button v-if="updatesEnabled" :disabled="checking" class="btn" @click="checkNow">
+              <Icon name="refresh" :class="checking ? 'animate-spin' : ''" /> {{ checking ? 'Checking…' : 'Check now' }}
+            </button>
           </div>
-          <p v-if="updateEntry?.status === 'update' && composeProject && stackChecked && !stackManaged" class="mt-2 text-[11px] text-slate-500">
-            part of the “{{ composeProject }}” compose project (not managed by homeport) — updating pulls the image and
-            recreates this container in place with its current settings.
-            <NuxtLink
-              v-if="projectSiblings > 1"
-              :to="`/stacks/${composeProject}`"
-              class="text-accent-light hover:underline"
-            >Update the whole project at once →</NuxtLink>
+          <p v-if="updateEntry?.status === 'update' && composeProject && stackChecked && !stackManaged" class="border-t border-white/[0.06] px-4 py-3 text-xs leading-relaxed text-slate-500 sm:px-5">
+            Part of the “{{ composeProject }}” compose project (not managed by homeport): updating pulls the image and recreates
+            this container in place with its current settings.
+            <NuxtLink v-if="projectSiblings > 1" :to="`/stacks/${composeProject}`" class="link">Update the whole project at once</NuxtLink>
           </p>
         </div>
-
-        <div v-if="applySteps.length" class="rounded-lg border border-white/5 bg-ink-900 p-4">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Update steps</p>
-          <div v-for="(s, i) in applySteps" :key="i" class="flex items-center gap-2 py-0.5 text-xs">
-            <Icon :name="s.ok ? 'check' : 'x'" class="h-3.5 w-3.5 shrink-0" :class="s.ok ? 'text-ok' : 'text-red-400'" />
-            <span class="text-slate-300">{{ s.step }}</span>
-            <span v-if="s.detail" class="truncate text-slate-500">{{ s.detail }}</span>
-          </div>
-          <p v-if="redirecting" class="mt-2 animate-pulse text-xs text-accent-light">
-            container recreated — opening its new page…
-          </p>
-          <NuxtLink
-            v-else-if="newPage"
-            :to="newPage"
-            class="mt-2 inline-block text-xs text-accent-light hover:underline"
-          >Open the updated container →</NuxtLink>
-        </div>
+        <OpSteps :steps="applySteps" title="Update steps" :redirecting="redirecting" :new-page="newPage" />
       </section>
     </template>
   </div>
@@ -427,7 +397,7 @@
 import type { Service } from '~/types/service'
 
 // remount when the id param changes (an applied update navigates to the new container id)
-definePageMeta({ key: (route) => route.fullPath })
+definePageMeta({ key: (route) => route.path })
 
 const route = useRoute()
 const id = decodeURIComponent(String(route.params.id))
@@ -457,15 +427,50 @@ const hostName = computed(() => (import.meta.client ? window.location.hostname :
 const isUp = computed(() => service.value?.state === 'running' || service.value?.state === 'restarting')
 
 type Tab = 'overview' | 'logs' | 'terminal' | 'env' | 'domains' | 'update'
-const tab = ref<Tab>('overview')
+// the open tab lives in ?tab= so a reload, a shared link or the dashboard's
+// "update" badge lands on the right one
+const router = useRouter()
+const TABS: Tab[] = ['overview', 'logs', 'terminal', 'env', 'domains', 'update']
+const tab = ref<Tab>(TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'overview')
+watch(tab, (t) => {
+  router.replace({ query: { ...route.query, tab: t === 'overview' ? undefined : t } })
+})
 const tabs = computed(() => [
-  { key: 'overview' as Tab, label: 'Overview' },
-  ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs' }] : []),
-  ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal' }] : []),
-  ...(caps.value.updates ? [{ key: 'env' as Tab, label: 'Environment' }] : []),
-  ...(caps.value.proxyAdmin && !caps.value.viewer ? [{ key: 'domains' as Tab, label: 'Domains' }] : []),
-  ...(updates.enabled.value || caps.value.updates ? [{ key: 'update' as Tab, label: 'Update' }] : []),
+  { key: 'overview' as Tab, label: 'Overview', icon: 'dashboard' },
+  ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs', icon: 'file-text' }] : []),
+  ...(caps.value.terminal ? [{ key: 'terminal' as Tab, label: 'Terminal', icon: 'terminal' }] : []),
+  ...(caps.value.updates ? [{ key: 'env' as Tab, label: 'Environment', icon: 'sliders' }] : []),
+  ...(caps.value.proxyAdmin && !caps.value.viewer ? [{ key: 'domains' as Tab, label: 'Domains', icon: 'globe' }] : []),
+  ...(updates.enabled.value || caps.value.updates
+    ? [{ key: 'update' as Tab, label: 'Update', icon: 'arrow-up', dot: updateEntry.value?.status === 'update' }]
+    : []),
 ])
+
+const crumbs = computed(() => {
+  const s = service.value
+  const c: { label: string; to?: string }[] = [{ label: 'Dashboard', to: '/' }]
+  if (s?.project && caps.value.stacks) c.push({ label: s.project, to: `/stacks/${encodeURIComponent(s.project)}` })
+  else if (s?.group) c.push({ label: s.group })
+  return c
+})
+
+const pings = usePings()
+function pingClass(url: string) {
+  const p = pings.pings.value[url]
+  if (!p) return ''
+  return p.status === 0 ? 'bg-red-400' : p.status < 400 ? 'bg-ok' : 'bg-amber-400'
+}
+function pingTitle(url: string) {
+  const p = pings.pings.value[url]
+  return !p ? '' : p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms} ms`
+}
+
+const restartOptions = [
+  { value: 'unless-stopped', label: 'Unless stopped', hint: 'Starts on boot and after a crash, unless you stopped it yourself.' },
+  { value: 'always', label: 'Always', hint: 'Starts on boot and restarts after every crash.' },
+  { value: 'on-failure', label: 'On failure', hint: 'Only restarts after a crash.' },
+  { value: 'no', label: 'Never', hint: 'Stays down after a reboot or a crash.' },
+]
 
 // --- domains tab ---
 // Pull the proxy's existing routes so the form can pre-fill and, when a route
@@ -618,15 +623,36 @@ const facts = computed(() => {
   const s = service.value!
   const stat = stats.stats.value[s.id]
   return [
-    { label: 'State', value: s.statusText || s.state },
+    { label: 'Status', value: s.statusText || s.state },
     { label: 'Group', value: (s.host ? `${s.host} · ` : '') + s.group },
     { label: 'CPU', value: stat?.cpuPercent != null ? `${stat.cpuPercent}%` : '—' },
     { label: 'Memory', value: stat ? formatBytes(stat.memBytes) : '—' },
   ]
 })
 
+const details = computed(() => {
+  const s = service.value!
+  const d: { label: string; value: string; mono?: boolean; to?: string }[] = [
+    { label: 'Container', value: s.name, mono: true },
+    { label: 'Image', value: s.image, mono: true },
+  ]
+  if (s.project) d.push({ label: 'Compose', value: s.project, to: caps.value.stacks ? `/stacks/${encodeURIComponent(s.project)}` : undefined })
+  if (s.host) d.push({ label: 'Host', value: s.host })
+  if (s.createdAt) d.push({ label: 'Created', value: new Date(s.createdAt).toLocaleString() })
+  if (s.health) d.push({ label: 'Health', value: s.health })
+  return d
+})
+
 // --- overview graph (live buffer or persisted history) ---
-const { range, past } = useHistoryRange(id)
+// Opens on the last hour of persisted history (instant), like the dashboard;
+// 'live' only fills after a minute of polling. History was never loaded on
+// mount before (only on a range change), so the graph always opened empty.
+const { range, past, load: loadHistory } = useHistoryRange(id, '1h')
+async function initHistory() {
+  await loadHistory()
+  // no persisted history (feature off, or a brand-new container): show live instead
+  if (range.value !== 'live' && (past.value?.cpu.length ?? 0) < 2) range.value = 'live'
+}
 const series = computed(() => {
   const live = stats.history.value[id] ?? { cpu: [], mem: [] }
   const src = range.value === 'live' ? live : past.value ?? { cpu: [], mem: [] }
@@ -766,10 +792,12 @@ const updateLabel = computed(() => {
 })
 const updateBadgeCls = computed(() =>
   updateEntry.value?.status === 'update'
-    ? 'border border-sky-400/30 bg-sky-400/10 text-sky-300'
+    ? 'badge-info'
     : updateEntry.value?.status === 'error'
-      ? 'border border-amber-400/30 bg-amber-400/10 text-amber-300'
-      : 'border border-white/10 bg-white/5 text-slate-400',
+      ? 'badge-warn'
+      : updateEntry.value?.status === 'current'
+        ? 'badge-ok'
+        : '',
 )
 
 const checking = ref(false)
@@ -874,18 +902,31 @@ async function applyEnv() {
   }
 }
 
+// a ?tab= this setup doesn't offer (capability off) falls back to the overview
+// (declared down here: `tabs` reads updateEntry, which is defined above this line)
+watch(
+  () => capsLoaded.value && tabs.value.length,
+  (ready) => {
+    if (ready && !tabs.value.some((t) => t.key === tab.value)) tab.value = 'overview'
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
+  initHistory()
   loadRestartPolicy()
   loadResources()
   start()
   stats.start()
+  pings.start()
   loadCaps()
   updates.refresh()
 })
 onBeforeUnmount(() => {
   stop()
   stats.stop()
+  pings.stop()
 })
 
-useHead({ title: computed(() => `${service.value?.displayName ?? 'service'} — homeport`) })
+useHead({ title: computed(() => `${service.value?.displayName ?? 'Container'} · homeport`) })
 </script>

@@ -1,45 +1,50 @@
 <template>
-  <div class="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <h1 class="text-xl font-semibold text-slate-100">Domains</h1>
-      <span v-if="provider" class="font-mono text-xs text-slate-600">via {{ provider }}</span>
-      <button
-        v-if="caps.create && !hpCaps.viewer"
-        class="ml-auto rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
-        @click="adding = !adding"
-      >{{ adding ? 'Close' : '+ Add domain' }}</button>
-    </header>
+  <div class="page">
+    <PageHeader title="Domains" :subtitle="provider ? `Reverse-proxy routes, managed through ${provider}.` : 'Reverse-proxy routes pointing domains at your containers.'">
+      <template #actions>
+        <button v-if="caps.create && !hpCaps.viewer" class="btn" :class="adding ? '' : 'btn-primary'" @click="adding = !adding">
+          <Icon :name="adding ? 'x' : 'plus'" /> {{ adding ? 'Close' : 'Add domain' }}
+        </button>
+      </template>
+    </PageHeader>
 
-    <DomainForm v-if="adding" class="mb-4" @saved="onSaved" @cancel="adding = false" />
+    <DomainForm v-if="adding" class="mb-5 max-w-2xl" @saved="onSaved" @cancel="adding = false" />
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
-    <div v-else-if="!loaded" class="py-20 text-center text-slate-500">Loading…</div>
+    <div v-if="error" class="callout callout-warn">{{ error }}</div>
+    <div v-else-if="!loaded" class="card h-64" />
 
     <template v-else>
-      <p v-if="!routes.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        No domains configured.
-      </p>
-      <div class="space-y-2">
+      <div v-if="!routes.length" class="card">
+        <EmptyState icon="globe" title="No domains yet" text="Point a domain at a container and homeport creates the proxy route for you.">
+          <template v-if="caps.create && !hpCaps.viewer" #actions><button class="btn btn-primary btn-sm" @click="adding = true"><Icon name="plus" /> Add domain</button></template>
+        </EmptyState>
+      </div>
+      <div v-else class="card row-list overflow-hidden">
         <div
           v-for="r in routes"
           :key="r.id"
-          class="rounded-lg border border-white/5 bg-ink-900 px-4 py-3"
+          class="px-4 py-3 sm:px-5"
         >
-          <div v-if="editId !== r.id" class="flex flex-wrap items-center gap-2">
+          <div v-if="editId !== r.id" class="flex flex-wrap items-center gap-3">
+            <Icon :name="r.ssl ? 'lock' : 'globe'" class="h-4 w-4 shrink-0" :class="r.ssl ? 'text-ok' : 'text-slate-500'" />
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span v-for="d in r.domains" :key="d" class="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent-light">
-                  <Icon v-if="r.ssl" name="lock" class="h-3 w-3 opacity-70" />{{ d }}
-                </span>
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <a
+                  v-for="d in r.domains"
+                  :key="d"
+                  :href="`${r.ssl ? 'https' : 'http'}://${d}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-[13.5px] font-medium text-slate-100 hover:text-accent-light"
+                >{{ d }}</a>
               </div>
-              <p class="mt-0.5 font-mono text-[11px] text-slate-500">→ {{ r.upstreamHost }}:{{ r.upstreamPort }}</p>
+              <p class="mt-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-slate-500"><Icon name="arrow-right" class="h-3 w-3" />{{ r.upstreamHost }}:{{ r.upstreamPort }}</p>
             </div>
-            <span v-if="!r.managed" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase text-slate-500" title="Not created by homeport">read-only</span>
-            <template v-else>
-              <button v-if="caps.update && !hpCaps.viewer" class="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="editId = r.id">Edit</button>
-              <button v-if="caps.delete && !hpCaps.viewer" class="rounded border border-red-500/20 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10" @click="remove(r)">Delete</button>
-            </template>
+            <span v-if="!r.managed" class="badge" title="Not created by homeport, so it's shown read-only">read-only</span>
+            <div v-else class="flex items-center gap-1.5">
+              <button v-if="caps.update && !hpCaps.viewer" class="btn btn-sm" @click="editId = r.id"><Icon name="pencil" /> Edit</button>
+              <button v-if="caps.delete && !hpCaps.viewer" class="btn btn-danger btn-sm btn-icon" :aria-label="`Delete ${r.domains[0]}`" title="Delete" @click="remove(r)"><Icon name="trash" /></button>
+            </div>
           </div>
           <DomainForm
             v-else
@@ -108,8 +113,9 @@ async function remove(r: AdminRoute) {
 }
 
 onMounted(() => {
+  if (useRoute().query.add) adding.value = true // "Add a domain" from the command palette
   load()
   loadHpCaps()
 })
-useHead({ title: 'Domains — homeport' })
+useHead({ title: 'Domains · homeport' })
 </script>

@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.25.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.28.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -58,6 +58,7 @@ all live and builds the page for you. **Zero tiles to configure.**
 - **Automatic domains** — homeport reads your reverse proxy, so it already knows `webapp → app.example.com`.
 - **Live** — updates the instant a container starts, stops, or goes unhealthy (Docker events, not polling).
 - **Graphs & uptime** — per-container CPU/RAM sparklines, per-stack totals, and a fleet graph with a 1h/6h/24h range (containers vs. whole-machine, straight from procfs) — plus optional up/down pings.
+- **Find anything fast**: <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> jumps to any container, stack or page; the dashboard filters by status (running, stopped, issues, updates), flags what needs attention, and switches between cards and a dense list.
 - **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
 
 ### 🛠️ Manage — opt-in, only what you enable
@@ -381,7 +382,7 @@ the page.
 With **update checks** enabled, homeport asks each image's registry for its current digest
 (through the Docker daemon) about once a day and badges anything outdated. Public images need
 no credentials; for **private** ones (e.g. your own `ghcr.io` packages) add a login under
-**Settings → Registry credentials** (or `HOMEPORT_REGISTRY_AUTH`) — a GHCR token with
+**Settings → Updates → Registry credentials** (or `HOMEPORT_REGISTRY_AUTH`): a GHCR token with
 `read:packages` is enough to check, `write:packages` to also apply. Without a matching login,
 private images report a `401` and are skipped. The **Updates** page (sidebar, with a pending
 count) groups them by compose project:
@@ -393,7 +394,7 @@ count) groups them by compose project:
 - **Scheduled automatic updates** (opt-in, off by default): pick a daily hour and opt
   targets in with the "auto" toggles on the Updates page, the target list in settings, or
   a `hub.autoupdate=true` label. Managed stacks pull & up, the rest recreate; homeport
-  itself is always skipped (it has its own **self-update** in Settings → About). Every
+  itself is always skipped (it has its own **self-update**: the sidebar button, or Settings → Backup & about). Every
   applied or failed update is reported through your alert channels.
   The hour is the container's local time — set `TZ` on the homeport container if that
   should mean *your* local time.
@@ -427,7 +428,7 @@ count) groups them by compose project:
 
 ### Two-factor auth (TOTP)
 
-Turn on **Settings → Two-factor auth** to require a 6-digit code from an authenticator app
+Turn on **Settings → Security & users → Two-factor auth** to require a 6-digit code from an authenticator app
 (Google Authenticator, Aegis, 1Password, …) in addition to your password at login. Enrollment
 shows a QR code plus the raw key, and confirms with a live code before it's turned on. A set of
 one-time recovery codes is generated at enroll (and on regenerate) in case you lose the device;
@@ -454,7 +455,7 @@ login still works for requests without the header.
 ### Viewer accounts (read-only role)
 
 Share the dashboard with a partner or housemate without handing over management: create a viewer
-account in **Settings → Accounts** (username + password). Viewer sessions can see everything the
+account in **Settings → Security & users → User accounts** (username + password). Viewer sessions can see everything the
 admin can — status, logs, graphs, domains, updates — but every write is blocked, enforced
 server-side regardless of what the UI shows: no start/stop/restart, no compose editing, no
 terminal, no proxy admin, and no access to backups, API tokens, or 2FA settings. Deleting a viewer
@@ -462,7 +463,7 @@ account revokes its session instantly.
 
 ### Scoped API tokens
 
-For automation — scripts, a bot, a status page — mint an API token in **Settings → API tokens**
+For automation (scripts, a bot, a status page), mint an API token in **Settings → Security & users → API tokens**
 instead of handing out the admin password:
 
 ```bash
@@ -479,7 +480,7 @@ curl -H "Authorization: Bearer hp_xxx" https://homeport.example.com/api/services
 Browse and one-click install apps from **/catalog** (linked in the dashboard header).
 Ships with a small curated set (Uptime Kuma, Vaultwarden, Jellyfin, Grafana, …) plus the
 official [Portainer community templates](https://github.com/portainer/templates) as a default
-remote source — and you can add, replace or remove sources in **Settings → App catalog**:
+remote source, and you can add, replace or remove sources in **Settings → Capabilities → App catalog**:
 
 - **homeport native** — `{ "apps": [{ name, description, icon, compose, inputs }] }`, where
   `compose` is a compose file with `{{VAR}}` placeholders and `inputs` describes the install form.
@@ -522,7 +523,7 @@ from all streamed output, and never returned to the browser.
 
 ## Backup & restore
 
-**Settings → Backup** downloads everything homeport persists — settings, hosts, alert
+**Settings → Backup & about** downloads everything homeport persists: settings, hosts, alert
 channels, proxy credentials, the admin password hash and stack git tokens — as one JSON
 file, and restores it on any homeport (settings are replaced wholesale). The file contains
 secrets: store it like a password. Compose files in the stacks dir aren't included — keep

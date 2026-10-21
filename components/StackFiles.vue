@@ -1,7 +1,7 @@
 <template>
   <section ref="rootEl">
-    <div class="mb-2 flex flex-wrap items-center gap-2">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Files</h2>
+    <div class="mb-2.5 flex flex-wrap items-center gap-2">
+      <h2 class="section-title">Files</h2>
       <!-- breadcrumb -->
       <nav class="flex items-center gap-1 font-mono text-xs text-slate-500">
         <button class="hover:text-slate-200" @click="cd('')">{{ stack }}</button>
@@ -13,54 +13,54 @@
       <div class="ml-auto flex items-center gap-1.5">
         <template v-if="!readOnly">
           <button
-            class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
-            :class="naming?.mode === 'file' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+            class="btn btn-sm"
+            :class="naming?.mode === 'file' ? 'btn-accent' : ''"
             @click="openNaming('file')"
-          >+ File</button>
+          ><Icon name="plus" /> File</button>
           <button
-            class="rounded-md border px-2 py-1 text-[11px] hover:bg-white/5"
-            :class="naming?.mode === 'folder' ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-300'"
+            class="btn btn-sm"
+            :class="naming?.mode === 'folder' ? 'btn-accent' : ''"
             @click="openNaming('folder')"
-          >+ Folder</button>
-          <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="uploadInput?.click()">Upload</button>
+          ><Icon name="plus" /> Folder</button>
+          <button class="btn btn-sm" @click="uploadInput?.click()"><Icon name="arrow-up" /> Upload</button>
           <input ref="uploadInput" type="file" multiple class="hidden" @change="upload" />
         </template>
-        <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5" :disabled="loading" @click="load">
-          {{ loading ? '…' : 'Refresh' }}
+        <button class="btn btn-sm btn-icon" :disabled="loading" title="Refresh" aria-label="Refresh" @click="load">
+          <Icon name="refresh" :class="loading ? 'animate-spin' : ''" />
         </button>
       </div>
     </div>
 
     <!-- inline naming row: new file / new folder / rename (no native prompt()
          — it is silently blocked in sandboxed/embedded views) -->
-    <div v-if="naming" class="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-ink-900 px-3 py-2">
-      <span class="text-[11px] uppercase tracking-wider text-slate-500">
+    <div v-if="naming" class="card mb-2 flex flex-wrap items-center gap-2 px-3 py-2">
+      <span class="text-xs font-medium text-slate-400">
         {{ naming.mode === 'file' ? 'New file' : naming.mode === 'folder' ? 'New folder' : `Rename ${naming.target!.name}` }}
       </span>
       <input
         ref="nameInput"
         v-model="naming.value"
         :placeholder="naming.mode === 'folder' ? 'folder name' : 'file name (e.g. .env)'"
-        class="min-w-[12rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-2.5 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+        class="min-w-[12rem] flex-1 input font-mono input-sm"
         @keydown.enter="confirmNaming"
         @keydown.esc="naming = null"
       />
       <span v-if="path" class="font-mono text-[10px] text-slate-600">in {{ path }}/</span>
       <button
-        class="rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+        class="btn btn-primary btn-sm"
         :disabled="!naming.value.trim()"
         @click="confirmNaming"
       >{{ naming.mode === 'rename' ? 'Rename' : 'Create' }}</button>
-      <button class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-slate-400 hover:bg-white/5" @click="naming = null">Cancel</button>
+      <button class="btn btn-sm btn-ghost" @click="naming = null">Cancel</button>
     </div>
 
     <p v-if="err" class="mb-2 whitespace-pre-line text-xs text-red-400">{{ err }}</p>
 
-    <div class="overflow-hidden rounded-lg border border-white/5 bg-ink-900">
+    <div class="card overflow-hidden">
       <div v-if="!entries.length && !path" class="p-6 text-center text-xs text-slate-600">empty directory</div>
       <div
         v-if="path"
-        class="flex cursor-pointer items-center gap-2 border-b border-white/5 px-4 py-2 text-xs text-slate-500 hover:bg-white/[0.03]"
+        class="flex cursor-pointer items-center gap-2 border-b border-white/[0.06] px-4 py-2 text-xs text-slate-500 hover:bg-white/[0.03]"
         @click="cd(parentPath)"
       >
         <Icon name="arrow-left" class="h-3.5 w-3.5" /> ..
@@ -68,12 +68,12 @@
       <div
         v-for="e in entries"
         :key="e.name"
-        class="group flex items-center gap-3 border-b border-white/5 px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
+        class="group flex items-center gap-3 border-b border-white/[0.06] px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
       >
         <button class="flex min-w-0 flex-1 items-center gap-2.5 text-left" @click="open(e)">
           <Icon :name="e.type === 'dir' ? 'stacks' : 'file'" class="h-4 w-4 shrink-0" :class="e.type === 'dir' ? 'text-sky-300/80' : 'text-slate-500'" />
           <span class="truncate font-mono text-[13px]" :class="e.type === 'dir' ? 'text-slate-200' : 'text-slate-300'">{{ e.name }}</span>
-          <span v-if="rel(e.name) === composeFile" class="shrink-0 rounded-full border border-accent/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-accent-light">compose</span>
+          <span v-if="rel(e.name) === composeFile" class="badge badge-accent shrink-0">compose</span>
         </button>
         <span class="shrink-0 font-mono text-[11px] text-slate-600">{{ e.type === 'file' ? formatBytes(e.size) : '' }}</span>
         <span class="hidden shrink-0 text-[11px] text-slate-600 sm:block">{{ ago(e.mtime) }}</span>
@@ -83,43 +83,43 @@
         >
           <template v-if="pendingDelete === e.name">
             <span class="text-[10px] text-red-300">delete {{ e.type === 'dir' ? 'folder + contents' : 'file' }}?</span>
-            <button class="rounded-md border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/20" @click="deleteEntry(e)">yes</button>
-            <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="pendingDelete = ''">no</button>
+            <button class="btn btn-danger-solid btn-sm h-6 px-2 text-[11px]" @click="deleteEntry(e)">yes</button>
+            <button class="btn btn-ghost btn-sm h-6 px-2 text-[11px]" @click="pendingDelete = ''">no</button>
           </template>
           <template v-else>
             <a
               v-if="e.type === 'file'"
               :href="`/api/stacks/${encodeURIComponent(stack)}/file?path=${encodeURIComponent(rel(e.name))}&download=1`"
-              class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+              class="btn btn-ghost btn-sm h-6 px-2 text-[11px]"
               :download="e.name"
             >download</a>
             <template v-if="!readOnly">
-              <button class="rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5" @click="openNaming('rename', e)">rename</button>
-              <button class="rounded-md border border-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/10" @click="pendingDelete = e.name">delete</button>
+              <button class="btn btn-ghost btn-sm h-6 px-2 text-[11px]" @click="openNaming('rename', e)">rename</button>
+              <button class="btn btn-danger btn-sm h-6 px-2 text-[11px]" @click="pendingDelete = e.name">delete</button>
             </template>
           </template>
         </div>
       </div>
     </div>
-    <p class="mt-1.5 text-[11px] text-slate-600">
-      Everything lives in the stack's own directory — <code>.env</code> and config files land next to the compose file,
+    <p class="mt-2 text-xs text-slate-500">
+      Everything lives in the stack's own directory: <code>.env</code> and config files land next to the compose file,
       exactly where compose expects them. Overwritten files keep a <code>.bak</code>.
     </p>
 
     <!-- editor modal -->
-    <div v-if="editing !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="closeEditor">
-      <div class="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-white/10 bg-ink-950 shadow-2xl">
+    <div v-if="editing !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]" @click.self="closeEditor">
+      <div class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900" style="box-shadow: var(--shadow-pop)">
         <div class="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
           <span class="font-mono text-sm text-slate-200">{{ editing }}</span>
-          <span v-if="editing === composeFile" class="rounded-full border border-accent/30 px-1.5 py-px text-[9px] uppercase text-accent-light" title="Validated with docker compose config on save">compose</span>
-          <button class="ml-auto text-slate-500 hover:text-slate-200" aria-label="Close" @click="closeEditor"><Icon name="x" class="h-4 w-4" /></button>
+          <span v-if="editing === composeFile" class="badge badge-accent" title="Validated with docker compose config on save">compose</span>
+          <button class="btn btn-ghost btn-icon btn-sm ml-auto" aria-label="Close" @click="closeEditor"><Icon name="x" /></button>
         </div>
-        <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto text-[13px]" />
+        <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto bg-[#0d1117] text-[13px]" />
         <div class="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
           <button
             v-if="!readOnly"
             :disabled="fileSaving"
-            class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            class="btn btn-primary btn-sm"
             @click="saveFile"
           >{{ fileSaving ? 'Saving…' : 'Save' }}</button>
           <span v-else class="text-[11px] text-slate-600">read-only account — changes can't be saved</span>

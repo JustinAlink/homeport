@@ -1,55 +1,52 @@
 <template>
-  <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/catalog?tab=hub" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <ServiceIcon :name="serviceName" :size="34" />
-      <div>
-        <h1 class="text-xl font-semibold text-slate-100">{{ repo }}</h1>
-        <div class="font-mono text-[11px] text-slate-600">{{ imageRef }}</div>
-      </div>
-      <a
-        :href="hubUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="ml-auto text-xs text-sky-300/70 hover:text-sky-300 hover:underline"
-      >view on Docker Hub ↗</a>
-    </header>
+  <div class="page-narrow">
+    <PageHeader :title="repo" :crumbs="[{ label: 'App catalog', to: '/catalog?tab=hub' }, { label: 'Docker Hub' }]">
+      <template #icon>
+        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/[0.04] ring-1 ring-inset ring-white/[0.08]">
+          <ServiceIcon :name="serviceName" :size="32" />
+        </div>
+      </template>
+      <template #subtitle><span class="font-mono text-xs">{{ imageRef }}</span></template>
+      <template #actions>
+        <a :href="hubUrl" target="_blank" rel="noopener noreferrer" class="btn">Docker Hub <Icon name="external" /></a>
+      </template>
+    </PageHeader>
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
+    <div v-if="error" class="callout callout-warn">
       {{ error }}
-      <NuxtLink :to="editorLink" class="mt-2 block text-accent-light hover:underline">Open a blank stack editor instead →</NuxtLink>
+      <NuxtLink :to="editorLink" class="mt-2 block link">Open a blank stack editor instead →</NuxtLink>
     </div>
-    <div v-else-if="!inspected" class="py-20 text-center text-slate-500">Reading the image's configuration…</div>
+    <div v-else-if="!inspected" class="card flex items-center justify-center gap-2 p-16 text-[13px] text-slate-500"><Icon name="refresh" class="h-4 w-4 animate-spin" /> Reading the image's configuration…</div>
 
     <template v-else>
-      <p class="mb-6 text-sm leading-relaxed text-slate-400">
-        homeport read what this image declares and prepared a compose stack: ports it listens on and
-        the paths it stores data in (kept as named volumes, so recreates don't lose anything).
-        Adjust below, then install — the result is a normal stack you can edit any time.
+      <p class="mb-6 text-[14px] leading-relaxed text-slate-400">
+        homeport read what this image declares and prepared a compose stack: the ports it listens on and the paths it
+        stores data in (kept as named volumes, so recreates don't lose anything). Adjust below, then install. The result is
+        a normal stack you can edit any time.
       </p>
 
-      <div class="rounded-lg border border-white/10 bg-ink-900 p-5">
-        <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Install</h2>
+      <div class="card p-5 sm:p-6">
+        <h2 class="mb-5 text-[15px] font-semibold text-slate-100">Install</h2>
 
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs text-slate-400">Stack name</label>
+            <label class="field-label">Stack name</label>
             <input
               v-model="stackName"
-              class="w-full rounded-md border bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-              :class="attempted && !stackNameValid ? 'border-red-400/60' : 'border-white/10'"
+              class="input"
+              :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
             />
-            <p class="mt-1 text-[11px]" :class="attempted && !stackNameValid ? 'text-red-400' : 'text-slate-600'">
+            <p class="field-hint" :class="attempted && !stackNameValid ? '!text-red-400' : ''">
               {{ attempted && !stackNameValid ? 'letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
             </p>
           </div>
 
           <div>
-            <label class="mb-1 block text-xs text-slate-400">Image tag</label>
+            <label class="field-label">Image tag</label>
             <input
               v-model="tag"
               placeholder="latest"
-              class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-sm text-slate-100 outline-none focus:border-accent/50"
+              class="input font-mono"
             />
             <p class="mt-1 text-[11px] text-slate-600">Ports/volumes were read from “latest” — other tags may differ.</p>
           </div>
@@ -78,7 +75,7 @@
               min="1"
               max="65535"
               placeholder="host"
-              class="w-24 rounded-md border border-white/10 bg-ink-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-accent/50 disabled:opacity-40"
+              class="w-24 input disabled:opacity-40"
               :disabled="!p.on"
             />
             <span class="text-slate-600">→</span>
@@ -88,7 +85,7 @@
               min="1"
               max="65535"
               placeholder="container"
-              class="w-24 rounded-md border border-white/10 bg-ink-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-accent/50 disabled:opacity-40"
+              class="w-24 input disabled:opacity-40"
               :disabled="!p.on || p.detected"
             />
             <span v-if="p.detected" class="text-[10px] uppercase tracking-wider text-slate-600">declared by the image</span>
@@ -114,7 +111,7 @@
         <div class="mt-6 flex flex-wrap items-center gap-3">
           <button
             :disabled="installing || !caps.stacks || caps.viewer"
-            class="rounded-md bg-accent px-4 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            class="btn btn-primary"
             @click="install"
           >{{ installing ? 'Installing…' : 'Install' }}</button>
           <NuxtLink :to="editorLink" class="text-[11px] text-slate-500 hover:text-slate-300 hover:underline">
@@ -131,21 +128,21 @@
       </div>
 
       <!-- op output -->
-      <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
+      <div v-if="opLines.length || opRunning" class="card mt-4 p-4">
         <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
           <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opDropped ? 'bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
           {{ opRunning ? 'installing…' : opDropped ? 'connection to the installer dropped — it may still be running' : opOk ? 'installed' : 'failed' }}
         </div>
         <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
         <div v-if="opDropped" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Check the stack</NuxtLink>
-          <NuxtLink to="/" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">View on dashboard</NuxtLink>
+          <NuxtLink :to="`/stacks/${installedAs}`" class="btn btn-sm">Check the stack</NuxtLink>
+          <NuxtLink to="/" class="btn btn-sm">View on dashboard</NuxtLink>
         </div>
         <div v-else-if="opOk" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <span v-if="following" class="animate-pulse text-slate-400">waiting for the app to come up — opening its page…</span>
           <template v-else>
-            <NuxtLink to="/" class="rounded-md border border-accent/30 px-3 py-1.5 text-accent-light hover:bg-accent/10">View on dashboard</NuxtLink>
-            <NuxtLink :to="`/stacks/${installedAs}`" class="rounded-md border border-white/10 px-3 py-1.5 text-slate-300 hover:bg-white/5">Edit stack</NuxtLink>
+            <NuxtLink to="/" class="btn btn-primary btn-sm">View on dashboard</NuxtLink>
+            <NuxtLink :to="`/stacks/${installedAs}`" class="btn btn-sm">Edit stack</NuxtLink>
           </template>
         </div>
       </div>
@@ -293,5 +290,5 @@ async function install() {
 
 onMounted(load)
 onBeforeUnmount(() => es?.close())
-useHead({ title: `${repo} — install — homeport` })
+useHead({ title: `${repo} · Install · homeport` })
 </script>

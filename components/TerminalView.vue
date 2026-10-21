@@ -1,20 +1,20 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex flex-wrap items-center gap-2 px-1 pb-2 text-xs">
+    <div class="flex flex-wrap items-center gap-2 pb-2.5 text-xs">
       <span class="flex items-center gap-1.5 text-slate-500">
-        <span class="h-1.5 w-1.5 rounded-full" :class="statusDot" />{{ statusText }}
+        <span class="dot h-1.5 w-1.5" :class="statusDot" />{{ statusText }}
       </span>
       <button
         v-if="status === 'closed' || status === 'failed'"
-        class="rounded border border-white/10 px-2 py-1 text-slate-300 hover:bg-white/5"
+        class="btn btn-sm"
         @click="connect"
       >Reconnect</button>
-      <span v-if="status === 'failed'" class="basis-full text-[11px] leading-relaxed text-amber-300/90">
+      <span v-if="status === 'failed'" class="callout callout-warn basis-full py-2 text-xs">
         The WebSocket connection never opened. If homeport sits behind a reverse proxy, WebSocket upgrades must be
-        allowed for this host — in Nginx Proxy Manager, edit the homeport proxy host and enable “Websockets Support”.
+        allowed for this host. In Nginx Proxy Manager, edit the homeport proxy host and enable “Websockets Support”.
       </span>
     </div>
-    <div ref="el" class="min-h-0 flex-1 overflow-hidden rounded-md border border-white/5 bg-[#0b0f14] p-2" />
+    <div ref="el" class="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/[0.06] bg-[#0d1117] p-2" />
   </div>
 </template>
 
@@ -27,7 +27,7 @@ const statusText = computed(
   () => ({ connecting: 'connecting…', open: 'connected', closed: 'disconnected', failed: 'connection failed' })[status.value],
 )
 const statusDot = computed(
-  () => ({ connecting: 'bg-amber-400', open: 'bg-accent', closed: 'bg-red-400', failed: 'bg-red-400' })[status.value],
+  () => ({ connecting: 'bg-amber-400 animate-pulse', open: 'bg-ok', closed: 'bg-red-400', failed: 'bg-red-400' })[status.value],
 )
 
 let term: any = null
@@ -47,7 +47,7 @@ async function connect() {
     fontSize: 12,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     cursorBlink: true,
-    theme: { background: '#0b0f14', foreground: '#cbd5e1', cursor: '#5eead4' },
+    theme: { background: '#0d1117', foreground: '#c9d1d9', cursor: '#818cf8', selectionBackground: '#818cf855' },
   })
   fit = new FitAddon()
   term.loadAddon(fit)

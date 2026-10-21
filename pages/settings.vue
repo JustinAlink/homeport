@@ -1,64 +1,66 @@
 <template>
-  <div class="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <h1 class="text-xl font-semibold text-slate-100">Settings</h1>
-    </header>
+  <div class="page">
+    <PageHeader title="Settings" subtitle="How homeport reaches Docker, what it may change, and who can sign in. Values set by environment variables are shown locked." />
 
-    <div
-      v-if="loaded && !writable"
-      class="mb-5 rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300"
-    >
-      Settings storage isn't writable — mount a writable volume at <code>HOMEPORT_DATA_DIR</code> to save changes.
-      You can still configure everything via environment variables.
+    <div v-if="loaded && !writable" class="callout callout-warn mb-5">
+      <Icon name="alert" />
+      <span>Settings storage isn't writable. Mount a writable volume at <code>HOMEPORT_DATA_DIR</code> to save changes;
+        you can still configure everything with environment variables.</span>
     </div>
 
-    <div v-if="loaded && caps.viewer" class="grid place-items-center py-24 text-center">
-      <p class="text-sm text-slate-500">Settings aren't available for read-only accounts.</p>
+    <div v-if="loaded && caps.viewer" class="card">
+      <EmptyState icon="lock" title="Settings are admin-only" text="Read-only accounts can view the fleet but not change how homeport is configured." />
     </div>
 
-    <div v-else-if="loaded" class="gap-8 md:flex">
-      <!-- section nav (sticky on desktop) -->
-      <nav class="mb-4 hidden w-44 shrink-0 md:block">
-        <ul class="sticky top-6 space-y-0.5 text-sm">
-          <li v-for="s in sections" :key="s.id">
-            <a
-              :href="`#${s.id}`"
-              class="block rounded-md px-2.5 py-1.5 text-slate-400 hover:bg-white/5 hover:text-slate-200"
-              :class="active === s.id ? 'bg-white/5 text-accent-light' : ''"
-              @click="active = s.id"
-            >{{ s.label }}</a>
+    <div v-else-if="!loaded" class="gap-8 lg:flex">
+      <div class="mb-4 hidden w-56 shrink-0 space-y-1.5 lg:block"><div v-for="i in 7" :key="i" class="skeleton h-9" /></div>
+      <div class="min-w-0 flex-1 space-y-4"><div v-for="i in 3" :key="i" class="card h-40" /></div>
+    </div>
+
+    <div v-else class="gap-8 lg:flex">
+      <!-- category nav: a sticky list on desktop, a scrolling strip on small screens -->
+      <nav class="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:mb-0 lg:w-56 lg:shrink-0 lg:overflow-visible lg:px-0" aria-label="Settings sections">
+        <ul class="flex min-w-max gap-1 lg:sticky lg:top-8 lg:min-w-0 lg:flex-col">
+          <li v-for="c in categories" :key="c.id">
+            <button
+              type="button"
+              class="flex h-9 w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-left text-[13.5px] transition-colors"
+              :class="category === c.id ? 'bg-white/[0.07] font-medium text-slate-100' : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'"
+              @click="category = c.id"
+            >
+              <Icon :name="c.icon" class="h-4 w-4 shrink-0" :class="category === c.id ? 'text-accent-light' : 'text-slate-500'" />
+              {{ c.label }}
+            </button>
           </li>
         </ul>
       </nav>
 
-      <form class="min-w-0 flex-1 space-y-8" @submit.prevent="save">
+      <form class="min-w-0 max-w-3xl flex-1 space-y-5" @submit.prevent="save">
+
         <!-- first-run hint -->
-        <div
-          v-if="showProviderHint"
-          class="rounded-md border border-sky-400/20 bg-sky-400/5 p-3 text-xs text-sky-200/90"
-        >
-          No reverse proxy is configured yet, so domains aren't mapped. Pick one under
-          <a href="#proxy" class="underline">Reverse proxy</a>, or ignore this if you only want container status.
+        <div v-if="showProviderHint && category === 'connection'" class="callout callout-info">
+          <Icon name="info" />
+          <span>No reverse proxy is configured yet, so domains aren't mapped. Pick one under
+            <button type="button" class="link" @click="category = 'proxy'">Reverse proxy</button>, or ignore this if you only want container status.</span>
         </div>
 
       <!-- Docker connection -->
-      <section :id="'docker'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Docker connection</h2>
+      <section v-show="inCategory('docker')" :id="'docker'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Docker connection</h2>
         <p v-if="locked.docker" class="text-xs text-slate-500">Set by <code>DOCKER_HOST</code> — locked.</p>
         <div class="space-y-3" :class="locked.docker ? 'pointer-events-none opacity-50' : ''">
-          <label class="flex items-center gap-2 text-sm text-slate-200">
+          <label class="check">
             <input v-model="form.dockerMode" type="radio" value="local" /> Local socket / proxy
           </label>
-          <label class="flex items-center gap-2 text-sm text-slate-200">
+          <label class="check">
             <input v-model="form.dockerMode" type="radio" value="ssh" /> Remote over SSH
           </label>
           <div v-if="form.dockerMode === 'ssh'" class="space-y-2 pl-6">
-            <input v-model="form.dockerHost" :class="fieldCls" placeholder="ssh://user@host" />
-            <input v-model="form.dockerSshKey" :class="fieldCls" placeholder="/ssh/id_ed25519  (key path, mounted read-only)" />
+            <input v-model="form.dockerHost" class="input" placeholder="ssh://user@host" />
+            <input v-model="form.dockerSshKey" class="input" placeholder="/ssh/id_ed25519  (key path, mounted read-only)" />
             <input
               v-model="form.dockerSshFingerprint"
-              :class="[fieldCls, locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
+              class="input" :class="[locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
               placeholder="SHA256:…  host key fingerprint (optional, recommended)"
             />
             <p class="text-[11px] text-slate-500">
@@ -75,8 +77,8 @@
       </section>
 
       <!-- Hosts (multi-host) -->
-      <section :id="'hosts'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Hosts</h2>
+      <section v-show="inCategory('hosts')" :id="'hosts'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Hosts</h2>
         <p v-if="locked.hosts" class="text-xs text-slate-500">Set by <code>HOMEPORT_HOSTS</code> — locked.</p>
         <p class="text-xs text-slate-500">
           Watch more than one Docker host. Leave empty to use the single connection above.
@@ -85,25 +87,25 @@
           <div
             v-for="(h, i) in form.hosts"
             :key="i"
-            class="space-y-2 rounded-md border border-white/10 bg-ink-900/60 p-3"
+            class="space-y-2 rounded-lg border border-white/[0.08] bg-ink-950/40 p-3"
           >
             <div class="flex items-center gap-2">
-              <input v-model="h.name" :class="fieldCls" placeholder="Display name (e.g. vps-1)" />
+              <input v-model="h.name" class="input" placeholder="Display name (e.g. vps-1)" />
               <button
                 type="button"
-                class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
                 @click="form.hosts.splice(i, 1)"
               >
                 Remove
               </button>
             </div>
-            <input v-model="h.dockerHost" :class="fieldCls" placeholder="ssh://user@host  or  tcp://host:2375  (empty = local socket)" />
+            <input v-model="h.dockerHost" class="input" placeholder="ssh://user@host  or  tcp://host:2375  (empty = local socket)" />
             <div v-if="(h.dockerHost || '').startsWith('ssh://')" class="space-y-2 pl-3">
-              <input v-model="h.dockerSshKey" :class="fieldCls" placeholder="/ssh/id_ed25519  (key path)" />
-              <input v-model="h.sshFingerprint" :class="fieldCls" placeholder="SHA256:…  host key fingerprint (optional, recommended)" />
+              <input v-model="h.dockerSshKey" class="input" placeholder="/ssh/id_ed25519  (key path)" />
+              <input v-model="h.sshFingerprint" class="input" placeholder="SHA256:…  host key fingerprint (optional, recommended)" />
             </div>
             <div class="grid grid-cols-2 gap-2">
-              <select v-model="h.domainProvider" :class="fieldCls">
+              <select v-model="h.domainProvider" class="select">
                 <option value="">Proxy: auto / none</option>
                 <option value="npm">Nginx Proxy Manager</option>
                 <option value="nginx">Nginx (plain)</option>
@@ -114,32 +116,32 @@
               <input
                 v-if="h.domainProvider === 'npm'"
                 v-model="h.npmConfDir"
-                :class="fieldCls"
+                class="input"
                 placeholder="NPM proxy_host dir"
               />
               <input
                 v-else-if="h.domainProvider === 'nginx'"
                 v-model="h.nginxConfDir"
-                :class="fieldCls"
+                class="input"
                 placeholder="Nginx confs dir/file"
               />
               <input
                 v-else-if="h.domainProvider === 'traefik-file'"
                 v-model="h.traefikFilePath"
-                :class="fieldCls"
+                class="input"
                 placeholder="Traefik config file/dir"
               />
               <input
                 v-else-if="h.domainProvider === 'caddy'"
                 v-model="h.caddyfilePath"
-                :class="fieldCls"
+                class="input"
                 placeholder="Caddyfile path"
               />
             </div>
           </div>
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:border-accent/40 hover:text-accent"
+            class="btn btn-sm"
             @click="addHost"
           >
             + Add host
@@ -148,11 +150,11 @@
       </section>
 
       <!-- Reverse proxy -->
-      <section :id="'proxy'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Reverse proxy (domain mapping)</h2>
+      <section v-show="inCategory('proxy')" :id="'proxy'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Reverse proxy (domain mapping)</h2>
         <p v-if="locked.domainProvider" class="text-xs text-slate-500">Set by <code>DOMAIN_PROVIDER</code> — locked.</p>
         <div class="space-y-3" :class="locked.domainProvider ? 'pointer-events-none opacity-50' : ''">
-          <select v-model="form.domainProvider" :class="fieldCls">
+          <select v-model="form.domainProvider" class="select">
             <option value="">Auto-detect</option>
             <option value="npm">Nginx Proxy Manager</option>
             <option value="nginx">Nginx (plain)</option>
@@ -163,25 +165,25 @@
           <input
             v-if="form.domainProvider === 'npm' || (form.domainProvider === '' && form.npmConfDir)"
             v-model="form.npmConfDir"
-            :class="fieldCls"
+            class="input"
             placeholder="NPM proxy_host dir (in-container path)"
           />
           <input
             v-if="form.domainProvider === 'nginx'"
             v-model="form.nginxConfDir"
-            :class="fieldCls"
+            class="input"
             placeholder="Nginx confs dir or file (e.g. /nginx/sites-enabled)"
           />
           <input
             v-if="form.domainProvider === 'traefik-file'"
             v-model="form.traefikFilePath"
-            :class="fieldCls"
+            class="input"
             placeholder="Traefik dynamic config file/dir (YAML or TOML)"
           />
           <input
             v-if="form.domainProvider === 'caddy'"
             v-model="form.caddyfilePath"
-            :class="fieldCls"
+            class="input"
             placeholder="Caddyfile path (in-container)"
           />
         </div>
@@ -189,8 +191,8 @@
       </section>
 
       <!-- Proxy management (write side) -->
-      <section :id="'proxy-admin'"  v-if="form.allowProxyAdmin" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Proxy management</h2>
+      <section v-show="inCategory('proxy-admin')" :id="'proxy-admin'"  v-if="form.allowProxyAdmin" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Proxy management</h2>
         <p class="text-xs text-slate-500">
           Credentials homeport uses to create/edit domains. Stored in <code>settings.json</code> on the
           data volume — set its file permissions accordingly.
@@ -198,12 +200,12 @@
 
         <div v-if="form.domainProvider === 'npm' || form.domainProvider === ''" class="space-y-2">
           <p v-if="locked.npmApiUrl" class="text-xs text-slate-500">Set by <code>HOMEPORT_NPM_API_URL</code> — locked.</p>
-          <input v-model="form.npmApiUrl" :class="fieldCls" placeholder="NPM API URL (e.g. http://npm:81)" />
-          <input v-model="form.npmApiIdentity" :class="fieldCls" placeholder="NPM email / identity" />
-          <input v-model="form.npmApiSecret" type="password" :class="fieldCls" :placeholder="npmApiSecretSet ? '•••••• stored — leave blank to keep' : 'NPM password'" autocomplete="new-password" />
+          <input v-model="form.npmApiUrl" class="input" placeholder="NPM API URL (e.g. http://npm:81)" />
+          <input v-model="form.npmApiIdentity" class="input" placeholder="NPM email / identity" />
+          <input v-model="form.npmApiSecret" type="password" class="input" :placeholder="npmApiSecretSet ? '•••••• stored, leave blank to keep' : 'NPM password'" autocomplete="new-password" />
         </div>
         <div v-if="form.domainProvider === 'caddy'" class="space-y-2">
-          <input v-model="form.caddyAdminUrl" :class="fieldCls" placeholder="Caddy admin API (e.g. http://caddy:2019)" />
+          <input v-model="form.caddyAdminUrl" class="input" placeholder="Caddy admin API (e.g. http://caddy:2019)" />
           <p class="text-[11px] text-slate-500">The admin API is root-of-proxy — keep it on a private network, never published.</p>
         </div>
         <p v-if="form.domainProvider === 'traefik-file'" class="text-[11px] text-slate-500">
@@ -215,7 +217,7 @@
           <button
             type="button"
             :disabled="proxyTesting"
-            class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+            class="btn btn-sm"
             @click="testProxy"
           >{{ proxyTesting ? 'Testing…' : 'Test connection' }}</button>
           <span v-if="proxyMsg" class="text-[11px]" :class="proxyOk ? 'text-accent-light' : 'text-red-400'">{{ proxyMsg }}</span>
@@ -223,8 +225,8 @@
       </section>
 
       <!-- Capabilities (tiered opt-in) -->
-      <section :id="'capabilities'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Capabilities</h2>
+      <section v-show="inCategory('capabilities')" :id="'capabilities'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Capabilities</h2>
         <p class="text-xs text-slate-500">
           homeport is read-only by default. Each capability is its own opt-in; the hint shows what the
           docker-socket-proxy must allow for it.
@@ -233,7 +235,7 @@
           <button
             type="button"
             :disabled="probing"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
+            class="btn btn-sm"
             @click="runCapProbe"
           >{{ probing ? 'Probing…' : 'Probe proxy permissions' }}</button>
           <span class="text-[11px] text-slate-600">
@@ -245,10 +247,10 @@
           <label
             v-for="c in capabilityToggles"
             :key="c.key"
-            class="flex items-start gap-2 text-sm text-slate-200"
+            class="check"
             :class="locked[c.lock] ? 'pointer-events-none opacity-50' : ''"
           >
-            <input v-model="(form as any)[c.key]" type="checkbox" class="mt-0.5" />
+            <input v-model="(form as any)[c.key]" type="checkbox" />
             <span>
               {{ c.label }}
               <span
@@ -267,11 +269,11 @@
       </section>
 
       <!-- Compose roots -->
-      <section v-if="form.allowStacks" :id="'stacks'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Compose roots</h2>
+      <section v-show="inCategory('stacks')" v-if="form.allowStacks" :id="'stacks'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Compose roots</h2>
         <p class="text-xs text-slate-500">
           Extra directories scanned for compose projects — each subfolder with a compose file becomes a fully
-          manageable <NuxtLink to="/stacks" class="text-accent-light hover:underline">stack</NuxtLink>, edited and
+          manageable <NuxtLink to="/stacks" class="link">stack</NuxtLink>, edited and
           operated in place (nothing is copied). Mount each root into the homeport container at the
           <strong>same path it has on the host</strong> (e.g. <code class="text-slate-400">-v /home/user/docker:/home/user/docker</code>)
           so relative bind mounts keep pointing at the right host files.
@@ -281,28 +283,28 @@
           <div v-for="(p, i) in form.composeRoots" :key="i" class="flex items-center gap-2">
             <input
               v-model="form.composeRoots[i]"
-              :class="fieldCls"
+              class="input"
               placeholder="/home/user/docker"
             />
             <button
               type="button"
-              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
               @click="form.composeRoots.splice(i, 1)"
             >Remove</button>
           </div>
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            class="btn btn-sm"
             @click="form.composeRoots.push('')"
           >+ Add root</button>
         </div>
       </section>
 
       <!-- App catalog -->
-      <section :id="'catalog'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">App catalog</h2>
+      <section v-show="inCategory('catalog')" :id="'catalog'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">App catalog</h2>
         <p class="text-xs text-slate-500">
-          Extra template sources for the <NuxtLink to="/catalog" class="text-accent-light hover:underline">catalog</NuxtLink> —
+          Extra template sources for the <NuxtLink to="/catalog" class="link">catalog</NuxtLink>:
           homeport-native or Portainer <code>templates.json</code> URLs, fetched server-side.
           <template v-if="locked.catalogUrls"> Set by <code>HOMEPORT_CATALOG_URLS</code> — locked.</template>
         </p>
@@ -310,18 +312,18 @@
           <div v-for="(u, i) in form.catalogUrls" :key="i" class="flex items-center gap-2">
             <input
               v-model="form.catalogUrls[i]"
-              :class="fieldCls"
+              class="input"
               placeholder="https://raw.githubusercontent.com/…/templates.json"
             />
             <button
               type="button"
-              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
               @click="form.catalogUrls.splice(i, 1)"
             >Remove</button>
           </div>
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            class="btn btn-sm"
             @click="form.catalogUrls.push('')"
           >+ Add source</button>
           <div v-if="suggestedSources.length" class="flex flex-wrap items-center gap-1.5 pt-1">
@@ -339,11 +341,11 @@
       </section>
 
       <!-- Uptime -->
-      <section :id="'uptime'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Uptime</h2>
+      <section v-show="inCategory('uptime')" :id="'uptime'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Uptime</h2>
         <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code> — locked.</p>
         <label
-          class="flex items-center gap-2 text-sm text-slate-200"
+          class="check"
           :class="locked.pingEnabled ? 'pointer-events-none opacity-50' : ''"
         >
           <input v-model="form.pingEnabled" type="checkbox" />
@@ -353,11 +355,11 @@
       </section>
 
       <!-- Host services -->
-      <section :id="'systemd'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Host services</h2>
+      <section v-show="inCategory('systemd')" :id="'systemd'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Host services</h2>
         <p v-if="locked.systemdEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_SYSTEMD</code> — locked.</p>
         <label
-          class="flex items-center gap-2 text-sm text-slate-200"
+          class="check"
           :class="locked.systemdEnabled ? 'pointer-events-none opacity-50' : ''"
         >
           <input v-model="form.systemdEnabled" type="checkbox" />
@@ -367,18 +369,18 @@
       </section>
 
       <!-- Monitoring -->
-      <section :id="'monitoring'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Monitoring</h2>
+      <section v-show="inCategory('monitoring')" :id="'monitoring'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Monitoring</h2>
         <p v-if="locked.collectorInterval" class="text-xs text-slate-500">
           Interval set by <code>HOMEPORT_COLLECTOR_INTERVAL</code> — locked.
         </p>
-        <label class="block text-sm text-slate-200">
+        <label class="field-label">
           Background collector interval (seconds)
           <input
             v-model.number="form.collectorInterval"
             type="number"
             min="10"
-            :class="[fieldCls, 'mt-1', locked.collectorInterval ? 'pointer-events-none opacity-50' : '']"
+            class="input" :class="['mt-1', locked.collectorInterval ? 'pointer-events-none opacity-50' : '']"
           />
           <span class="text-[11px] text-slate-500">
             How often homeport snapshots the fleet in the background to feed history and alerts. Minimum 10.
@@ -386,7 +388,7 @@
         </label>
         <p v-if="locked.historyEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_HISTORY</code> — locked.</p>
         <label
-          class="flex items-center gap-2 text-sm text-slate-200"
+          class="check"
           :class="locked.historyEnabled ? 'pointer-events-none opacity-50' : ''"
         >
           <input v-model="form.historyEnabled" type="checkbox" />
@@ -396,26 +398,26 @@
       </section>
 
       <!-- Alerts & notifications -->
-      <section :id="'alerts'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Alerts &amp; notifications</h2>
+      <section v-show="inCategory('alerts')" :id="'alerts'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Alerts &amp; notifications</h2>
         <p v-if="locked.alerts" class="text-xs text-slate-500">Set by <code>HOMEPORT_ALERTS</code> — locked.</p>
         <label
-          class="flex items-center gap-2 text-sm text-slate-200"
+          class="check"
           :class="locked.alerts ? 'pointer-events-none opacity-50' : ''"
         >
           <input v-model="form.alertsEnabled" type="checkbox" />
           Notify on service state changes
         </label>
 
-        <div v-if="form.alertsEnabled" class="space-y-4 border-l border-white/5 pl-3">
+        <div v-if="form.alertsEnabled" class="space-y-4 border-l-2 border-white/[0.06] pl-4">
           <div class="flex flex-wrap gap-4 text-sm text-slate-300">
             <label class="flex items-center gap-1.5"><input v-model="form.alertTransitions.down" type="checkbox" /> Down</label>
             <label class="flex items-center gap-1.5"><input v-model="form.alertTransitions.unhealthy" type="checkbox" /> Unhealthy</label>
             <label class="flex items-center gap-1.5"><input v-model="form.alertTransitions.recovered" type="checkbox" /> Recovered</label>
           </div>
 
-          <label class="flex items-start gap-2 text-sm text-slate-200">
-            <input v-model="form.alertUpdates" type="checkbox" class="mt-0.5" />
+          <label class="check">
+            <input v-model="form.alertUpdates" type="checkbox" />
             <span>
               Notify when image updates are found
               <span class="block text-[11px] text-slate-500">one message per new image digest, sent when the daily check (or “Check now”) discovers it — needs update checks enabled</span>
@@ -423,13 +425,13 @@
           </label>
 
           <div class="grid grid-cols-2 gap-3">
-            <label class="block text-xs text-slate-400">
+            <label class="field-label">
               Debounce (samples)
-              <input v-model.number="form.alertDebounceSamples" type="number" min="1" :class="[fieldCls, 'mt-1']" />
+              <input v-model.number="form.alertDebounceSamples" type="number" min="1" class="input" :class="['mt-1']" />
             </label>
-            <label class="block text-xs text-slate-400">
+            <label class="field-label">
               Re-notify cooldown (seconds)
-              <input v-model.number="form.alertCooldownSec" type="number" min="0" :class="[fieldCls, 'mt-1']" />
+              <input v-model.number="form.alertCooldownSec" type="number" min="0" class="input" :class="['mt-1']" />
             </label>
           </div>
 
@@ -438,11 +440,11 @@
             <div
               v-for="(ch, i) in form.alertChannels"
               :key="i"
-              class="space-y-2 rounded-md border border-white/10 bg-ink-900/60 p-3"
+              class="space-y-2 rounded-lg border border-white/[0.08] bg-ink-950/40 p-3"
             >
               <div class="flex items-center gap-2">
-                <input v-model="ch.name" :class="fieldCls" placeholder="Channel name" />
-                <select v-model="ch.preset" :class="[fieldCls, 'max-w-[8rem]']">
+                <input v-model="ch.name" class="input" placeholder="Channel name" />
+                <select v-model="ch.preset" class="select" :class="['max-w-[8rem]']">
                   <option value="discord">Discord</option>
                   <option value="slack">Slack</option>
                   <option value="ntfy">ntfy</option>
@@ -451,7 +453,7 @@
                 </select>
                 <button
                   type="button"
-                  class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                  class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
                   @click="form.alertChannels.splice(i, 1)"
                 >
                   Remove
@@ -459,19 +461,19 @@
               </div>
               <input
                 v-model="ch.url"
-                :class="fieldCls"
+                class="input"
                 :placeholder="ch.preset === 'apprise' ? 'Apprise API endpoint — http://apprise:8000/notify/<key>' : 'Webhook URL (https://…)'"
               />
               <input
                 v-if="ch.preset === 'apprise'"
                 v-model="ch.urls"
-                :class="fieldCls"
+                class="input"
                 placeholder="Apprise URLs (optional) — e.g. pover://user@token, tgram://bot/chat"
               />
               <textarea
                 v-if="ch.preset === 'custom'"
                 v-model="ch.template"
-                :class="[fieldCls, 'font-mono text-xs']"
+                class="textarea font-mono text-xs"
                 rows="2"
                 placeholder='{"text":"{{text}}"}  — placeholders: {{name}} {{kind}} {{host}} {{from}} {{to}}'
               />
@@ -479,7 +481,7 @@
             <div class="flex items-center gap-3">
               <button
                 type="button"
-                class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:border-accent/40 hover:text-accent"
+                class="btn btn-sm"
                 @click="addChannel"
               >
                 + Add channel
@@ -487,7 +489,7 @@
               <button
                 type="button"
                 :disabled="testing || (!form.alertChannels.length && !form.smtpHost)"
-                class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+                class="btn btn-sm"
                 @click="sendTest"
               >
                 {{ testing ? 'Sending…' : 'Send test' }}
@@ -503,39 +505,39 @@
               is checked (port 465), otherwise STARTTLS is used when the server offers it (587). “Send test” covers it.
             </p>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input v-model="form.smtpHost" :class="fieldCls" placeholder="smtp.example.com" />
+              <input v-model="form.smtpHost" class="input" placeholder="smtp.example.com" />
               <div class="flex items-center gap-3">
-                <input v-model.number="form.smtpPort" type="number" min="1" max="65535" :class="[fieldCls, 'max-w-[7rem]']" placeholder="587" />
+                <input v-model.number="form.smtpPort" type="number" min="1" max="65535" class="input" :class="['max-w-[7rem]']" placeholder="587" />
                 <label class="flex items-center gap-1.5 text-xs text-slate-300">
                   <input v-model="form.smtpSecure" type="checkbox" /> TLS from the start (465)
                 </label>
               </div>
-              <input v-model="form.smtpUser" :class="fieldCls" placeholder="username (optional)" autocomplete="off" />
-              <input v-model="form.smtpPass" type="password" :class="fieldCls" :placeholder="smtpPassSet ? '•••••• stored — leave blank to keep' : 'password (optional)'" autocomplete="new-password" />
-              <input v-model="form.smtpFrom" :class="fieldCls" placeholder="from — homeport@example.com" />
-              <input v-model="form.smtpTo" :class="fieldCls" placeholder="to — you@example.com (comma for more)" />
+              <input v-model="form.smtpUser" class="input" placeholder="username (optional)" autocomplete="off" />
+              <input v-model="form.smtpPass" type="password" class="input" :placeholder="smtpPassSet ? '•••••• stored, leave blank to keep' : 'password (optional)'" autocomplete="new-password" />
+              <input v-model="form.smtpFrom" class="input" placeholder="from: homeport@example.com" />
+              <input v-model="form.smtpTo" class="input" placeholder="to: you@example.com (comma for more)" />
             </div>
           </div>
         </div>
       </section>
 
       <!-- Automatic updates -->
-      <section :id="'autoupdate'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Automatic updates</h2>
+      <section v-show="inCategory('autoupdate')" :id="'autoupdate'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Automatic updates</h2>
         <p class="text-xs text-slate-500">
           Once a day, in the hour you pick, homeport applies pending image updates to everything opted in below.
           Managed stacks update via <code>compose pull &amp;&amp; up</code>; other containers are pulled and recreated in
           place. homeport itself is always skipped (use Settings → About → Update). Needs
           <em>Check for image updates</em> and <em>Apply image updates</em> enabled above. Results go to your alert channels.
         </p>
-        <label class="flex items-center gap-2 text-sm text-slate-200">
+        <label class="check">
           <input v-model="form.autoUpdateEnabled" type="checkbox" />
           Apply updates automatically
         </label>
-        <div v-if="form.autoUpdateEnabled" class="space-y-3 border-l border-white/5 pl-3">
-          <label class="block text-xs text-slate-400">
+        <div v-if="form.autoUpdateEnabled" class="space-y-3 border-l-2 border-white/[0.06] pl-4">
+          <label class="field-label">
             Daily window (server-local time)
-            <select v-model.number="form.autoUpdateHour" :class="[fieldCls, 'mt-1 max-w-[10rem]']">
+            <select v-model.number="form.autoUpdateHour" class="select" :class="['mt-1 max-w-[10rem]']">
               <option v-for="h in 24" :key="h - 1" :value="h - 1">{{ String(h - 1).padStart(2, '0') }}:00 – {{ String(h - 1).padStart(2, '0') }}:59</option>
             </select>
           </label>
@@ -546,16 +548,16 @@
               <code>hub.autoupdate=false</code> always opts out.
             </p>
             <div v-for="(t, i) in form.autoUpdateTargets" :key="i" class="flex items-center gap-2">
-              <input v-model="form.autoUpdateTargets[i]" :class="fieldCls" placeholder="stack/project or container name" />
+              <input v-model="form.autoUpdateTargets[i]" class="input" placeholder="stack/project or container name" />
               <button
                 type="button"
-                class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+                class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
                 @click="form.autoUpdateTargets.splice(i, 1)"
               >Remove</button>
             </div>
             <button
               type="button"
-              class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+              class="btn btn-sm"
               @click="form.autoUpdateTargets.push('')"
             >+ Add target</button>
           </div>
@@ -563,8 +565,8 @@
       </section>
 
       <!-- Registry credentials (private images) -->
-      <section v-if="form.updateCheckEnabled || form.allowUpdates" :id="'registries'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Registry credentials</h2>
+      <section v-show="inCategory('registries')" v-if="form.updateCheckEnabled || form.allowUpdates" :id="'registries'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Registry credentials</h2>
         <p class="text-xs text-slate-500">
           Logins for checking and pulling <strong>private</strong> images (e.g. your own
           <code>ghcr.io</code> packages), used by update checks, container updates and stack
@@ -576,26 +578,26 @@
         <p v-if="locked.registryCreds" class="text-xs text-slate-500">Set by <code>HOMEPORT_REGISTRY_AUTH</code> — locked.</p>
         <template v-else>
           <div v-for="(c, i) in form.registryCreds" :key="i" class="flex flex-wrap items-center gap-2">
-            <input v-model="c.registry" :class="[fieldCls, 'min-w-[9rem] flex-1']" placeholder="registry host (e.g. ghcr.io)" />
-            <input v-model="c.username" :class="[fieldCls, 'min-w-[8rem] flex-1']" placeholder="username" autocomplete="off" />
-            <input v-model="c.token" type="password" :class="[fieldCls, 'min-w-[10rem] flex-1']" :placeholder="c.tokenSet ? '•••••• stored — blank keeps it' : 'token / password'" autocomplete="new-password" />
+            <input v-model="c.registry" class="input" :class="['min-w-[9rem] flex-1']" placeholder="registry host (e.g. ghcr.io)" />
+            <input v-model="c.username" class="input" :class="['min-w-[8rem] flex-1']" placeholder="username" autocomplete="off" />
+            <input v-model="c.token" type="password" class="input" :class="['min-w-[10rem] flex-1']" :placeholder="c.tokenSet ? '•••••• stored, blank keeps it' : 'token / password'" autocomplete="new-password" />
             <button
               type="button"
-              class="shrink-0 rounded-md border border-white/10 px-2 py-2 text-xs text-slate-400 hover:border-red-400/40 hover:text-red-300"
+              class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
               @click="form.registryCreds.splice(i, 1)"
             >Remove</button>
           </div>
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            class="btn btn-sm"
             @click="form.registryCreds.push({ registry: '', username: '', token: '' })"
           >+ Add registry login</button>
         </template>
       </section>
 
       <!-- Backup & restore -->
-      <section :id="'backup'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Backup</h2>
+      <section v-show="inCategory('backup')" :id="'backup'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Backup</h2>
         <p class="text-xs text-slate-500">
           Everything homeport persists — settings, hosts, alert channels, proxy credentials, the admin password hash
           and stack git tokens — in one JSON file. <strong class="text-amber-300/90">It contains secrets; store it like a password.</strong>
@@ -604,12 +606,12 @@
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            class="btn btn-sm"
             @click="downloadBackup"
           >Download backup</button>
           <button
             type="button"
-            class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+            class="btn btn-sm"
             @click="restoreInput?.click()"
           >Restore from file…</button>
           <input ref="restoreInput" type="file" accept="application/json,.json" class="hidden" @change="restoreBackup" />
@@ -618,11 +620,11 @@
       </section>
 
       <!-- Appearance -->
-      <section :id="'appearance'"  class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Appearance</h2>
+      <section v-show="inCategory('appearance')" :id="'appearance'"  class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Appearance</h2>
         <p v-if="locked.remoteIcons" class="text-xs text-slate-500">Set by <code>HOMEPORT_REMOTE_ICONS</code> — locked.</p>
         <label
-          class="flex items-center gap-2 text-sm text-slate-200"
+          class="check"
           :class="locked.remoteIcons ? 'pointer-events-none opacity-50' : ''"
         >
           <input v-model="form.remoteIcons" type="checkbox" />
@@ -632,20 +634,20 @@
       </section>
 
       <!-- Account -->
-      <section :id="'account'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Account</h2>
+      <section v-show="inCategory('account')" :id="'account'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Account</h2>
         <p v-if="caps.passwordEnvLocked" class="text-xs text-slate-500">
           The admin password is set via <code>HOMEPORT_ADMIN_PASSWORD</code> — change it there.
         </p>
         <div v-else class="max-w-sm space-y-2">
-          <input v-model="pw.current" type="password" :class="fieldCls" placeholder="Current password" autocomplete="current-password" />
-          <input v-model="pw.next" type="password" :class="fieldCls" placeholder="New password" autocomplete="new-password" />
-          <input v-model="pw.confirm" type="password" :class="fieldCls" placeholder="Confirm new password" autocomplete="new-password" />
+          <input v-model="pw.current" type="password" class="input" placeholder="Current password" autocomplete="current-password" />
+          <input v-model="pw.next" type="password" class="input" placeholder="New password" autocomplete="new-password" />
+          <input v-model="pw.confirm" type="password" class="input" placeholder="Confirm new password" autocomplete="new-password" />
           <div class="flex items-center gap-3">
             <button
               type="button"
               :disabled="pwBusy"
-              class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+              class="btn btn-sm"
               @click="changePassword"
             >{{ pwBusy ? 'Saving…' : 'Change password' }}</button>
             <span v-if="pwMsg" class="text-[11px]" :class="pwOk ? 'text-accent-light' : 'text-red-400'">{{ pwMsg }}</span>
@@ -654,36 +656,36 @@
       </section>
 
       <!-- Two-factor auth (self-contained enroll/disable flow, own endpoints) -->
-      <section :id="'two-factor'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Two-factor auth</h2>
+      <section v-show="inCategory('two-factor')" :id="'two-factor'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Two-factor auth</h2>
         <TwoFactorAuth />
       </section>
 
       <!-- User accounts (self-contained CRUD, own endpoints) -->
-      <section :id="'user-accounts'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">User accounts</h2>
+      <section v-show="inCategory('user-accounts')" :id="'user-accounts'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">User accounts</h2>
         <UserAccounts />
       </section>
 
       <!-- API tokens (self-contained CRUD, own endpoints) -->
-      <section :id="'api-tokens'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">API tokens</h2>
+      <section v-show="inCategory('api-tokens')" :id="'api-tokens'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">API tokens</h2>
         <ApiTokens />
       </section>
 
       <!-- About / self-update -->
-      <section :id="'about'" class="scroll-mt-6 space-y-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">About</h2>
+      <section v-show="inCategory('about')" :id="'about'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">About</h2>
         <p class="text-xs text-slate-500">
           homeport <b class="text-slate-300">v{{ appVersion || '…' }}</b>
-          <span v-if="selfState.updateAvailable" class="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-px text-[10px] uppercase tracking-wider text-accent-light">update available</span>
+          <span v-if="selfState.updateAvailable" class="badge badge-accent ml-1">update available</span>
           <template v-if="caps.demo"> · demo mode</template>
         </p>
         <div class="flex items-center gap-3">
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs disabled:opacity-40"
-            :class="selfState.updateAvailable ? 'border-accent/40 bg-accent/10 text-accent-light hover:bg-accent/20' : 'border-accent/30 text-accent-light hover:bg-accent/10'"
+            class="btn btn-sm"
+            :class="selfState.updateAvailable ? 'btn-primary' : ''"
             :disabled="selfUpdating || !caps.updates && !caps.demo"
             @click="selfUpdate"
           ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ selfState.updateAvailable ? 'Update homeport now' : 'Update homeport' }}</button>
@@ -696,24 +698,30 @@
         </p>
       </section>
 
-      <div class="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-white/5 bg-ink-950/90 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6">
-        <button
-          type="submit"
-          :disabled="busy || !writable"
-          class="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
+      <!-- appears as soon as something changes; the security section saves per action -->
+      <Transition name="savebar">
+        <div
+          v-if="category !== 'security' && (dirty || (msg && !msgOk))"
+          class="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-accent/25 bg-ink-900/95 px-4 py-3 backdrop-blur-md"
+          style="box-shadow: var(--shadow-pop)"
         >
-          {{ busy ? 'Saving…' : 'Save' }}
-        </button>
-        <span v-if="msg" class="text-xs" :class="msgOk ? 'text-accent-light' : 'text-red-400'">{{ msg }}</span>
-      </div>
+          <span class="flex items-center gap-2 text-[13px] text-slate-100">
+            <span class="dot bg-amber-400" />
+            {{ dirty ? 'You have unsaved changes' : 'Could not save' }}
+          </span>
+          <span v-if="msg && !msgOk" class="text-xs text-red-400">{{ msg }}</span>
+          <div class="ml-auto flex items-center gap-2">
+            <button v-if="dirty" type="button" class="btn btn-ghost" :disabled="busy" @click="discard">Discard</button>
+            <button type="submit" :disabled="busy || !writable || !dirty" class="btn btn-primary">{{ busy ? 'Saving…' : 'Save changes' }}</button>
+          </div>
+        </div>
+      </Transition>
       </form>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const fieldCls =
-  'w-full rounded-md border border-white/10 bg-ink-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50'
 
 const loaded = ref(false)
 const writable = ref(true)
@@ -724,7 +732,53 @@ const busy = ref(false)
 const msg = ref('')
 const msgOk = ref(false)
 
-// section anchor nav
+// Sections are grouped into categories, one shown at a time. `?tab=` holds the
+// category and an old-style `#section` anchor still lands on the right one.
+const CATEGORY_OF: Record<string, string> = {
+  docker: 'connection',
+  hosts: 'connection',
+  proxy: 'proxy',
+  'proxy-admin': 'proxy',
+  capabilities: 'capabilities',
+  stacks: 'capabilities',
+  catalog: 'capabilities',
+  systemd: 'capabilities',
+  uptime: 'monitoring',
+  monitoring: 'monitoring',
+  alerts: 'monitoring',
+  autoupdate: 'updates',
+  registries: 'updates',
+  account: 'security',
+  'two-factor': 'security',
+  'user-accounts': 'security',
+  'api-tokens': 'security',
+  appearance: 'system',
+  backup: 'system',
+  about: 'system',
+}
+const categories = [
+  { id: 'connection', label: 'Docker & hosts', icon: 'server' },
+  { id: 'proxy', label: 'Reverse proxy', icon: 'globe' },
+  { id: 'capabilities', label: 'Capabilities', icon: 'sliders' },
+  { id: 'monitoring', label: 'Monitoring & alerts', icon: 'bell' },
+  { id: 'updates', label: 'Updates', icon: 'arrow-up' },
+  { id: 'security', label: 'Security & users', icon: 'shield' },
+  { id: 'system', label: 'Backup & about', icon: 'info' },
+]
+const route = useRoute()
+const router = useRouter()
+const category = ref(
+  categories.some((c) => c.id === route.query.tab) ? String(route.query.tab) : CATEGORY_OF[route.hash.slice(1)] ?? 'connection',
+)
+watch(category, (c) => {
+  router.replace({ query: { ...route.query, tab: c === 'connection' ? undefined : c }, hash: '' })
+  if (import.meta.client) window.scrollTo({ top: 0 })
+})
+const inCategory = (sectionId: string) => CATEGORY_OF[sectionId] === category.value
+onMounted(() => {
+  const anchor = route.hash.slice(1)
+  if (anchor && CATEGORY_OF[anchor]) nextTick(() => document.getElementById(anchor)?.scrollIntoView({ block: 'start' }))
+})
 const active = ref('docker')
 const sections = computed(() =>
   [
@@ -1133,13 +1187,36 @@ onMounted(async () => {
   }
 })
 
+// Unsaved-change tracking: a snapshot of the form as last loaded/saved.
+const snapshot = ref('')
+const dirty = computed(() => loaded.value && !!snapshot.value && JSON.stringify(form) !== snapshot.value)
+watch(loaded, (l) => {
+  if (l) nextTick(() => (snapshot.value = JSON.stringify(form)))
+})
+function discard() {
+  if (snapshot.value) Object.assign(form, JSON.parse(snapshot.value))
+  msg.value = ''
+}
+onBeforeRouteLeave(async () => {
+  if (!dirty.value) return true
+  return await confirm({
+    title: 'Leave without saving?',
+    message: 'Your settings changes have not been saved.',
+    confirmLabel: 'Discard changes',
+    danger: true,
+  })
+})
+
+const toast = useToast()
 async function save() {
   busy.value = true
   msg.value = ''
   try {
     await $fetch('/api/settings', { method: 'POST', body: { ...form } })
+    snapshot.value = JSON.stringify(form)
     msgOk.value = true
     msg.value = 'Saved.'
+    toast.success('Settings saved')
   } catch (e: any) {
     msgOk.value = false
     msg.value = errMsg(e, 'Save failed')
@@ -1148,5 +1225,17 @@ async function save() {
   }
 }
 
-useHead({ title: 'Settings — homeport' })
+useHead({ title: 'Settings · homeport' })
 </script>
+
+<style scoped>
+.savebar-enter-active,
+.savebar-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.savebar-enter-from,
+.savebar-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>

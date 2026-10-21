@@ -15,20 +15,21 @@
       stroke-linejoin="round"
       stroke-linecap="round"
     />
-    <polygon v-if="area" :points="area" :fill="color" fill-opacity="0.12" stroke="none" />
+    <polygon v-if="fill && area" :points="area" :fill="color" fill-opacity="0.1" stroke="none" />
   </svg>
 </template>
 
 <script setup lang="ts">
 const props = withDefaults(
-  defineProps<{ data: number[]; max?: number; color?: string }>(),
-  { color: '#10b981' },
+  defineProps<{ data: number[]; max?: number; color?: string; fill?: boolean }>(),
+  { color: '#10b981', fill: false },
 )
 
 const W = 100
 const H = 28
 
-const peak = computed(() => props.max ?? Math.max(1, ...props.data))
+// headroom so a steady value sits mid-height instead of hugging the top edge
+const peak = computed(() => props.max ?? Math.max(1, ...props.data) * 1.25)
 
 const coords = computed(() => {
   const d = props.data

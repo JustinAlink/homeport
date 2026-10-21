@@ -3,30 +3,31 @@
 @tailwind utilities;
 
 /*
- * Theme tokens — every palette Tailwind classes resolve to lives here as an
- * RGB triplet, so `bg-ink-900`, `text-slate-400`, `border-white/10`, … are
+ * Theme tokens: every palette Tailwind classes resolve to lives here as an
+ * RGB triplet, so `bg-ink-900`, `text-slate-400`, `border-white/10`, ... are
  * theme-aware without touching call sites. `.dark` on <html> flips the theme;
  * an inline head script sets it pre-paint (no flash).
  *
  * Naming is historical (dark-first): `ink` = surfaces, `slate` = text scale
- * (100 strongest → 600 faintest), `white` = hairline/fill base, `accent` =
- * brand (indigo — interactive), `ok` = healthy/running (emerald — status).
+ * (100 strongest, 600 faintest), `white` = hairline/fill base, `accent` =
+ * brand (indigo, interactive), `primary` = solid buttons, `ok` = healthy/running
+ * (emerald, status).
  */
 :root {
   /* light */
-  --ink-950: 245 246 248;
+  --ink-950: 244 245 248;
   --ink-900: 255 255 255;
-  --ink-850: 248 249 251;
-  --ink-800: 238 241 245;
-  --ink-700: 226 231 238;
+  --ink-850: 249 250 251;
+  --ink-800: 239 241 245;
+  --ink-700: 226 230 237;
 
-  --slate-100: 15 23 42;
-  --slate-200: 30 41 59;
-  --slate-300: 51 65 85;
-  --slate-400: 71 85 105;
-  --slate-500: 100 116 139;
-  --slate-600: 148 163 184;
-  --slate-700: 203 213 225;
+  --slate-100: 13 18 30;
+  --slate-200: 30 38 54;
+  --slate-300: 51 61 80;
+  --slate-400: 82 94 115;
+  --slate-500: 110 122 143;
+  --slate-600: 150 160 177;
+  --slate-700: 203 210 222;
 
   --line: 15 23 42;
 
@@ -34,6 +35,8 @@
   --accent-dark: 67 56 202;
   --accent-light: 67 56 202;
   --on-accent: 255 255 255;
+  --primary: 79 70 229;
+  --primary-hover: 67 56 202;
 
   --ok: 5 150 105;
   --ok-soft: 16 185 129;
@@ -41,36 +44,42 @@
   --red-300: 185 28 28;
   --red-400: 220 38 38;
   --red-500: 239 68 68;
-  --amber-300: 180 83 9;
+  --amber-300: 161 75 8;
   --amber-400: 217 119 6;
   --amber-500: 245 158 11;
   --sky-200: 3 105 161;
-  --sky-300: 2 132 199;
+  --sky-300: 2 116 179;
   --sky-400: 2 132 199;
   --sky-500: 3 105 161;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.03);
+  --shadow-pop: 0 12px 32px -8px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.06);
+  color-scheme: light;
 }
 
 .dark {
   --ink-950: 10 14 21;
-  --ink-900: 16 22 31;
-  --ink-850: 20 27 38;
-  --ink-800: 26 35 48;
-  --ink-700: 38 49 64;
+  --ink-900: 17 22 31;
+  --ink-850: 21 27 38;
+  --ink-800: 28 35 48;
+  --ink-700: 41 50 66;
 
-  --slate-100: 242 245 249;
-  --slate-200: 221 228 236;
-  --slate-300: 195 205 217;
-  --slate-400: 148 161 178;
-  --slate-500: 108 124 148;
-  --slate-600: 81 94 114;
-  --slate-700: 60 71 88;
+  --slate-100: 243 246 250;
+  --slate-200: 222 228 237;
+  --slate-300: 192 202 216;
+  --slate-400: 146 159 178;
+  --slate-500: 110 125 148;
+  --slate-600: 82 95 116;
+  --slate-700: 58 69 87;
 
   --line: 226 232 240;
 
   --accent: 129 140 248;
   --accent-dark: 99 102 241;
   --accent-light: 165 180 252;
-  --on-accent: 10 14 21;
+  --on-accent: 255 255 255;
+  --primary: 99 102 241;
+  --primary-hover: 116 120 246;
 
   --ok: 52 211 153;
   --ok-soft: 16 185 129;
@@ -85,6 +94,11 @@
   --sky-300: 125 211 252;
   --sky-400: 56 189 248;
   --sky-500: 14 165 233;
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset;
+  --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
+  /* native controls (checkboxes, selects, scrollbars) follow the theme */
+  color-scheme: dark;
 }
 
 @layer base {
@@ -92,9 +106,257 @@
     background-color: rgb(var(--ink-950));
     color: rgb(var(--slate-200));
     scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: rgb(var(--accent) / 0.28);
+  }
+  /* one focus language everywhere: a soft accent ring, keyboard only */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.7);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: rgb(var(--primary));
+    width: 0.95rem;
+    height: 0.95rem;
+    cursor: pointer;
+  }
+  code {
+    font-family: theme('fontFamily.mono');
+    font-size: 0.92em;
+  }
+  :not(pre) > code {
+    border-radius: 4px;
+    background: rgb(var(--line) / 0.06);
+    padding: 0.05em 0.3em;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--slate-600) / 0.45) transparent;
+  }
+}
+
+@layer components {
+  /* ---------- layout ---------- */
+  .page {
+    @apply mx-auto w-full max-w-[1440px] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8;
+  }
+  .page-narrow {
+    @apply mx-auto w-full max-w-[1040px] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8;
+  }
+
+  /* ---------- surfaces ---------- */
+  .card {
+    @apply rounded-xl border border-white/[0.08] bg-ink-900;
+    box-shadow: var(--shadow-card);
+  }
+  .card-pad {
+    @apply p-4 sm:p-5;
+  }
+  .card-header {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/[0.06] px-4 py-3 sm:px-5;
+  }
+  .card-title {
+    @apply text-[13px] font-semibold text-slate-100;
+  }
+  .row-list > * + * {
+    @apply border-t border-white/[0.06];
+  }
+
+  /* section heading outside a card */
+  .section-title {
+    @apply flex items-center gap-2 text-[13px] font-semibold text-slate-200;
+  }
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-slate-500;
+  }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    @apply inline-flex h-8 shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/[0.12] bg-ink-900 px-3 text-[13px] font-medium text-slate-200 transition-colors duration-150 hover:border-white/20 hover:bg-ink-800 disabled:pointer-events-none disabled:opacity-45;
+  }
+  .btn > svg {
+    @apply h-3.5 w-3.5 shrink-0;
+  }
+  .btn-sm {
+    @apply h-7 gap-1 rounded-md px-2.5 text-xs;
+  }
+  .btn-lg {
+    @apply h-10 px-4 text-sm;
+  }
+  .btn-icon {
+    @apply w-8 px-0;
+  }
+  .btn-icon.btn-sm {
+    @apply w-7;
+  }
+  .btn-primary {
+    @apply border-transparent text-white shadow-sm hover:border-transparent;
+    background-color: rgb(var(--primary));
+  }
+  .btn-primary:hover {
+    background-color: rgb(var(--primary-hover));
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-slate-400 shadow-none hover:border-transparent hover:bg-white/[0.06] hover:text-slate-100;
+  }
+  .btn-danger {
+    @apply border-red-500/30 bg-transparent text-red-400 hover:border-red-500/50 hover:bg-red-500/10;
+  }
+  .btn-danger-solid {
+    @apply border-transparent bg-red-500 text-white hover:border-transparent hover:bg-red-500/90;
+  }
+  .btn-accent {
+    @apply border-accent/35 bg-accent/10 text-accent-light hover:border-accent/50 hover:bg-accent/15;
+  }
+
+  /* button group: adjoining buttons share borders */
+  .btn-group {
+    @apply inline-flex items-stretch;
+  }
+  .btn-group > .btn {
+    @apply rounded-none;
+  }
+  .btn-group > .btn + .btn {
+    @apply -ml-px;
+  }
+  .btn-group > .btn:first-child {
+    @apply rounded-l-lg;
+  }
+  .btn-group > .btn:last-child {
+    @apply rounded-r-lg;
+  }
+
+  /* segmented control (ranges, view toggles, filters) */
+  .segmented {
+    @apply inline-flex items-center gap-0.5 rounded-lg border border-white/[0.08] bg-ink-950/60 p-0.5;
+  }
+  .segmented > button {
+    @apply inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100;
+  }
+  .segmented > button[aria-pressed='true'] {
+    @apply bg-ink-800 text-slate-100 shadow-sm;
+  }
+  .segmented-sm > button {
+    @apply h-6 px-2 text-[11px];
+  }
+
+  /* ---------- form controls ---------- */
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-lg border border-white/[0.12] bg-ink-950/70 px-3 text-[13px] text-slate-100 transition-colors placeholder:text-slate-600 hover:border-white/20 focus:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input,
+  .select {
+    @apply h-9;
+  }
+  .textarea {
+    @apply py-2 leading-relaxed;
+  }
+  .select {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath d='M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E");
+    background-position: right 0.55rem center;
+    background-size: 1rem;
+  }
+  /* same specificity as .input/.select and declared after them, so it wins (and a
+     height utility like h-6 on the element still wins over this) */
+  .input-sm {
+    @apply h-8 text-xs;
+  }
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium text-slate-300;
+  }
+  .field-hint {
+    @apply mt-1.5 text-xs leading-relaxed text-slate-500;
+  }
+  .check {
+    @apply flex cursor-pointer items-start gap-2.5 text-[13px] text-slate-200;
+  }
+  .check > input {
+    @apply mt-[3px] shrink-0;
+  }
+
+  /* ---------- badges / chips ---------- */
+  .badge {
+    @apply inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-white/10 bg-white/[0.04] px-1.5 text-[11px] font-medium leading-none text-slate-400;
+  }
+  .badge-ok {
+    @apply border-ok/25 bg-ok/10 text-ok;
+  }
+  .badge-warn {
+    @apply border-amber-500/30 bg-amber-500/10 text-amber-300;
+  }
+  .badge-danger {
+    @apply border-red-500/30 bg-red-500/10 text-red-300;
+  }
+  .badge-info {
+    @apply border-sky-400/30 bg-sky-400/10 text-sky-300;
+  }
+  .badge-accent {
+    @apply border-accent/30 bg-accent/10 text-accent-light;
+  }
+  .chip {
+    @apply inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md bg-white/[0.05] px-2 text-[11.5px] text-slate-300 transition-colors hover:bg-white/10 hover:text-slate-100;
+  }
+  .chip-accent {
+    @apply bg-accent/10 text-accent-light hover:bg-accent/[0.18] hover:text-accent-light;
+  }
+  .dot {
+    @apply inline-block h-2 w-2 shrink-0 rounded-full;
+  }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    @apply flex gap-3 rounded-lg border px-3.5 py-3 text-[13px] leading-relaxed;
+  }
+  .callout > svg {
+    @apply mt-0.5 h-4 w-4 shrink-0;
+  }
+  .callout-info {
+    @apply border-sky-400/20 bg-sky-400/[0.06] text-slate-300;
+  }
+  .callout-info > svg {
+    @apply text-sky-400;
+  }
+  .callout-warn {
+    @apply border-amber-500/25 bg-amber-500/[0.06] text-slate-300;
+  }
+  .callout-warn > svg {
+    @apply text-amber-400;
+  }
+  .callout-danger {
+    @apply border-red-500/25 bg-red-500/[0.06] text-red-300;
+  }
+  .callout-danger > svg {
+    @apply text-red-400;
+  }
+
+  /* ---------- misc ---------- */
+  .link {
+    @apply text-accent-light underline-offset-2 hover:underline;
+  }
+  .kbd {
+    @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-white/15 bg-white/[0.04] px-1 font-sans text-[10.5px] font-medium text-slate-400;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-white/[0.06];
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

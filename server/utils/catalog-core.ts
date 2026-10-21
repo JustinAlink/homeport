@@ -47,6 +47,22 @@ export function slugify(name: string): string {
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+
+/**
+ * Template descriptions are shown as plain text, but community Portainer lists
+ * often carry raw markdown ("[Name](https://…) is a …"), which rendered literally
+ * on catalog cards. Keep link text, drop images, tags and emphasis markers.
+ */
+export function plainDescription(v: unknown): string {
+  return str(v)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links keep their text
+    .replace(/<[^>]+>/g, '') // html tags
+    .replace(/\*\*|__|`/g, '') // bold / code markers
+    .replace(/^\s*#+\s*/gm, '') // headings
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 const strArr = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
 
 /**
@@ -131,7 +147,7 @@ export function parseNativeCatalog(
     apps.push({
       slug,
       name,
-      description: str(o.description),
+      description: plainDescription(o.description),
       categories: categoryArr(o.categories),
       icon: str(o.icon),
       image: str(o.image),
@@ -245,7 +261,7 @@ export function parsePortainerTemplates(
     apps.push({
       slug,
       name: title,
-      description: str(o.description),
+      description: plainDescription(o.description),
       categories: categoryArr(o.categories),
       icon: logo,
       image,

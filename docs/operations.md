@@ -25,7 +25,7 @@ homeport container **at the same path it has on the host** — e.g.
   edited and compose-operated in place, marked `external` in the UI. (The same-path rule
   matters — compose resolves relative bind mounts against the file's directory, and the
   daemon interprets those paths on the host.)
-- Add the folder under **Settings → Compose roots** (or `HOMEPORT_COMPOSE_ROOTS`, comma-
+- Add the folder under **Settings → Capabilities → Compose roots** (or `HOMEPORT_COMPOSE_ROOTS`, comma-
   separated) and every subfolder with a compose file becomes a stack **even before its
   containers exist** — create a project over SSH, then set its env and start it from
   homeport.
@@ -33,7 +33,7 @@ homeport container **at the same path it has on the host** — e.g.
   host path you'd need to mount shown on the stacks page.
 - External stacks can't be deleted from homeport (it won't remove files outside its own
   stacks dir), and homeport refuses `down`/`restart` on its **own** stack (use
-  Settings → About → Update homeport instead).
+  the **Update homeport** button in the sidebar or under Settings → Backup & about instead).
 
 ## Networks
 

@@ -9,11 +9,11 @@
     <!-- create -->
     <div class="flex flex-wrap items-end gap-2">
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Name</label>
+        <label class="field-label mb-0">Name</label>
         <input v-model="name" :class="fieldCls" placeholder="e.g. junibot" @keyup.enter="create" />
       </div>
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Scope</label>
+        <label class="field-label mb-0">Scope</label>
         <select v-model="scope" :class="[fieldCls, 'max-w-[11rem]']">
           <option value="read">Read-only</option>
           <option value="full">Full access</option>
@@ -66,7 +66,7 @@
 <script setup lang="ts">
 interface TokenMeta { id: string; name: string; scope: 'read' | 'full'; prefix: string; createdAt: number; lastUsedAt?: number }
 
-const fieldCls = 'mt-1 w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50'
+const fieldCls = 'mt-1 input'
 const { confirm } = useConfirm()
 const toast = useToast()
 

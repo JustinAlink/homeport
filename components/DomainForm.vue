@@ -1,44 +1,44 @@
 <template>
-  <form class="space-y-3 rounded-lg border border-white/10 bg-ink-900 p-4" @submit.prevent="submit">
+  <form class="space-y-3 card p-4 sm:p-5" @submit.prevent="submit">
     <div v-if="showPicker && pickables.length">
-      <label class="text-[11px] uppercase tracking-wider text-slate-500">Point at a container</label>
-      <select v-model="picked" :class="fieldCls" @change="applyPick">
-        <option value="">Choose a running container… (or fill the fields below)</option>
+      <label class="field-label">Point at a container</label>
+      <select v-model="picked" class="select" @change="applyPick">
+        <option value="">Choose a running container, or fill in the fields below</option>
         <option v-for="c in pickables" :key="c.name" :value="c.name">
           {{ c.label }} → {{ c.name }}{{ c.port != null ? ':' + c.port : ' (set the port)' }}
         </option>
       </select>
-      <p class="mt-1 text-[11px] text-slate-500">Fills the upstream host + port for you. You can still edit them.</p>
+      <p class="field-hint">Fills the upstream host and port for you. You can still edit them.</p>
     </div>
     <div>
-      <label class="text-[11px] uppercase tracking-wider text-slate-500">Domains</label>
+      <label class="field-label">Domains</label>
       <input
         v-model="domainsText"
-        :class="fieldCls"
+        class="input"
         placeholder="app.example.com, www.app.example.com"
       />
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Upstream host</label>
-        <input v-model="form.upstreamHost" :class="fieldCls" placeholder="container-name or IP" />
+        <label class="field-label">Upstream host</label>
+        <input v-model="form.upstreamHost" class="input" placeholder="container-name or IP" />
       </div>
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Port</label>
-        <input v-model.number="form.upstreamPort" type="number" min="1" :class="fieldCls" />
+        <label class="field-label">Port</label>
+        <input v-model.number="form.upstreamPort" type="number" min="1" class="input" />
       </div>
     </div>
-    <label class="flex items-center gap-2 text-sm text-slate-200">
+    <label class="check">
       <input v-model="form.ssl" type="checkbox" /> SSL / HTTPS
     </label>
     <div class="flex items-center gap-3">
       <button
         type="submit"
         :disabled="busy"
-        class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-50"
+        class="btn btn-primary btn-sm"
       >{{ busy ? 'Saving…' : submitLabel }}</button>
-      <button v-if="cancelable" type="button" class="text-xs text-slate-400 hover:text-slate-200" @click="$emit('cancel')">Cancel</button>
-      <span v-if="msg" class="whitespace-pre-line text-[11px]" :class="msgOk ? 'text-accent-light' : 'text-red-400'">{{ msg }}</span>
+      <button v-if="cancelable" type="button" class="btn btn-ghost btn-sm" @click="$emit('cancel')">Cancel</button>
+      <span v-if="msg" class="whitespace-pre-line text-xs" :class="msgOk ? 'text-ok' : 'text-red-400'">{{ msg }}</span>
     </div>
   </form>
 </template>
@@ -58,7 +58,6 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ saved: [any]; cancel: [] }>()
 
-const fieldCls = 'mt-1 w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50'
 
 const form = reactive({
   upstreamHost: props.initial?.upstreamHost ?? '',

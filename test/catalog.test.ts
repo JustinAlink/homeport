@@ -14,6 +14,7 @@ import {
   composeForInstall,
   slugify,
   normalizeCategory,
+  plainDescription,
 } from '../server/utils/catalog-core.ts'
 import { BUILTIN_CATALOG } from '../server/utils/catalog-builtin.ts'
 
@@ -166,4 +167,23 @@ test('categories: camelCase splits and known-broken aliases', () => {
   assert.equal(normalizeCategory('WebServer'), 'Web Server')
   assert.equal(normalizeCategory('Networkother'), 'Network') // unsplittable mash → alias
   assert.equal(normalizeCategory('Networking'), 'Network')
+})
+
+test('plainDescription: markdown links keep their text, images/tags/emphasis go', () => {
+  assert.equal(
+    plainDescription('[Airsonic-advanced](https://github.com/kagemomiji/airsonic-advanced) is a **free** media streamer'),
+    'Airsonic-advanced is a free media streamer',
+  )
+  assert.equal(plainDescription('![logo](https://x/y.png) <b>Fast</b> `cli`\n\n# Notes'), 'Fast cli Notes')
+  // ordinary text (incl. single underscores in names) is left alone
+  assert.equal(plainDescription('Runs my_app on port 80'), 'Runs my_app on port 80')
+  assert.equal(plainDescription(undefined), '')
+})
+
+test('parsePortainerTemplates: descriptions come out as plain text', () => {
+  const { apps } = parsePortainerTemplates(
+    { version: '2', templates: [{ type: 1, title: 'Demo', image: 'demo/app:1', description: '[Demo](https://demo.example) does things' }] },
+    'test',
+  )
+  assert.equal(apps[0]?.description, 'Demo does things')
 })

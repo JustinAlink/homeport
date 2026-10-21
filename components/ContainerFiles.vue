@@ -1,12 +1,12 @@
 <template>
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="$emit('close')">
-    <div class="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-white/10 bg-ink-950 shadow-2xl">
+    <div class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900" style="box-shadow: var(--shadow-pop)">
       <!-- header -->
       <div class="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
         <Icon name="stacks" class="h-4 w-4 shrink-0 text-sky-300/80" />
         <span class="truncate font-mono text-sm text-slate-200" :title="`${root} in ${name}`">{{ title }}</span>
-        <span class="shrink-0 rounded-full border border-white/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-slate-500">in container</span>
-        <span v-if="readOnly" class="shrink-0 rounded-full border border-amber-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-amber-300">read-only</span>
+        <span class="badge shrink-0">in container</span>
+        <span v-if="readOnly" class="badge badge-warn shrink-0">read-only</span>
         <button class="ml-auto text-slate-500 hover:text-slate-200" aria-label="Close" @click="$emit('close')"><Icon name="x" class="h-4 w-4" /></button>
       </div>
 
@@ -21,25 +21,25 @@
             </template>
           </nav>
           <div class="ml-auto flex items-center gap-1.5">
-            <button v-if="!readOnly" class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5" @click="newFile">+ File</button>
-            <button class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5" :disabled="loading" @click="load">{{ loading ? '…' : 'Refresh' }}</button>
+            <button v-if="!readOnly" class="btn btn-sm" @click="newFile">+ File</button>
+            <button class="btn btn-sm" :disabled="loading" @click="load">{{ loading ? '…' : 'Refresh' }}</button>
           </div>
         </div>
 
         <!-- inline new-file name (no native prompt — blocked in embedded views) -->
         <div v-if="naming" class="flex flex-wrap items-center gap-2 border-b border-white/5 bg-ink-900 px-4 py-2">
-          <span class="text-[11px] uppercase tracking-wider text-slate-500">New file</span>
+          <span class="text-xs font-medium text-slate-400">New file</span>
           <input
             ref="nameInput"
             v-model="newName"
             placeholder="file name (e.g. settings.yml)"
-            class="min-w-[12rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-2.5 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-accent/50"
+            class="min-w-[12rem] flex-1 input font-mono input-sm"
             @keydown.enter="confirmNewFile"
             @keydown.esc="naming = false"
           />
           <span v-if="path" class="font-mono text-[10px] text-slate-600">in {{ path }}/</span>
-          <button class="rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40" :disabled="!newName.trim()" @click="confirmNewFile">Create</button>
-          <button class="rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-slate-400 hover:bg-white/5" @click="naming = false">Cancel</button>
+          <button class="btn btn-primary btn-sm" :disabled="!newName.trim()" @click="confirmNewFile">Create</button>
+          <button class="btn btn-sm btn-ghost" @click="naming = false">Cancel</button>
         </div>
 
         <p v-if="err" class="whitespace-pre-line px-4 pt-2 text-xs text-red-400">{{ err }}</p>
@@ -49,13 +49,13 @@
           <div v-if="!loading && !entries.length && !path" class="p-6 text-center text-xs text-slate-600">empty directory</div>
           <div
             v-if="path"
-            class="flex cursor-pointer items-center gap-2 border-b border-white/5 px-4 py-2 text-xs text-slate-500 hover:bg-white/[0.03]"
+            class="flex cursor-pointer items-center gap-2 border-b border-white/[0.06] px-4 py-2 text-xs text-slate-500 hover:bg-white/[0.03]"
             @click="cd(parentPath)"
           ><Icon name="arrow-left" class="h-3.5 w-3.5" /> ..</div>
           <div
             v-for="e in entries"
             :key="e.name"
-            class="group flex items-center gap-3 border-b border-white/5 px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
+            class="group flex items-center gap-3 border-b border-white/[0.06] px-4 py-2 last:border-b-0 hover:bg-white/[0.03]"
           >
             <button class="flex min-w-0 flex-1 items-center gap-2.5 text-left" @click="open(e)">
               <Icon :name="e.type === 'dir' ? 'stacks' : 'file'" class="h-4 w-4 shrink-0" :class="e.type === 'dir' ? 'text-sky-300/80' : 'text-slate-500'" />
@@ -81,12 +81,12 @@
           <button class="inline-flex items-center gap-1 text-slate-400 hover:text-slate-200" @click="closeEditor"><Icon name="arrow-left" class="h-3.5 w-3.5" /> back</button>
           <span class="truncate font-mono text-sm text-slate-200">{{ editing }}</span>
         </div>
-        <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto text-[13px]" />
+        <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto bg-[#0d1117] text-[13px]" />
         <div class="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
           <button
             v-if="!readOnly"
             :disabled="fileSaving"
-            class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+            class="btn btn-primary btn-sm"
             @click="saveFile"
           >{{ fileSaving ? 'Saving…' : 'Save' }}</button>
           <span v-else class="text-[11px] text-slate-600">read-only mount — changes can't be saved</span>

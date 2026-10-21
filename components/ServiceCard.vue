@@ -1,79 +1,121 @@
 <template>
+  <!-- ROW (list view) -->
   <div
-    class="group relative rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3.5 transition-colors hover:border-white/10 hover:bg-white/[0.04]"
-    :class="{ 'opacity-60': service.state !== 'running' && service.kind === 'container' }"
+    v-if="layout === 'row'"
+    class="group relative flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/[0.025] sm:px-4"
+    :class="dim ? 'text-slate-400' : ''"
+    @click="openPage"
   >
-    <!-- header: icon · name + image · status -->
-    <div class="flex items-center gap-3.5">
-      <div class="relative shrink-0">
-        <div class="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.04]">
-          <ServiceIcon :name="service.displayName" :icon="service.icon" :size="28" :remote="remoteIcons" />
+    <div class="relative shrink-0" :class="dim ? 'opacity-60' : ''">
+      <ServiceIcon :name="service.displayName" :icon="service.icon" :size="30" :remote="remoteIcons" />
+    </div>
+    <div class="min-w-0 flex-1 sm:w-0 sm:flex-[1.4]">
+      <div class="flex items-center gap-2">
+        <component :is="nameTag" v-bind="nameAttrs" class="truncate text-[13.5px] font-medium" :class="dim ? 'text-slate-300' : 'text-slate-100'">{{ service.displayName }}</component>
+        <NuxtLink v-if="updateAvailable" :to="updateLink" class="badge badge-info h-[18px] px-1 text-[10px]" title="Update available"><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.4" />update</NuxtLink>
+      </div>
+      <div class="truncate font-mono text-[11px] text-slate-500" :title="service.image">{{ service.image }}</div>
+    </div>
+    <div class="hidden w-36 shrink-0 md:block">
+      <StatusPill :state="service.state" :health="service.health" :text="statusShort" compact />
+    </div>
+    <div class="hidden min-w-0 flex-1 items-center gap-1.5 lg:flex">
+      <a
+        v-if="service.domains[0]"
+        :href="service.domains[0].url"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="chip chip-accent min-w-0 max-w-full"
+        @click.stop
+      >
+        <span v-if="pings[service.domains[0].url]" class="dot h-1.5 w-1.5" :class="pingClass(service.domains[0].url)" :title="pingTitle(service.domains[0].url)" />
+        <span class="truncate">{{ service.domains[0].domain }}</span>
+      </a>
+      <span v-else-if="service.ports[0]" class="chip font-mono">:{{ service.ports[0].hostPort }}</span>
+      <span v-if="service.domains.length > 1" class="text-[11px] text-slate-500">+{{ service.domains.length - 1 }}</span>
+    </div>
+    <div class="hidden w-[150px] shrink-0 items-center justify-end gap-3 font-mono text-[11.5px] tabular-nums text-slate-400 sm:flex">
+      <template v-if="stat && service.state === 'running'">
+        <span class="w-14 text-right" title="CPU">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '·' }}</span>
+        <span class="w-[70px] text-right" title="Memory">{{ formatBytes(stat.memBytes) }}</span>
+      </template>
+      <span v-else class="text-slate-600">·</span>
+    </div>
+    <div class="hidden h-7 w-24 shrink-0 xl:block">
+      <Sparkline v-if="cpuHistory.length > 1 && service.state === 'running'" :data="cpuHistory" color="#10b981" />
+    </div>
+    <span class="md:hidden"><StatusPill :state="service.state" :health="service.health" compact dot-only /></span>
+    <div class="flex w-[76px] shrink-0 justify-end">
+      <ServiceActions
+        :service="service"
+        :busy="busy"
+        :control-enabled="controlEnabled"
+        @logs="showLogs = true"
+        @control="control"
+      />
+    </div>
+    <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
+  </div>
+
+  <!-- CARD (grid view) -->
+  <div
+    v-else
+    class="card group relative flex cursor-pointer flex-col px-4 py-3.5 transition-[border-color,background-color] duration-150 hover:border-white/[0.16]"
+    :class="dim ? 'bg-ink-900/60' : ''"
+    @click="openPage"
+  >
+    <div class="flex items-start gap-3">
+      <div class="relative shrink-0" :class="dim ? 'opacity-55 grayscale' : ''">
+        <div class="grid h-10 w-10 place-items-center rounded-[10px] bg-white/[0.04] ring-1 ring-inset ring-white/[0.06]">
+          <ServiceIcon :name="service.displayName" :icon="service.icon" :size="26" :remote="remoteIcons" />
         </div>
-        <NuxtLink
-          v-if="updateAvailable"
-          :to="`/services/${encodeURIComponent(service.id)}`"
-          class="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-sky-400/90 text-ink-950"
-          title="Update available"
-        ><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.5" /></NuxtLink>
       </div>
 
       <div class="min-w-0 flex-1">
-        <NuxtLink
-          v-if="service.kind === 'container'"
-          :to="`/services/${encodeURIComponent(service.id)}`"
-          class="block truncate text-[15px] font-medium text-slate-100 hover:text-accent-light"
-        >{{ service.displayName }}</NuxtLink>
-        <span v-else class="block truncate text-[15px] font-medium text-slate-100">{{ service.displayName }}</span>
-        <div class="mt-0.5 truncate text-xs text-slate-500" :class="service.kind === 'systemd' ? 'italic' : 'font-mono'" :title="service.image">
-          {{ service.image }}
+        <div class="flex items-center gap-2">
+          <component :is="nameTag" v-bind="nameAttrs" class="truncate text-[14.5px] font-semibold tracking-[-0.005em]" :class="dim ? 'text-slate-300' : 'text-slate-100'">{{ service.displayName }}</component>
+          <NuxtLink
+            v-if="updateAvailable"
+            :to="updateLink"
+            class="badge badge-info h-[18px] px-1 text-[10px]"
+            title="A newer image is available"
+            @click.stop
+          ><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.4" />update</NuxtLink>
         </div>
+        <div class="mt-0.5 truncate font-mono text-[11px] text-slate-500" :title="service.image">{{ service.image }}</div>
       </div>
 
-      <div class="flex shrink-0 items-center gap-2">
-        <div class="hidden shrink-0 items-center gap-1.5 opacity-0 transition group-hover:opacity-100 md:flex">
-          <button
-            v-if="caps.logs && service.kind === 'container'"
-            class="rounded-md border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-400 hover:bg-white/5"
-            title="View logs"
-            @click="showLogs = true"
-          >Logs</button>
-          <button
-            v-if="controlEnabled && service.kind === 'container' && isUp"
-            :disabled="busy"
-            class="grid h-6 w-6 place-items-center rounded-md border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-50"
-            title="Restart"
-            @click="control('restart')"
-          ><Icon name="refresh" class="h-3 w-3" /></button>
-          <button
-            v-if="controlEnabled && service.kind === 'container'"
-            :disabled="busy"
-            class="rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50"
-            :class="isUp ? 'border-red-500/20 text-red-300 hover:bg-red-500/10' : 'border-ok/25 text-ok hover:bg-ok/10'"
-            @click="control(isUp ? 'stop' : 'start')"
-          >{{ busy ? '…' : isUp ? 'Stop' : 'Start' }}</button>
+      <div class="relative flex h-7 shrink-0 items-center">
+        <span class="transition-opacity" :class="hasActions ? 'md:group-hover:opacity-0' : ''">
+          <StatusPill :state="service.state" :health="service.health" :text="statusShort" compact />
+        </span>
+        <div v-if="hasActions" class="absolute right-0 top-0 hidden opacity-0 transition-opacity group-hover:opacity-100 md:flex">
+          <ServiceActions
+            :service="service"
+            :busy="busy"
+            :control-enabled="controlEnabled"
+            @logs="showLogs = true"
+            @control="control"
+          />
         </div>
-        <span
-          v-if="service.state === 'running' && (!service.health || service.health === 'healthy')"
-          class="inline-flex items-center gap-1.5 text-xs text-slate-500"
-          :title="service.health ? 'running (healthy)' : 'running'"
-        ><span class="h-2 w-2 rounded-full bg-ok" />{{ shortStatus }}</span>
-        <StatusPill v-else :state="service.state" :health="service.health" />
       </div>
     </div>
 
     <!-- domains + ports -->
-    <div v-if="service.domains.length || service.ports.length" class="mt-2.5 flex flex-wrap items-center gap-1.5">
+    <div v-if="service.domains.length || service.ports.length" class="mt-3 flex flex-wrap items-center gap-1.5">
       <a
         v-for="d in service.domains"
         :key="d.domain"
         :href="d.url"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-1.5 rounded-md bg-accent/10 px-2 py-1 text-[11px] text-accent-light hover:bg-accent/20"
+        class="chip chip-accent max-w-full"
+        :title="pingTitle(d.url) || d.url"
+        @click.stop
       >
-        <span v-if="pings[d.url]" class="h-1.5 w-1.5 rounded-full" :class="pingClass(d.url)" :title="pingTitle(d.url)" />
-        <Icon v-if="d.ssl" name="lock" class="h-2.5 w-2.5 opacity-70" />
-        <span class="max-w-[14rem] truncate">{{ d.domain }}</span>
+        <span v-if="pings[d.url]" class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />
+        <Icon v-else-if="d.ssl" name="lock" class="h-3 w-3 opacity-70" />
+        <span class="truncate">{{ d.domain }}</span>
       </a>
       <a
         v-for="pt in service.ports"
@@ -81,40 +123,40 @@
         :href="`http://${host}:${pt.hostPort}`"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded-md bg-white/5 px-2 py-1 font-mono text-[11px] text-slate-400 hover:bg-white/10 hover:text-slate-200"
+        class="chip font-mono text-[11px] text-slate-400"
+        :title="`host port ${pt.hostPort} → container ${pt.containerPort}/${pt.type}`"
+        @click.stop
       >:{{ pt.hostPort }}</a>
     </div>
 
-    <!-- metrics: values + bars, then the trend sparkline -->
-    <template v-if="stat && service.state === 'running'">
-      <div class="mt-3 grid grid-cols-2 gap-x-5 gap-y-1.5">
-        <div class="flex items-center gap-2">
-          <span class="w-8 text-[10px] uppercase tracking-wide text-slate-600">cpu</span>
-          <div class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
-            <div class="h-full rounded-full bg-ok/80 transition-all" :style="{ width: barW(stat.cpuPercent) }" />
+    <!-- metrics: compact bars + a CPU trend -->
+    <div v-if="stat && service.state === 'running'" class="mt-auto flex items-end gap-4 pt-3.5">
+      <div class="grid min-w-0 flex-1 grid-cols-2 gap-4">
+        <div class="min-w-0">
+          <div class="flex items-baseline justify-between text-[11px]">
+            <span class="text-slate-500">CPU</span>
+            <span class="font-mono tabular-nums text-slate-300">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '·' }}</span>
           </div>
-          <span class="w-12 text-right font-mono text-[11px] tabular-nums text-slate-400">{{ stat.cpuPercent != null ? stat.cpuPercent + '%' : '—' }}</span>
+          <div class="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+            <div class="h-full rounded-full bg-ok transition-all duration-500" :style="{ width: barW(stat.cpuPercent) }" />
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="w-8 text-[10px] uppercase tracking-wide text-slate-600">ram</span>
-          <div class="h-1 flex-1 overflow-hidden rounded-full bg-white/5">
-            <div class="h-full rounded-full bg-sky-400/80 transition-all" :style="{ width: barW(stat.memPercent) }" />
+        <div class="min-w-0">
+          <div class="flex items-baseline justify-between text-[11px]">
+            <span class="text-slate-500">RAM</span>
+            <span class="font-mono tabular-nums text-slate-300">{{ formatBytes(stat.memBytes) }}</span>
           </div>
-          <span class="w-12 text-right font-mono text-[11px] tabular-nums text-slate-400">{{ formatBytes(stat.memBytes) }}</span>
+          <div class="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+            <div class="h-full rounded-full bg-sky-400 transition-all duration-500" :style="{ width: barW(stat.memPercent) }" />
+          </div>
         </div>
       </div>
-      <NuxtLink
-        v-if="cpuHistory.length > 1"
-        :to="`/services/${encodeURIComponent(service.id)}`"
-        class="relative mt-2.5 block h-9 w-full rounded-md bg-white/[0.02] transition-colors hover:bg-white/[0.05]"
-        title="CPU + RAM trend — open the service page"
-      >
-        <span class="absolute inset-x-1 inset-y-0"><Sparkline :data="cpuHistory" color="#10b981" /></span>
-        <span v-if="memHistory.length > 1" class="absolute inset-x-1 inset-y-0"><Sparkline :data="memHistory" color="#38bdf8" /></span>
-      </NuxtLink>
-    </template>
+      <div v-if="cpuHistory.length > 1" class="h-7 w-20 shrink-0" title="CPU trend">
+        <Sparkline :data="cpuHistory" color="#10b981" fill />
+      </div>
+    </div>
     <!-- non-running: the status text carries the info -->
-    <p v-else-if="service.state !== 'running'" class="mt-2.5 truncate text-xs text-slate-500">{{ service.statusText }}</p>
+    <p v-else-if="service.state !== 'running'" class="mt-3 truncate text-xs text-slate-500">{{ service.statusText }}</p>
 
     <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
   </div>
@@ -123,13 +165,28 @@
 <script setup lang="ts">
 import type { Service } from '~/types/service'
 
-const props = defineProps<{ service: Service }>()
+const props = withDefaults(defineProps<{ service: Service; layout?: 'card' | 'row' }>(), { layout: 'card' })
 const host = computed(() => (import.meta.client ? window.location.hostname : 'localhost'))
 const showLogs = ref(false)
-const primaryDomain = computed(() => props.service.domains[0] ?? null)
-// "Up 5 days (healthy)" → "Up 5 days" — the dot already says healthy
-const shortStatus = computed(() => props.service.statusText.replace(/\s*\(healthy\)/, ''))
+// "Up 5 days (healthy)" → "Up 5 days": the dot already says healthy
+const statusShort = computed(() => props.service.statusText.replace(/\s*\(healthy\)/, '').replace(/\s*\(\d+\)\s.*$/, ''))
 const barW = (v: number | null | undefined) => `${Math.min(100, Math.max(2, v ?? 0))}%`
+const dim = computed(() => props.service.state !== 'running' && props.service.state !== 'restarting' && props.service.kind === 'container')
+
+const pageLink = computed(() => `/services/${encodeURIComponent(props.service.id)}`)
+const updateLink = computed(() => `${pageLink.value}?tab=update`)
+const isContainer = computed(() => props.service.kind === 'container')
+const nameTag = computed(() => (isContainer.value ? resolveComponent('NuxtLink') : 'span'))
+const nameAttrs = computed(() => (isContainer.value ? { to: pageLink.value, onClick: (e: Event) => e.stopPropagation() } : {}))
+
+// The whole card opens the service page; links and buttons inside keep their own behaviour.
+function openPage(e: MouseEvent) {
+  if (!isContainer.value) return
+  if ((e.target as HTMLElement).closest('a, button, input, select, [role="dialog"]')) return
+  if (window.getSelection()?.toString()) return // let people select text without navigating
+  if (e.metaKey || e.ctrlKey) window.open(pageLink.value, '_blank')
+  else navigateTo(pageLink.value)
+}
 
 const { caps } = useCapabilities()
 const updates = useUpdates()
@@ -138,7 +195,6 @@ const updateAvailable = computed(() => updates.entryFor(props.service)?.status =
 const { stats, history, refresh: refreshStats } = useStats()
 const stat = computed(() => stats.value[props.service.id])
 const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
-const memHistory = computed(() => history.value[props.service.id]?.mem ?? [])
 
 const { pings } = usePings()
 function pingClass(url: string) {
@@ -156,7 +212,7 @@ function pingTitle(url: string) {
 const { data, refresh: refreshServices } = useServices()
 const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
-const isUp = computed(() => props.service.state === 'running' || props.service.state === 'restarting')
+const hasActions = computed(() => isContainer.value && (caps.value.logs || controlEnabled.value))
 const busy = ref(false)
 const { confirm } = useConfirm()
 const toast = useToast()
@@ -171,6 +227,7 @@ async function control(action: 'start' | 'stop' | 'restart') {
     await $fetch('/api/control', { method: 'POST', body: { id: props.service.id, action } })
     await refreshServices()
     refreshStats()
+    toast.success(`${props.service.displayName}: ${action === 'stop' ? 'stopped' : action === 'start' ? 'started' : 'restarted'}`)
   } catch (e: any) {
     toast.error(errMsg(e, 'Action failed'))
   } finally {

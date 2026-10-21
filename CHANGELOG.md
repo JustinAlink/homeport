@@ -1,7 +1,42 @@
 # Changelog
 
-## Unreleased
+## v2.28.0 (2026-10-21)
 
+A complete UI makeover: new design system, clearer pages, and the pain points
+found by using every page as a user.
+
+- **New look throughout.** One design system (buttons, inputs, cards, badges,
+  callouts) replaces per-page styling; Inter and JetBrains Mono ship with the
+  image (no font CDN), and native checkboxes, selects and scrollbars now follow
+  the light/dark theme instead of rendering white in dark mode.
+- **Command palette.** <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> (or "Jump to…" in
+  the sidebar) finds any container, stack or page by name.
+- **Dashboard that scales.** Compact cards in a real grid (the old masonry made a
+  14-container demo 2000px tall), a dense **list view**, status filters (running,
+  stopped, issues, updates), a **Needs attention** strip for unhealthy, crash-looping
+  and failed containers, collapse/expand all, and <kbd>/</kbd> to filter. Clicking a
+  card opens its page; the update badge opens the Update tab directly.
+- **Container page.** Breadcrumbs, an Open button for its domain, a two-column
+  overview with labelled settings (the CPU and memory limit fields used to cut their
+  own placeholders off), and tabs that live in the URL (`?tab=logs` survives a
+  reload and can be shared). The usage graph now opens on the last hour of history:
+  it never loaded stored history on open, so it always started empty.
+- **Settings in categories.** Seven sections instead of one 4000px page. The save
+  bar appears only when something changed, offers Discard, and leaving with unsaved
+  changes asks first. Old `/settings#section` links still land in the right place.
+- **Updates: "Update everything".** One confirmation updates every pending group in
+  turn (managed stacks via compose, the rest recreated in place).
+- **Storage: "Remove unused images".** Shows how much space is reclaimable and
+  removes every unused image in one go. Volumes stay one-by-one on purpose: they
+  hold data.
+- **Stacks.** The operation log now appears right under the buttons that start it
+  (it used to land below a tall editor, out of sight), services are listed above the
+  compose editor, and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves.
+- **Smaller fixes.** Catalog descriptions with raw markdown
+  (`[Name](https://…) is a …`) now read as plain text; the logs slide-over closes on
+  <kbd>Esc</kbd> and logs can be filtered; labelled login fields (the username
+  placeholder was cut off); no back arrows on top-level pages; header buttons no
+  longer wrap; the container page no longer overflows on phones.
 - **`HOMEPORT_BIND` limits which host address the port is published on.** Set
   `HOMEPORT_BIND=127.0.0.1` in `.env` once a reverse proxy fronts homeport: Docker
   publishes ports past ufw/firewalld, so the default leaves `:3004` reachable from

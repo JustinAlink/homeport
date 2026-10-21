@@ -1,29 +1,30 @@
 <template>
-  <div class="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <h1 class="text-xl font-semibold text-slate-100">App catalog</h1>
-      <span v-if="data" class="text-xs text-slate-600">{{ data.apps.length }} apps</span>
-
+  <div class="page">
+    <PageHeader title="App catalog" subtitle="Install self-hosted apps as compose stacks you can edit afterwards: curated templates, any Docker Hub image, or a GitHub repository.">
+      <template #badges>
+        <span v-if="data" class="badge tabular">{{ data.apps.length }} apps</span>
+      </template>
+      <template #actions>
       <!-- sources status: compact header control, details on demand -->
-      <div class="relative ml-auto">
+      <div class="relative">
         <button
-          class="flex items-center gap-2 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+          class="btn"
           title="Template sources"
           @click="sourcesOpen = !sourcesOpen"
         >
-          <span class="h-2 w-2 rounded-full" :class="sourcesHealthy ? 'bg-accent' : 'bg-red-400'" />
+          <span class="dot" :class="sourcesHealthy ? 'bg-ok' : 'bg-red-400'" />
           {{ data ? data.sources.length : '…' }} sources
-          <Icon :name="sourcesOpen ? 'chevron-up' : 'chevron-down'" class="h-3 w-3 text-slate-600" />
+          <Icon :name="sourcesOpen ? 'chevron-up' : 'chevron-down'" class="h-3 w-3 text-slate-500" />
         </button>
         <div
           v-if="sourcesOpen && data"
-          class="absolute right-0 z-20 mt-2 w-[26rem] max-w-[90vw] rounded-lg border border-white/10 bg-ink-900 p-3 shadow-xl shadow-black/40"
+          class="absolute right-0 z-20 mt-2 w-[26rem] max-w-[90vw] rounded-xl border border-white/10 bg-ink-900 p-3"
+          style="box-shadow: var(--shadow-pop)"
         >
           <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Template sources</span>
+            <span class="eyebrow">Template sources</span>
             <button
-              class="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5 disabled:opacity-40"
+              class="btn btn-sm disabled:opacity-40"
               :disabled="refreshing"
               @click="refresh"
             >{{ refreshing ? 'Refreshing…' : 'Refresh' }}</button>
@@ -45,34 +46,31 @@
               </div>
             </div>
           </div>
-          <NuxtLink to="/settings#catalog" class="mt-2 block text-[11px] text-accent-light hover:underline">
-            Manage sources in Settings →
+          <NuxtLink to="/settings#catalog" class="link mt-2 inline-flex items-center gap-1 text-xs">
+            Manage sources in Settings <Icon name="arrow-right" class="h-3 w-3" />
           </NuxtLink>
         </div>
       </div>
-    </header>
+      </template>
+    </PageHeader>
 
     <!-- source switcher: curated/community templates vs raw Docker Hub search -->
-    <div class="mb-5 flex gap-1 border-b border-white/5 text-sm">
-      <button
-        v-for="t in [{ k: 'templates', label: 'Templates' }, { k: 'hub', label: 'Docker Hub' }, { k: 'github', label: 'GitHub' }]"
-        :key="t.k"
-        class="-mb-px border-b-2 px-3 py-2"
-        :class="view === t.k ? 'border-accent text-accent-light' : 'border-transparent text-slate-400 hover:text-slate-200'"
-        @click="view = t.k as 'templates' | 'hub' | 'github'"
-      >{{ t.label }}</button>
-    </div>
+    <TabBar
+      :model-value="view"
+      :tabs="[{ key: 'templates', label: 'Templates', icon: 'catalog' }, { key: 'hub', label: 'Docker Hub', icon: 'box' }, { key: 'github', label: 'GitHub', icon: 'git-branch' }]"
+      @update:model-value="view = $event as 'templates' | 'hub' | 'github'"
+    />
 
     <!-- Docker Hub: search hero + popular images -->
     <template v-if="view === 'hub'">
-      <div class="mb-6 rounded-2xl border border-white/10 bg-ink-900 p-5">
+      <div class="card mb-6 p-4 sm:p-5">
         <div class="flex flex-wrap items-center gap-2">
           <div class="relative min-w-[16rem] flex-1">
             <Icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               v-model="hubQuery"
-              placeholder="Search all of Docker Hub — try jellyfin, nextcloud, postgres…"
-              class="w-full rounded-lg border border-white/10 bg-ink-950 py-2.5 pl-10 pr-9 text-sm text-slate-100 outline-none focus:border-accent/50"
+              placeholder="Search all of Docker Hub: try jellyfin, nextcloud, postgres…"
+              class="input h-10 pl-10 pr-9 text-sm"
               @keydown.enter="searchHub"
             />
             <button
@@ -84,7 +82,7 @@
           </div>
           <select
             v-model="hubSort"
-            class="rounded-md border border-white/10 bg-ink-950 px-2 py-2.5 text-xs text-slate-300 outline-none focus:border-accent/50"
+            class="select h-10 w-auto"
           >
             <option value="match">Sort: best match</option>
             <option value="pulls">Sort: most pulls</option>
@@ -96,34 +94,34 @@
         </p>
       </div>
 
-      <p v-if="hubError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ hubError }}</p>
+      <p v-if="hubError" class="callout callout-warn">{{ hubError }}</p>
       <template v-else>
         <div class="mb-3 flex items-center gap-2 text-xs">
-          <span class="font-semibold uppercase tracking-wider text-slate-500">
+          <span class="section-title">
             {{ hubSearched ? `Results for “${hubQuery.trim()}”` : 'Most pulled on Docker Hub' }}
           </span>
           <span v-if="hubLoading" class="animate-pulse text-slate-600">searching…</span>
         </div>
-        <p v-if="!hubDisplay.length && !hubSearched && !hubTopLoaded" class="animate-pulse rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-600">
+        <p v-if="!hubDisplay.length && !hubSearched && !hubTopLoaded" class="card animate-pulse p-8 text-center text-[13px] text-slate-500">
           Loading popular images…
         </p>
-        <p v-else-if="!hubDisplay.length && !hubSearched && hubTopError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
+        <p v-else-if="!hubDisplay.length && !hubSearched && hubTopError" class="callout callout-warn">
           {{ hubTopError }} — searching still works.
         </p>
-        <p v-else-if="!hubDisplay.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        <p v-else-if="!hubDisplay.length" class="card p-10 text-center text-[13px] text-slate-500">
           No images match “{{ hubQuery.trim() }}”.
         </p>
         <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-for="r in hubDisplay"
             :key="r.name"
-            class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+            class="card flex flex-col gap-2 p-5 transition-colors hover:border-white/[0.16]"
           >
             <div class="flex items-center gap-2">
               <span class="truncate text-sm font-medium text-slate-100">{{ r.name }}</span>
               <span
                 v-if="r.official"
-                class="shrink-0 rounded-full border border-ok/40 px-1.5 py-px text-[10px] uppercase tracking-wider text-ok"
+                class="badge badge-ok"
               >official</span>
             </div>
             <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
@@ -134,13 +132,13 @@
                 :href="`https://hub.docker.com/r/${r.official ? '_/' + r.name : r.name}`"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-sky-300/70 hover:text-sky-300 hover:underline"
-              >hub ↗</a>
+                class="inline-flex items-center gap-1 hover:text-slate-200"
+              >Docker Hub <Icon name="external" class="h-3 w-3" /></a>
               <NuxtLink
                 v-if="data?.installEnabled"
                 :to="`/catalog/hub/${r.name}`"
-                class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
-              >Install →</NuxtLink>
+                class="btn btn-sm btn-accent ml-auto"
+              >Install <Icon name="arrow-right" /></NuxtLink>
             </div>
           </div>
         </div>
@@ -152,14 +150,14 @@
 
     <!-- GitHub: search hero + top self-hosted repos → git-backed stack -->
     <template v-else-if="view === 'github'">
-      <div class="mb-6 rounded-2xl border border-white/10 bg-ink-900 p-5">
+      <div class="card mb-6 p-4 sm:p-5">
         <div class="flex flex-wrap items-center gap-2">
           <div class="relative min-w-[16rem] flex-1">
             <Icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               v-model="ghQuery"
-              placeholder="Search GitHub — try immich, paperless, uptime-kuma…"
-              class="w-full rounded-lg border border-white/10 bg-ink-950 py-2.5 pl-10 pr-9 text-sm text-slate-100 outline-none focus:border-accent/50"
+              placeholder="Search GitHub: try immich, paperless, uptime-kuma…"
+              class="input h-10 pl-10 pr-9 text-sm"
               @keydown.enter="searchGithub"
             />
             <button
@@ -171,7 +169,7 @@
           </div>
           <select
             v-model="ghSort"
-            class="rounded-md border border-white/10 bg-ink-950 px-2 py-2.5 text-xs text-slate-300 outline-none focus:border-accent/50"
+            class="select h-10 w-auto"
           >
             <option value="match">Sort: best match</option>
             <option value="stars">Sort: most stars</option>
@@ -183,28 +181,28 @@
         </p>
       </div>
 
-      <p v-if="ghError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ ghError }}</p>
+      <p v-if="ghError" class="callout callout-warn">{{ ghError }}</p>
       <template v-else>
         <div class="mb-3 flex items-center gap-2 text-xs">
-          <span class="font-semibold uppercase tracking-wider text-slate-500">
+          <span class="section-title">
             {{ ghSearched ? `Results for “${ghQuery.trim()}”` : 'Popular self-hosted projects' }}
           </span>
           <span v-if="ghLoading" class="animate-pulse text-slate-600">searching…</span>
         </div>
-        <p v-if="!ghDisplay.length && !ghSearched && !ghTopLoaded" class="animate-pulse rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-600">
+        <p v-if="!ghDisplay.length && !ghSearched && !ghTopLoaded" class="card animate-pulse p-8 text-center text-[13px] text-slate-500">
           Loading popular repositories…
         </p>
-        <p v-else-if="!ghDisplay.length && !ghSearched && ghTopError" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">
+        <p v-else-if="!ghDisplay.length && !ghSearched && ghTopError" class="callout callout-warn">
           {{ ghTopError }} — searching still works.
         </p>
-        <p v-else-if="!ghDisplay.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+        <p v-else-if="!ghDisplay.length" class="card p-10 text-center text-[13px] text-slate-500">
           No repositories match “{{ ghQuery.trim() }}”.
         </p>
         <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-for="r in ghDisplay"
             :key="r.name"
-            class="flex flex-col gap-2 rounded-2xl border border-white/10 bg-ink-900 p-5"
+            class="card flex flex-col gap-2 p-5 transition-colors hover:border-white/[0.16]"
           >
             <div class="flex items-center gap-2">
               <Icon name="git-branch" class="h-4 w-4 shrink-0 text-slate-500" />
@@ -213,12 +211,12 @@
             <p class="line-clamp-2 min-h-[2rem] text-xs leading-relaxed text-slate-500">{{ r.description || 'no description' }}</p>
             <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-slate-500">
               <span class="inline-flex items-center gap-1" title="stars"><Icon name="check" class="h-3 w-3" />{{ formatCount(r.stars) }}</span>
-              <a :href="r.url" target="_blank" rel="noopener noreferrer" class="text-sky-300/70 hover:text-sky-300 hover:underline">github ↗</a>
+              <a :href="r.url" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 hover:text-slate-200">GitHub <Icon name="external" class="h-3 w-3" /></a>
               <NuxtLink
                 v-if="data?.installEnabled"
                 :to="`/stacks?git=${encodeURIComponent(r.cloneUrl)}&name=${hubStackName(r.name)}`"
-                class="ml-auto rounded-md border border-accent/30 px-2.5 py-1 text-accent-light hover:bg-accent/10"
-              >Deploy stack →</NuxtLink>
+                class="btn btn-sm btn-accent ml-auto"
+              >Deploy stack <Icon name="arrow-right" /></NuxtLink>
             </div>
           </div>
         </div>
@@ -228,11 +226,11 @@
       </p>
     </template>
 
-    <div v-else-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
+    <div v-else-if="error" class="callout callout-warn">{{ error }}</div>
 
     <!-- skeleton grid while loading -->
     <div v-else-if="!data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="i in 9" :key="i" class="flex animate-pulse gap-3.5 rounded-2xl border border-white/10 bg-ink-900 p-5">
+      <div v-for="i in 9" :key="i" class="card flex animate-pulse gap-3.5 p-5">
         <div class="h-10 w-10 shrink-0 rounded-md bg-white/5" />
         <div class="min-w-0 flex-1 space-y-2 py-0.5">
           <div class="h-3.5 w-2/5 rounded bg-white/5" />
@@ -242,41 +240,46 @@
     </div>
 
     <template v-else>
-      <p v-if="!data.installEnabled" class="mb-4 rounded-lg border border-white/5 bg-ink-900 px-4 py-3 text-xs text-slate-500">
+      <p v-if="!data.installEnabled" class="callout callout-info mb-5 text-xs">
         Browsing only — installing apps needs the <b class="text-slate-300">Compose stacks</b> capability
         (Settings → Capabilities), since an installed app becomes a normal stack.
       </p>
 
       <!-- search + sort + category filter -->
       <div class="mb-5 flex flex-wrap items-center gap-2">
-        <input
-          v-model="query"
-          placeholder="Search apps…"
-          class="w-56 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
+        <div class="relative w-full sm:w-64">
+          <Icon name="search" class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            v-model="query"
+            placeholder="Search apps…"
+            aria-label="Search apps"
+            class="input pl-8"
+          />
+        </div>
         <select
           v-model="sort"
-          class="rounded-md border border-white/10 bg-ink-950 px-2 py-2 text-xs text-slate-300 outline-none focus:border-accent/50"
+          class="select w-auto"
           title="Sort order"
         >
-          <option value="default">Sort: source order</option>
+          <option value="default">Sort: recommended</option>
           <option value="name">Sort: name A–Z</option>
         </select>
         <button
           v-for="c in visibleCategories"
           :key="c.name"
-          class="rounded-full border px-2.5 py-1 text-[11px]"
-          :class="c.name === category ? 'border-accent/50 bg-accent/10 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
+          class="chip h-7 rounded-full px-3"
+          :class="c.name === category ? '!bg-accent/15 !text-accent-light ring-1 ring-inset ring-accent/40' : ''"
+          :aria-pressed="c.name === category"
           @click="category = category === c.name ? '' : c.name"
-        >{{ c.name }} <span class="text-slate-600">{{ c.count }}</span></button>
+        >{{ c.name }} <span class="tabular text-slate-500">{{ c.count }}</span></button>
         <button
           v-if="categories.length > CATEGORY_LIMIT"
-          class="rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-500 hover:bg-white/5"
+          class="chip h-7 rounded-full px-3 text-slate-500"
           @click="allCategories = !allCategories"
         >{{ allCategories ? 'show less' : `+${categories.length - CATEGORY_LIMIT} more` }}</button>
       </div>
 
-      <p v-if="!filtered.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
+      <p v-if="!filtered.length" class="card p-10 text-center text-[13px] text-slate-500">
         No apps match<template v-if="query"> “{{ query }}”</template>.
       </p>
 
@@ -285,26 +288,26 @@
           v-for="app in paged"
           :key="`${app.source}:${app.slug}`"
           :to="`/catalog/${app.slug}`"
-          class="group flex gap-3.5 rounded-2xl border border-white/10 bg-ink-900 p-5 transition-all hover:-translate-y-px hover:border-accent/30 hover:shadow-lg hover:shadow-black/10"
+          class="card group flex gap-3.5 p-4 transition-all hover:-translate-y-px hover:border-white/[0.18]"
         >
-          <div class="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-ink-950/70">
+          <div class="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] bg-white/[0.04] ring-1 ring-inset ring-white/[0.06]">
             <ServiceIcon :name="app.name" :icon="app.icon" :size="30" />
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="truncate text-sm font-medium text-slate-100 group-hover:text-white">{{ app.name }}</span>
+              <span class="truncate text-[14px] font-semibold text-slate-100 group-hover:text-accent-light">{{ app.name }}</span>
               <span
                 v-if="isInstalled(app)"
-                class="shrink-0 rounded-full border border-ok/40 bg-ok/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-ok"
-                title="Already running here — an installed app is just a stack"
+                class="badge badge-ok"
+                title="Already running here: an installed app is just a stack"
               >installed</span>
               <span
                 v-if="app.categories[0]"
-                class="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-slate-600"
+                class="ml-auto shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-slate-500"
               >{{ app.categories[0] }}</span>
             </div>
-            <p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{{ app.description || app.image }}</p>
-            <div v-if="app.source !== 'built-in'" class="mt-1.5 truncate text-[10px] text-sky-300/50" :title="app.source">
+            <p class="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-slate-400">{{ app.description || app.image }}</p>
+            <div v-if="app.source !== 'built-in'" class="mt-1.5 truncate text-[10.5px] text-slate-600" :title="app.source">
               {{ sourceHost(app.source) }}
             </div>
           </div>
@@ -314,20 +317,20 @@
       <!-- pagination -->
       <div v-if="pageCount > 1" class="mt-6 flex items-center justify-center gap-1.5 text-xs">
         <button
-          class="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
+          class="btn btn-sm"
           :disabled="page === 1"
           @click="go(page - 1)"
         ><Icon name="chevron-left" class="h-3 w-3" /> Prev</button>
         <button
           v-for="p in pageNumbers"
           :key="p.key"
-          class="min-w-[2rem] rounded-md border px-2 py-1.5"
-          :class="p.n === page ? 'border-accent/50 bg-accent/10 text-accent-light' : p.n ? 'border-white/10 text-slate-400 hover:bg-white/5' : 'cursor-default border-transparent text-slate-600'"
+          class="btn btn-sm min-w-[2rem] px-2"
+          :class="p.n === page ? 'btn-accent' : p.n ? 'btn-ghost' : 'btn-ghost pointer-events-none'"
           :disabled="!p.n"
           @click="p.n && go(p.n)"
         >{{ p.n || '…' }}</button>
         <button
-          class="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1.5 text-slate-300 hover:bg-white/5 disabled:opacity-30"
+          class="btn btn-sm"
           :disabled="page === pageCount"
           @click="go(page + 1)"
         >Next <Icon name="chevron-right" class="h-3 w-3" /></button>
@@ -632,5 +635,5 @@ onMounted(() => {
   load()
   refreshServices()
 })
-useHead({ title: 'App catalog — homeport' })
+useHead({ title: 'App catalog · homeport' })
 </script>

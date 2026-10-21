@@ -8,11 +8,11 @@
     <!-- create -->
     <div class="flex flex-wrap items-end gap-2">
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Username</label>
+        <label class="field-label mb-0">Username</label>
         <input v-model="username" :class="fieldCls" placeholder="e.g. teammate" @keyup.enter="create" />
       </div>
       <div>
-        <label class="text-[11px] uppercase tracking-wider text-slate-500">Password</label>
+        <label class="field-label mb-0">Password</label>
         <input v-model="password" type="password" :class="fieldCls" placeholder="Password" autocomplete="new-password" @keyup.enter="create" />
       </div>
       <button
@@ -49,7 +49,7 @@
 <script setup lang="ts">
 interface UserMeta { id: string; username: string; createdAt: number; lastLoginAt?: number }
 
-const fieldCls = 'mt-1 w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50'
+const fieldCls = 'mt-1 input'
 const { confirm: confirmDialog } = useConfirm()
 const toast = useToast()
 

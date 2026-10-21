@@ -34,6 +34,7 @@ export default <Partial<Config>>{
           light: v('accent-light'),
         },
         'on-accent': v('on-accent'),
+        primary: { DEFAULT: v('primary'), hover: v('primary-hover') },
         ok: {
           DEFAULT: v('ok'),
           soft: v('ok-soft'),
@@ -43,7 +44,9 @@ export default <Partial<Config>>{
         sky: { 200: v('sky-200'), 300: v('sky-300'), 400: v('sky-400'), 500: v('sky-500') },
       },
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        // bundled via @fontsource-variable (nuxt.config css), so every OS renders the same
+        sans: ['Inter Variable', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono Variable', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
     },
   },

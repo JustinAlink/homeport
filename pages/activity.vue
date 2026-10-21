@@ -1,43 +1,36 @@
 <template>
-  <div class="mx-auto max-w-[900px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex flex-wrap items-center gap-3">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-100">Activity</h1>
-        <p class="mt-1 text-[13px] text-slate-500">What happened while you were away — alerts, updates, operations.</p>
-      </div>
-      <button
-        class="ml-auto rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
-        :disabled="loading"
-        @click="load"
-      >{{ loading ? 'Refreshing…' : 'Refresh' }}</button>
-    </header>
+  <div class="page-narrow">
+    <PageHeader title="Activity" subtitle="What happened while you were away: alerts, updates and operations.">
+      <template #actions>
+        <button class="btn" :disabled="loading" @click="load"><Icon name="refresh" :class="loading ? 'animate-spin' : ''" /> Refresh</button>
+      </template>
+    </PageHeader>
 
-    <div class="mb-4 flex flex-wrap gap-1.5 text-[11px]">
+    <div class="segmented mb-5">
       <button
         v-for="f in FILTERS"
         :key="f.key"
-        class="rounded-full border px-2.5 py-1"
-        :class="filter === f.key ? 'border-accent/50 bg-accent/10 text-accent-light' : 'border-white/10 text-slate-400 hover:bg-white/5'"
+        :aria-pressed="filter === f.key"
         @click="filter = f.key"
       >{{ f.label }}</button>
     </div>
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
-    <div v-else-if="!loaded" class="py-20 text-center text-slate-500">Loading…</div>
-    <p v-else-if="!rows.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-      Nothing yet — state changes, update notifications and operations will show up here.
-    </p>
+    <div v-if="error" class="callout callout-warn">{{ error }}</div>
+    <div v-else-if="!loaded" class="card h-64" />
+    <div v-else-if="!rows.length" class="card">
+      <EmptyState icon="pulse" title="Nothing yet" text="State changes, update notifications and operations show up here as they happen." />
+    </div>
 
-    <ol v-else class="space-y-1.5">
+    <ol v-else class="card row-list overflow-hidden">
       <li
         v-for="(r, i) in rows"
         :key="i"
-        class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-900 px-4 py-2.5 text-sm"
+        class="flex items-center gap-3 px-4 py-3 text-[13.5px] sm:px-5"
       >
-        <Icon :name="r.icon" class="h-4 w-4 shrink-0" :class="r.cls" />
-        <span class="min-w-0 flex-1 truncate text-slate-200">{{ r.text }}</span>
-        <span v-if="r.host" class="shrink-0 rounded-full border border-white/10 px-1.5 py-px text-[10px] text-slate-500">{{ r.host }}</span>
-        <span class="shrink-0 text-[11px] text-slate-500" :title="new Date(r.at).toLocaleString()">{{ ago(r.at) }}</span>
+        <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/[0.04]"><Icon :name="r.icon" class="h-3.5 w-3.5" :class="r.cls" /></span>
+        <span class="min-w-0 flex-1 truncate text-slate-200" :title="r.text">{{ r.text }}</span>
+        <span v-if="r.host" class="badge shrink-0">{{ r.host }}</span>
+        <span class="w-16 shrink-0 text-right text-xs tabular-nums text-slate-500" :title="new Date(r.at).toLocaleString()">{{ ago(r.at) }}</span>
       </li>
     </ol>
   </div>
@@ -126,5 +119,5 @@ function ago(at: number): string {
 }
 
 onMounted(load)
-useHead({ title: 'Activity — homeport' })
+useHead({ title: 'Activity · homeport' })
 </script>

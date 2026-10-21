@@ -3,10 +3,10 @@
     <button
       type="button"
       :disabled="busy"
-      class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
+      class="btn btn-sm"
       @click="run"
     >{{ busy ? 'Testing…' : label }}</button>
-    <span v-if="msg" class="text-[11px]" :class="ok ? 'text-accent-light' : 'text-red-400'">{{ msg }}</span>
+    <span v-if="msg" class="inline-flex items-center gap-1.5 text-xs" :class="ok ? 'text-ok' : 'text-red-400'"><Icon :name="ok ? 'check' : 'alert'" class="h-3.5 w-3.5 shrink-0" />{{ msg }}</span>
   </div>
 </template>
 

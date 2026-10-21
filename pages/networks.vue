@@ -1,102 +1,94 @@
 <template>
-  <div class="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-6 flex items-center gap-3">
-      <NuxtLink to="/" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <div>
-        <h1 class="text-xl font-semibold text-slate-100">Networks</h1>
-        <p class="mt-1 text-[13px] text-slate-500">
-          Docker networks on this host — every network claims an address range, and a compose file that pins an
-          already-taken subnet fails with “Pool overlaps”. Networks nothing references can be removed here.
-        </p>
-      </div>
-      <div class="ml-auto flex items-center gap-2">
-        <button
-          v-if="caps.control"
-          class="rounded-md border border-accent/30 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10"
-          @click="creating = !creating"
-        >+ New network</button>
-        <button
-          class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
-          :disabled="loading"
-          @click="load"
-        >{{ loading ? 'Refreshing…' : 'Refresh' }}</button>
-      </div>
-    </header>
+  <div class="page">
+    <PageHeader title="Networks">
+      <template #subtitle>
+        Docker networks on this host. Every network claims an address range, and a compose file that pins an already-taken
+        subnet fails with “Pool overlaps”. Networks nothing references can be removed here.
+      </template>
+      <template #actions>
+        <button class="btn" :disabled="loading" @click="load"><Icon name="refresh" :class="loading ? 'animate-spin' : ''" /> Refresh</button>
+        <button v-if="caps.control" class="btn btn-primary" @click="creating = !creating"><Icon name="plus" /> New network</button>
+      </template>
+    </PageHeader>
 
     <!-- create form -->
-    <div v-if="creating" class="mb-4 space-y-2 rounded-lg border border-white/10 bg-ink-900 p-3">
+    <div v-if="creating" class="card mb-5 space-y-3 p-4 sm:p-5">
+      <p class="card-title">New network</p>
       <div class="flex flex-wrap items-center gap-2">
         <input
           v-model="create.name"
           placeholder="network name (e.g. shared-backend)"
-          class="min-w-[14rem] flex-1 rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
+          class="min-w-[14rem] flex-1 input"
           @keydown.enter="createNetwork"
         />
         <input
           v-model="create.subnet"
-          placeholder="subnet — optional (e.g. 172.30.0.0/16)"
-          class="w-64 rounded-md border border-white/10 bg-ink-950 px-3 py-2 font-mono text-sm text-slate-100 outline-none focus:border-accent/50"
+          placeholder="subnet, optional (e.g. 172.30.0.0/16)"
+          class="w-64 input font-mono"
           @keydown.enter="createNetwork"
         />
         <button
-          class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
+          class="btn btn-primary"
           :disabled="!create.name.trim() || createBusy"
           @click="createNetwork"
         >{{ createBusy ? 'Creating…' : 'Create' }}</button>
-        <button class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5" @click="creating = false">Cancel</button>
+        <button class="btn btn-ghost" @click="creating = false">Cancel</button>
       </div>
-      <p class="text-[11px] text-slate-600">
-        Leave the subnet empty to let docker pick a free range (recommended). Bridge driver.
-        To connect two stacks, create a network here, then attach containers below — or declare it as
-        <code class="text-slate-500">external: true</code> in both compose files to make it permanent.
+      <p class="text-xs leading-relaxed text-slate-500">
+        Leave the subnet empty to let docker pick a free range (recommended). Bridge driver. To connect two stacks, create a
+        network here, then attach containers below, or declare it as <code>external: true</code> in both compose files to make
+        it permanent.
       </p>
       <p v-if="createErr" class="whitespace-pre-line text-[11px] text-red-400">{{ createErr }}</p>
     </div>
 
-    <div v-if="error" class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ error }}</div>
-    <div v-else-if="!loaded" class="py-20 text-center text-slate-500">Loading…</div>
+    <div v-if="error" class="callout callout-warn">{{ error }}</div>
+    <div v-else-if="!loaded" class="card h-64" />
 
     <template v-else>
       <p v-if="removeErr" class="mb-3 text-xs text-red-400">{{ removeErr }}</p>
-      <div class="space-y-2">
+      <div class="card row-list overflow-hidden">
         <div
           v-for="n in networks"
           :key="n.id"
-          class="rounded-xl border border-white/5 bg-ink-900 px-5 py-3.5"
+          class="px-4 py-3 sm:px-5"
         >
-          <div class="flex flex-wrap items-center gap-3">
-            <span class="font-mono text-[15px] text-slate-100">{{ n.name }}</span>
-            <span v-if="n.builtin" class="rounded-full border border-white/10 px-1.5 py-px text-[9px] uppercase tracking-wider text-slate-500" title="Created by docker itself — always present">built-in</span>
-            <span v-else-if="n.project" class="rounded-full border border-sky-400/25 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300" :title="`Created by compose project ${n.project} — its compose file owns this network's settings`">{{ n.project }}</span>
-            <span class="font-mono text-xs text-slate-500">{{ n.subnets.join(' · ') || 'no subnet' }}</span>
-            <span class="text-xs text-slate-600">{{ n.driver }}</span>
-            <span class="ml-auto text-xs" :class="n.containers ? 'text-slate-500' : 'text-amber-300/70'">
-              {{ n.containers ? `${n.containers} container${n.containers > 1 ? 's' : ''}` : 'unused' }}
-            </span>
-            <button
-              v-if="caps.control && !n.builtin && n.containers === 0"
-              :disabled="busy === n.name"
-              class="rounded-md border border-red-500/25 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-              @click="remove(n.name)"
-            >{{ busy === n.name ? 'Removing…' : 'Remove' }}</button>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <Icon name="network" class="h-4 w-4 shrink-0 text-slate-500" />
+            <span class="font-mono text-[13.5px] text-slate-100">{{ n.name }}</span>
+            <span v-if="n.builtin" class="badge" title="Created by docker itself, always present">built-in</span>
+            <NuxtLink v-else-if="n.project" :to="`/stacks/${encodeURIComponent(n.project)}`" class="badge badge-info hover:brightness-125" :title="`Created by compose project ${n.project}: its compose file owns this network's settings`">{{ n.project }}</NuxtLink>
+            <span class="font-mono text-xs text-slate-400">{{ n.subnets.join(' · ') || 'no subnet' }}</span>
+            <span class="text-xs text-slate-500">{{ n.driver }}</span>
+            <div class="ml-auto flex items-center gap-2">
+              <span v-if="n.containers" class="text-xs text-slate-500">{{ `${n.containers} container${n.containers > 1 ? 's' : ''}` }}</span>
+              <span v-else class="badge badge-warn">unused</span>
+              <button
+                v-if="caps.control && !n.builtin && n.containers === 0"
+                :disabled="busy === n.name"
+                class="btn btn-danger btn-sm"
+                @click="remove(n.name)"
+              >{{ busy === n.name ? 'Removing…' : 'Remove' }}</button>
+            </div>
           </div>
-          <div v-if="!n.builtin" class="mt-2 flex flex-wrap items-center gap-1.5">
+          <div v-if="!n.builtin" class="mt-2 flex flex-wrap items-center gap-1.5 pl-7">
             <span
               v-for="c in n.attached || []"
               :key="c.id"
-              class="group inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-slate-400"
+              class="chip gap-1 pr-1"
             >
-              <NuxtLink :to="`/services/${encodeURIComponent(c.id)}`" class="hover:text-slate-200">{{ c.name }}</NuxtLink>
+              <NuxtLink :to="`/services/${encodeURIComponent(c.id)}`" class="hover:text-slate-100">{{ c.name }}</NuxtLink>
               <button
                 v-if="caps.control"
-                class="text-slate-600 hover:text-red-300"
+                class="grid h-4 w-4 place-items-center rounded text-slate-500 hover:bg-red-500/15 hover:text-red-300"
                 :title="`Detach ${c.name} from ${n.name}`"
+                :aria-label="`Detach ${c.name}`"
                 @click="detach(n.name, c)"
               ><Icon name="x" class="h-2.5 w-2.5" /></button>
             </span>
             <select
               v-if="caps.control && attachable(n).length"
-              class="rounded-md border border-white/10 bg-ink-950 px-1.5 py-0.5 text-[11px] text-slate-400 outline-none focus:border-accent/50"
+              class="select input-sm h-6 w-auto rounded-md py-0 pl-2 pr-7 text-[11.5px] text-slate-400"
               :value="''"
               @change="attach(n.name, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
             >
@@ -107,7 +99,7 @@
           <p v-if="rowErr[n.name]" class="mt-1 text-[11px] text-red-400">{{ rowErr[n.name] }}</p>
         </div>
       </div>
-      <p class="mt-4 text-[11px] text-slate-600">
+      <p class="mt-4 text-xs leading-relaxed text-slate-500">
         Removal refuses built-in networks and anything still referenced by a container (running or stopped).
         Attach/detach applies immediately but is runtime-only for compose-managed containers — the compose file's
         <code>networks:</code> section wins when the stack is next recreated; add the network there (with
@@ -225,5 +217,5 @@ onMounted(() => {
   svcStart()
 })
 onBeforeUnmount(svcStop)
-useHead({ title: 'Networks — homeport' })
+useHead({ title: 'Networks · homeport' })
 </script>

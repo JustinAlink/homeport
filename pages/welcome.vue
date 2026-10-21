@@ -1,6 +1,6 @@
 <template>
   <div class="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
-    <div class="rounded-2xl border border-white/5 bg-ink-900 p-6 sm:p-8">
+    <div class="card p-6 sm:p-8" style="box-shadow: var(--shadow-pop)">
       <div class="mb-6 flex items-center gap-3">
         <div class="grid h-10 w-10 place-items-center rounded-xl bg-accent/15 text-accent"><Logo class="h-5 w-5" /></div>
         <div>
@@ -15,7 +15,7 @@
       <!-- 1 · orientation -->
       <div v-if="step === 1" class="space-y-4">
         <p class="text-sm leading-relaxed text-slate-300">
-          homeport reads your Docker fleet live and builds the dashboard for you — every container, its
+          homeport reads your Docker fleet live and builds the dashboard for you: every container, its
           status, and the domain that points to it. <strong class="text-slate-100">It's read-only by
           default</strong>: nothing changes until you turn a capability on.
         </p>
@@ -43,7 +43,7 @@
           {{ connectMsg }}
           <div v-if="connectSecret" class="mt-1.5 select-all rounded bg-black/30 px-2 py-1 font-mono text-slate-100">admin@example.com&nbsp;·&nbsp;{{ connectSecret }}</div>
         </div>
-        <p class="text-[11px] text-slate-500">Already using Caddy, Traefik or your own proxy? homeport auto-detects it — just skip ahead.</p>
+        <p class="text-[11px] text-slate-500">Already using Caddy, Traefik or your own proxy? homeport auto-detects it, so just skip ahead.</p>
         <div class="flex gap-2 pt-1">
           <button :class="btnPrimary" @click="step = 3">Next</button>
           <button :class="btnGhost" @click="step = 3">Skip</button>
@@ -53,11 +53,11 @@
       <!-- 3 · capabilities -->
       <div v-else class="space-y-4">
         <div>
-          <h2 class="text-sm font-semibold text-slate-100">Turn on management — only what you want</h2>
+          <h2 class="text-sm font-semibold text-slate-100">Turn on management, only what you want</h2>
           <p class="mt-1 text-[13px] leading-relaxed text-slate-400">Each is off by default and independent. Change these anytime in Settings.</p>
         </div>
-        <label v-for="c in capChoices" :key="c.key" class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-white/5 p-2.5 transition-colors hover:bg-white/[0.03]">
-          <input v-model="caps[c.key]" type="checkbox" class="mt-0.5 accent-accent" />
+        <label v-for="c in capChoices" :key="c.key" class="check rounded-lg border border-white/[0.08] p-3 transition-colors hover:bg-white/[0.03]">
+          <input v-model="caps[c.key]" type="checkbox" />
           <span>
             <span class="text-[13px] text-slate-200">{{ c.label }}</span>
             <span class="block text-[11px] text-slate-500">{{ c.hint }}</span>
@@ -78,9 +78,9 @@
 </template>
 
 <script setup lang="ts">
-const btnPrimary = 'rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-ink-950 transition-colors hover:bg-accent-light disabled:opacity-60'
-const btnGhost = 'rounded-lg border border-white/10 px-3.5 py-2 text-[13px] text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-60'
-const okCls = 'border-ok/25 bg-ok/5 text-emerald-300'
+const btnPrimary = 'btn btn-primary'
+const btnGhost = 'btn'
+const okCls = 'border-ok/25 bg-ok/5 text-ok'
 const warnCls = 'border-amber-500/25 bg-amber-500/5 text-amber-300'
 
 const step = ref(1)
@@ -141,5 +141,5 @@ async function finish() {
   }
 }
 
-useHead({ title: 'Welcome — homeport' })
+useHead({ title: 'Welcome · homeport' })
 </script>

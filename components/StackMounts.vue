@@ -1,23 +1,23 @@
 <template>
   <section v-if="mounts.length">
     <div class="mb-2 flex items-center gap-2">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Data &amp; mounts</h2>
+      <h2 class="section-title">Data &amp; mounts</h2>
       <button
-        class="ml-auto rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5"
+        class="ml-auto btn btn-sm"
         :disabled="loading"
         @click="load"
       >{{ loading ? '…' : 'Refresh' }}</button>
     </div>
-    <p class="mb-2 text-xs text-slate-600">
+    <p class="mb-3 text-xs leading-relaxed text-slate-500">
       Where this stack's containers keep their files. Config inside the stack folder is editable in Files above;
       named volumes and host paths live outside it — their data survives a recreate, but it isn't edited from here.
     </p>
 
-    <div class="overflow-hidden rounded-lg border border-white/5 bg-ink-900">
+    <div class="card overflow-hidden">
       <div
         v-for="m in mounts"
         :key="key(m)"
-        class="flex items-center gap-3 border-b border-white/5 px-4 py-2 last:border-b-0"
+        class="flex items-center gap-3 border-b border-white/[0.06] px-4 py-2.5 last:border-b-0"
       >
         <Icon
           :name="m.kind === 'bind-external' ? 'file' : 'stacks'"
@@ -46,8 +46,8 @@
           </div>
         </div>
         <span
-          class="shrink-0 rounded-full border px-1.5 py-px text-[9px] uppercase tracking-wider"
-          :class="m.rw ? 'border-white/10 text-slate-500' : 'border-amber-400/30 text-amber-300'"
+          class="badge shrink-0"
+          :class="m.rw ? '' : 'badge-warn'"
         >{{ m.rw ? 'rw' : 'ro' }}</span>
         <span
           v-if="m.services.length"
@@ -58,13 +58,13 @@
           <!-- homeport can read the bind → edit it directly in the file browser -->
           <button
             v-if="m.hostVisible !== false"
-            class="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+            class="shrink-0 btn btn-ghost btn-sm h-6 px-2 text-[11px]"
             @click="$emit('browse', m.rel)"
           >open</button>
           <!-- host path invisible to homeport (named-volume stacks dir) → go through the container -->
           <button
             v-else-if="canBrowse(m)"
-            class="shrink-0 rounded-md border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent-light hover:bg-accent/10"
+            class="btn btn-accent btn-sm h-6 shrink-0 px-2 text-[11px]"
             title="homeport can't see this bind on disk — browse it inside the container instead"
             @click="openContainer(m)"
           >{{ m.rw ? 'browse' : 'view' }}</button>
@@ -72,14 +72,14 @@
         <template v-else>
           <button
             v-if="canBrowse(m)"
-            class="shrink-0 rounded-md border border-accent/30 px-1.5 py-0.5 text-[10px] text-accent-light hover:bg-accent/10"
+            class="btn btn-accent btn-sm h-6 shrink-0 px-2 text-[11px]"
             :title="`Browse + edit files inside this ${m.kind === 'volume' ? 'volume' : 'mount'}`"
             @click="openContainer(m)"
           >{{ m.rw ? 'browse' : 'view' }}</button>
           <NuxtLink
             v-if="m.kind === 'volume'"
             to="/storage"
-            class="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/5"
+            class="shrink-0 btn btn-ghost btn-sm h-6 px-2 text-[11px]"
             title="Manage this volume under Storage"
           >storage ↗</NuxtLink>
         </template>

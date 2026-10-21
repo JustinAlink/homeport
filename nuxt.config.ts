@@ -3,6 +3,9 @@ export default defineNuxtConfig({
 
   modules: ['@nuxtjs/tailwindcss'],
 
+  // self-hosted fonts (no CDN request; homeport often runs on a LAN or offline)
+  css: ['@fontsource-variable/inter/wght.css', '@fontsource-variable/jetbrains-mono/wght.css'],
+
   // Server backend (reads the Docker socket) — NOT static.
   nitro: {
     preset: 'node-server',

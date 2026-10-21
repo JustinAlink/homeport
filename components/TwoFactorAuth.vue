@@ -20,7 +20,7 @@
         <p class="text-[11px] text-slate-500">Enter your password to invalidate the old codes and generate a fresh set.</p>
         <input v-model="regenPassword" type="password" :class="fieldCls" placeholder="Current password" autocomplete="current-password" @keyup.enter="regenerate" />
         <div class="flex items-center gap-3">
-          <button type="button" :disabled="busy" class="rounded-md border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40" @click="regenerate">{{ busy ? 'Working…' : 'Regenerate' }}</button>
+          <button type="button" :disabled="busy" class="btn btn-sm" @click="regenerate">{{ busy ? 'Working…' : 'Regenerate' }}</button>
           <button type="button" class="text-xs text-slate-500 hover:text-slate-300" @click="showRegenerate = false; regenPassword = ''">Cancel</button>
         </div>
       </div>
@@ -60,7 +60,7 @@
       </div>
       <input v-model="code" inputmode="numeric" maxlength="6" :class="fieldCls" placeholder="6-digit code" @keyup.enter="confirmEnroll" />
       <div class="flex items-center gap-3">
-        <button type="button" :disabled="busy" class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-60" @click="confirmEnroll">{{ busy ? 'Verifying…' : 'Confirm' }}</button>
+        <button type="button" :disabled="busy" class="btn btn-primary disabled:opacity-60" @click="confirmEnroll">{{ busy ? 'Verifying…' : 'Confirm' }}</button>
         <button type="button" class="text-xs text-slate-500 hover:text-slate-300" @click="cancelEnroll">Cancel</button>
         <span v-if="err" class="text-[11px] text-red-400">{{ err }}</span>
       </div>
@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-const fieldCls = 'mt-1 w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50'
+const fieldCls = 'mt-1 input'
 const toast = useToast()
 
 const enabled = ref(false)

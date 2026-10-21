@@ -1,47 +1,50 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex items-center gap-2 px-1 pb-2 text-xs">
-      <select v-model.number="tail" class="rounded border border-white/10 bg-ink-900 px-1.5 py-1 text-slate-300" @change="connect">
-        <option :value="100">100</option>
-        <option :value="200">200</option>
-        <option :value="1000">1000</option>
-        <option :value="5000">5000</option>
+    <div class="flex flex-wrap items-center gap-2 pb-2.5 text-xs">
+      <select v-model.number="tail" class="select input-sm w-auto" aria-label="Lines to load" @change="connect">
+        <option :value="100">Last 100 lines</option>
+        <option :value="200">Last 200 lines</option>
+        <option :value="1000">Last 1000 lines</option>
+        <option :value="5000">Last 5000 lines</option>
       </select>
-      <button
-        class="rounded border px-2 py-1"
-        :class="follow ? 'border-accent/40 text-accent-light' : 'border-white/10 text-slate-400'"
-        @click="toggleFollow"
-      >{{ follow ? 'Following' : 'Paused' }}</button>
+      <div class="relative min-w-[160px] flex-1 sm:max-w-xs">
+        <Icon name="filter" class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+        <input v-model="filterText" class="input input-sm pl-8" placeholder="Filter lines…" aria-label="Filter log lines" spellcheck="false" />
+      </div>
+      <button class="btn btn-sm" :class="follow ? 'btn-accent' : ''" :title="follow ? 'Pause auto-scroll' : 'Resume auto-scroll'" @click="toggleFollow">
+        {{ follow ? 'Following' : 'Paused' }}
+      </button>
       <a
         :href="`/api/logs?id=${encodeURIComponent(id)}&tail=${tail}&follow=0&format=text`"
-        class="rounded border border-white/10 px-2 py-1 text-slate-400 hover:bg-white/5"
+        class="btn btn-sm"
         download
-      >Download</a>
-      <span class="flex items-center gap-1.5 text-slate-500">
-        <span class="h-1.5 w-1.5 rounded-full" :class="statusDot" />{{ statusText }}
+      ><Icon name="download" /> Download</a>
+      <span class="ml-auto flex items-center gap-1.5 text-slate-500">
+        <span class="dot h-1.5 w-1.5" :class="statusDot" />{{ statusText }}
       </span>
       <button
         v-if="status === 'closed' || status === 'failed'"
-        class="rounded border border-white/10 px-2 py-1 text-slate-300 hover:bg-white/5"
+        class="btn btn-sm"
         @click="connect"
       >Reconnect</button>
       <slot name="actions" />
     </div>
 
-    <p v-if="status === 'failed'" class="mb-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">
+    <p v-if="status === 'failed'" class="callout callout-warn mb-2 py-2 text-xs">
       The log stream dropped. If homeport sits behind a reverse proxy, it may be buffering the stream — or the
       logs capability / socket-proxy access was lost. Reconnect to retry.
     </p>
 
-    <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto rounded-md border border-white/5 bg-ink-950/60 px-3 py-2 font-mono text-[11px] leading-relaxed">
-      <div v-for="(l, i) in lines" :key="i" class="flex gap-2 whitespace-pre-wrap break-all">
-        <span v-if="l.t" class="shrink-0 text-slate-600">{{ shortTime(l.t) }}</span>
-        <span :class="l.s === 'stderr' ? 'text-amber-300/90' : 'text-slate-300'">{{ l.line }}</span>
+    <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/[0.06] bg-[#0d1117] px-3 py-2 font-mono text-[11.5px] leading-relaxed">
+      <div v-for="(l, i) in shownLines" :key="i" class="flex gap-3 whitespace-pre-wrap break-all rounded px-1 hover:bg-white/[0.03]">
+        <span v-if="l.t" class="shrink-0 select-none text-[#6e7681]">{{ shortTime(l.t) }}</span>
+        <span :class="l.s === 'stderr' ? 'text-[#f0b72f]' : 'text-[#c9d1d9]'">{{ l.line }}</span>
       </div>
-      <p v-if="!lines.length && status === 'open'" class="py-8 text-center text-xs text-slate-600">
+      <p v-if="lines.length && !shownLines.length" class="py-8 text-center text-xs text-[#6e7681]">No lines match “{{ filterText }}”.</p>
+      <p v-if="!lines.length && status === 'open'" class="py-8 text-center text-xs text-[#6e7681]">
         connected — no log output yet
       </p>
-      <p v-else-if="!lines.length && status === 'connecting'" class="py-8 text-center text-xs text-slate-600">
+      <p v-else-if="!lines.length && status === 'connecting'" class="py-8 text-center text-xs text-[#6e7681]">
         connecting to the log stream…
       </p>
     </div>
@@ -59,6 +62,12 @@ const props = defineProps<{ id: string }>()
 
 const MAX_LINES = 5000
 const lines = ref<LogLine[]>([])
+// client-side filter over the loaded lines (case-insensitive substring)
+const filterText = ref('')
+const shownLines = computed(() => {
+  const t = filterText.value.trim().toLowerCase()
+  return t ? lines.value.filter((l) => l.line.toLowerCase().includes(t)) : lines.value
+})
 const tail = ref(200)
 const follow = ref(true)
 const scroller = ref<HTMLElement | null>(null)
@@ -69,7 +78,7 @@ const statusText = computed(
   () => ({ connecting: 'connecting…', open: 'live', closed: 'disconnected', failed: 'stream lost' })[status.value],
 )
 const statusDot = computed(
-  () => ({ connecting: 'bg-amber-400', open: 'bg-accent', closed: 'bg-slate-500', failed: 'bg-red-400' })[status.value],
+  () => ({ connecting: 'bg-amber-400 animate-pulse', open: 'bg-ok', closed: 'bg-slate-500', failed: 'bg-red-400' })[status.value],
 )
 
 function connect() {

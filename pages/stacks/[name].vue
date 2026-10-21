@@ -1,270 +1,273 @@
 <template>
-  <div class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
-    <header class="mb-5 flex flex-wrap items-center gap-3">
-      <NuxtLink to="/stacks" class="text-slate-400 hover:text-slate-200" aria-label="Back"><Icon name="arrow-left" class="h-[18px] w-[18px]" /></NuxtLink>
-      <h1 class="text-xl font-semibold text-slate-100">{{ name }}</h1>
-      <span v-if="file" class="font-mono text-xs text-slate-600">{{ file }}</span>
-      <span
-        v-if="source !== 'stacks' && !notManaged && !isNew"
-        class="rounded-full border border-violet-400/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-300"
-        :title="`Managed in place at ${stackDir} — not in homeport's stacks directory`"
-      >external</span>
-      <span v-if="isNew" class="rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] uppercase text-amber-300">new</span>
-      <span v-if="deleting" class="inline-flex items-center gap-1 rounded-full border border-red-400/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-red-300"><span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />deleting…</span>
-      <span v-if="notManaged && rows.length" class="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500">unmanaged</span>
-      <div v-if="notManaged" class="ml-auto flex items-center gap-2">
-        <button
-          v-if="caps.updates && updatable.length"
-          :disabled="updRunning || !!bulkBusy"
-          class="inline-flex items-center gap-1.5 rounded-md border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-xs text-sky-300 hover:bg-sky-400/20 disabled:opacity-40"
-          @click="updateAll"
-        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ updRunning ? 'Updating…' : `Update all (${updatable.length})` }}</button>
-        <template v-if="caps.control && rows.length">
+  <div class="page">
+    <PageHeader :title="name" :crumbs="[{ label: 'Stacks', to: '/stacks' }]">
+      <template #icon>
+        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/[0.04] text-slate-400 ring-1 ring-inset ring-white/[0.08]">
+          <Icon name="stacks" class="h-5 w-5" />
+        </div>
+      </template>
+      <template #badges>
+        <span v-if="file" class="badge font-mono">{{ file }}</span>
+        <span v-if="gitInfo" class="badge badge-info"><Icon name="git-branch" class="h-3 w-3" />git</span>
+        <span
+          v-if="source !== 'stacks' && !notManaged && !isNew"
+          class="badge"
+          :title="`Managed in place at ${stackDir}, not in homeport's stacks directory`"
+        >external</span>
+        <span v-if="isNew" class="badge badge-warn">new, not saved yet</span>
+        <span v-if="deleting" class="badge badge-danger"><span class="dot h-1.5 w-1.5 animate-pulse bg-red-400" />deleting…</span>
+        <span v-if="notManaged && rows.length" class="badge">unmanaged</span>
+      </template>
+      <template v-if="rows.length" #subtitle>
+        {{ runningCount }} of {{ rows.length }} service{{ rows.length === 1 ? '' : 's' }} running
+      </template>
+      <template #actions>
+        <!-- unmanaged project: no compose file, so act on the containers directly -->
+        <template v-if="notManaged">
           <button
-            v-if="stackSvcs.some((s) => s.state !== 'running' && s.state !== 'restarting')"
-            :disabled="!!bulkBusy || updRunning"
-            class="inline-flex items-center gap-1.5 rounded-md border border-accent/25 px-2.5 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
-            @click="bulk('start')"
-          ><Icon name="play" class="h-3.5 w-3.5" /> {{ bulkBusy === 'start' ? 'Starting…' : 'Start all' }}</button>
-          <button
-            v-if="anyRunning"
-            :disabled="!!bulkBusy || updRunning"
-            class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-40"
-            @click="bulk('restart')"
-          ><Icon name="refresh" class="h-3.5 w-3.5" :class="bulkBusy === 'restart' ? 'animate-spin' : ''" /> {{ bulkBusy === 'restart' ? 'Restarting…' : 'Restart all' }}</button>
-          <button
-            v-if="anyRunning"
-            :disabled="!!bulkBusy || updRunning"
-            class="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-            @click="bulk('stop')"
-          ><Icon name="square" class="h-3.5 w-3.5" /> {{ bulkBusy === 'stop' ? 'Stopping…' : 'Stop all' }}</button>
+            v-if="caps.updates && updatable.length"
+            :disabled="updRunning || !!bulkBusy"
+            class="btn btn-primary"
+            @click="updateAll"
+          ><Icon name="arrow-up" /> {{ updRunning ? 'Updating…' : `Update all (${updatable.length})` }}</button>
+          <template v-if="caps.control && rows.length">
+            <button
+              v-if="stackSvcs.some((s) => s.state !== 'running' && s.state !== 'restarting')"
+              :disabled="!!bulkBusy || updRunning"
+              class="btn"
+              @click="bulk('start')"
+            ><Icon name="play" /> {{ bulkBusy === 'start' ? 'Starting…' : 'Start all' }}</button>
+            <div v-if="anyRunning" class="btn-group">
+              <button :disabled="!!bulkBusy || updRunning" class="btn" @click="bulk('restart')">
+                <Icon name="refresh" :class="bulkBusy === 'restart' ? 'animate-spin' : ''" /> {{ bulkBusy === 'restart' ? 'Restarting…' : 'Restart all' }}
+              </button>
+              <button :disabled="!!bulkBusy || updRunning" class="btn hover:!text-red-300" @click="bulk('stop')">
+                <Icon name="square" /> {{ bulkBusy === 'stop' ? 'Stopping…' : 'Stop all' }}
+              </button>
+            </div>
+          </template>
         </template>
-      </div>
-      <div v-else-if="caps.control" class="ml-auto flex items-center gap-2">
-        <!-- clear whole-stack image update: pull newer images + recreate. Shown
-             when services actually have updates; git stacks update via git below. -->
-        <button
-          v-if="caps.updates && updatable.length && !gitInfo"
-          :disabled="opRunning"
-          class="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent-light hover:bg-accent/20 disabled:opacity-40"
-          :title="`${updatable.length} service${updatable.length > 1 ? 's' : ''} have a newer image — pull and recreate the stack`"
-          @click="runAction('pull')"
-        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> Update stack ({{ updatable.length }})</button>
-        <button
-          v-if="gitInfo"
-          :disabled="opRunning"
-          class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
-          :class="gitInfo.behind ? 'border-accent/40 bg-accent/10 text-accent-light' : 'border-white/10 text-slate-300 hover:bg-white/5'"
-          :title="gitInfo.behind ? 'The repository has new commits' : 'Re-pull and redeploy from the repository'"
-          @click="runAction('update')"
-        ><Icon name="arrow-up" class="h-3.5 w-3.5" /> {{ gitInfo.behind ? 'Update available' : 'Update from Git' }}</button>
-        <button
-          v-for="a in actions"
-          :key="a.op"
-          :disabled="opRunning"
-          class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs disabled:opacity-40"
-          :class="a.cls"
-          @click="runAction(a.op)"
-        ><Icon :name="a.icon" class="h-3.5 w-3.5" /> {{ a.label }}</button>
-        <button
-          v-if="source === 'stacks'"
-          :disabled="opRunning"
-          class="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-          title="compose down, then remove the stack directory"
-          @click="deletePanel = !deletePanel"
-        ><Icon name="x" class="h-3.5 w-3.5" /> Delete</button>
-      </div>
-    </header>
+        <template v-else-if="caps.control">
+          <!-- whole-stack image update: pull newer images + recreate; git stacks update via git -->
+          <button
+            v-if="caps.updates && updatable.length && !gitInfo"
+            :disabled="opRunning"
+            class="btn btn-primary"
+            :title="`${updatable.length} service${updatable.length > 1 ? 's have' : ' has'} a newer image: pull and recreate the stack`"
+            @click="runAction('pull')"
+          ><Icon name="arrow-up" /> Update stack ({{ updatable.length }})</button>
+          <button
+            v-if="gitInfo"
+            :disabled="opRunning"
+            class="btn"
+            :class="gitInfo.behind ? 'btn-primary' : ''"
+            :title="gitInfo.behind ? 'The repository has new commits' : 'Re-pull and redeploy from the repository'"
+            @click="runAction('update')"
+          ><Icon name="git-branch" /> {{ gitInfo.behind ? 'Update from git' : 'Redeploy from git' }}</button>
+          <div class="btn-group">
+            <button
+              v-for="a in actions"
+              :key="a.op"
+              :disabled="opRunning || isNew"
+              class="btn"
+              :class="a.op === 'down' ? 'hover:!text-red-300' : ''"
+              :title="a.title"
+              @click="runAction(a.op)"
+            ><Icon :name="a.icon" /> {{ a.label }}</button>
+          </div>
+          <button
+            v-if="source === 'stacks' && !isNew"
+            :disabled="opRunning"
+            class="btn btn-danger btn-icon"
+            title="Delete stack: compose down, then remove the stack directory"
+            aria-label="Delete stack"
+            @click="deletePanel = !deletePanel"
+          ><Icon name="trash" /></button>
+        </template>
+      </template>
+    </PageHeader>
 
     <!-- delete confirmation: what else should leave the machine with the stack -->
-    <div v-if="deletePanel" class="mb-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4">
-      <p class="mb-2 text-sm font-semibold text-red-300">Delete stack “{{ name }}”</p>
-      <p class="mb-3 text-xs text-slate-400">
-        Containers are taken down, leftover project networks are removed, and the stack directory (compose file) is
-        deleted. Pick what else should go — everything below is <strong>irreversible</strong>.
-      </p>
-      <div class="space-y-1.5 text-xs text-slate-300">
-        <label class="flex items-center gap-2">
-          <input v-model="del.volumes" type="checkbox" class="h-3 w-3" />
-          also delete its named volumes — <span class="text-red-300/90">all the stack's data</span>
-        </label>
-        <label class="flex items-center gap-2">
-          <input v-model="del.images" type="checkbox" class="h-3 w-3" />
-          also delete its images (re-downloaded on a future install)
-        </label>
-        <label v-if="caps.proxyAdmin && !caps.viewer" class="flex items-center gap-2">
-          <input v-model="del.proxyRoutes" type="checkbox" class="h-3 w-3" />
-          also remove its domains from the reverse proxy
-        </label>
+    <div v-if="deletePanel" class="card mb-5 border-red-500/25">
+      <div class="card-header border-red-500/15">
+        <span class="card-title text-red-300">Delete stack “{{ name }}”</span>
       </div>
-      <div class="mt-3 flex items-center gap-2">
-        <button
-          :disabled="opRunning"
-          class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-40"
-          @click="deleteStack"
-        >Delete permanently</button>
-        <button class="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5" @click="deletePanel = false">Cancel</button>
-      </div>
-    </div>
-
-    <!-- external project location -->
-    <div v-if="source !== 'stacks' && !notManaged && !isNew" class="mb-4 rounded-md border border-white/5 bg-ink-900/60 px-3 py-2 text-xs text-slate-500">
-      Managed in place at <code class="text-slate-400">{{ stackDir }}</code> — edits and compose operations act on the
-      real files there; delete it from that directory if you want it gone.
-    </div>
-
-    <!-- git source line -->
-    <div v-if="gitInfo" class="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-white/5 bg-ink-900/60 px-3 py-2 text-xs">
-      <span class="rounded-full border border-sky-400/30 px-1.5 py-px text-[9px] uppercase tracking-wider text-sky-300">git</span>
-      <a :href="gitInfo.repo" target="_blank" rel="noopener" class="font-mono text-slate-300 hover:text-slate-100 hover:underline">{{ gitInfo.repo }}</a>
-      <span class="text-slate-600">{{ gitInfo.branch }} @ {{ gitInfo.commit }}</span>
-      <span class="truncate text-slate-500" :title="gitInfo.subject">“{{ gitInfo.subject }}”</span>
-      <span v-if="gitInfo.behind" class="rounded-full border border-accent/40 px-2 py-0.5 text-[10px] text-accent-light">
-        {{ gitInfo.remoteCommit }} available
-      </span>
-      <button
-        class="ml-auto rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 disabled:opacity-40"
-        :disabled="gitChecking"
-        @click="loadGit(true)"
-      >{{ gitChecking ? 'Checking…' : 'Check' }}</button>
-    </div>
-
-    <div v-if="loadError && !notManaged" class="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">{{ loadError }}</div>
-
-    <!-- unmanaged compose project: no compose file here, but the containers are real -->
-    <template v-if="notManaged">
-      <div v-if="!svcData" class="py-20 text-center text-slate-500">Loading…</div>
-      <div v-else-if="!rows.length" class="rounded-lg border border-white/5 bg-ink-900 p-8 text-center text-sm text-slate-500">
-        No stack or running compose project named “{{ name }}” was found.
-        <NuxtLink to="/stacks" class="text-accent-light hover:underline">Back to stacks</NuxtLink>
-      </div>
-      <div v-else class="mb-4 rounded-lg border border-white/5 bg-ink-900 p-4 text-sm text-slate-400">
-        This compose project is running on the host, but homeport can't see its compose files —
-        so it can't be edited or compose-operated from here. You can still control and update its containers below.
-        <span class="mt-1 block text-xs text-slate-600">
-          To manage it fully, mount its project folder into the homeport container at the <strong>same path it has on
-          the host</strong> (e.g. <code class="text-slate-500">-v /home/user/docker:/home/user/docker</code>) — visible
-          projects are adopted automatically; a parent folder of many projects can also be added under
-          Settings → Compose roots.
-        </span>
-      </div>
-      <p v-if="bulkMsg" class="mb-4 whitespace-pre-line text-xs" :class="bulkOk ? 'text-accent-light' : 'text-red-400'">{{ bulkMsg }}</p>
-
-      <!-- whole-project update progress -->
-      <div v-if="updLines.length || updRunning" class="mb-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
-        <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-          <span class="h-1.5 w-1.5 rounded-full" :class="updRunning ? 'animate-pulse bg-amber-400' : 'bg-ok'" />
-          {{ updRunning ? 'updating containers…' : 'update finished' }}
+      <div class="space-y-3 p-4 sm:p-5">
+        <p class="text-[13px] text-slate-400">
+          Containers are taken down, leftover project networks are removed, and the stack directory (compose file) is
+          deleted. Pick what else should go. Everything below is <strong class="text-slate-200">irreversible</strong>.
+        </p>
+        <div class="space-y-2">
+          <label class="check"><input v-model="del.volumes" type="checkbox" /> <span>Also delete its named volumes: <span class="text-red-300">all of the stack's data</span></span></label>
+          <label class="check"><input v-model="del.images" type="checkbox" /> <span>Also delete its images (re-downloaded on a future install)</span></label>
+          <label v-if="caps.proxyAdmin && !caps.viewer" class="check"><input v-model="del.proxyRoutes" type="checkbox" /> <span>Also remove its domains from the reverse proxy</span></label>
         </div>
-        <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ updLines.join('\n') }}</pre>
-      </div>
-    </template>
-
-    <!-- editor -->
-    <div v-if="!notManaged" class="rounded-lg border border-white/10 bg-[#0b0f14]">
-      <div ref="editorEl" class="max-h-[55vh] min-h-[16rem] overflow-auto text-[13px]" />
-      <div class="flex items-center gap-3 border-t border-white/5 px-3 py-2">
-        <button
-          v-if="caps.control"
-          :disabled="saving || !dirty"
-          class="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-40"
-          @click="save"
-        >{{ saving ? 'Saving…' : 'Save' }}</button>
-        <span v-else class="text-[11px] text-slate-600">read-only account — changes can't be saved</span>
-        <span v-if="dirty" class="text-[11px] text-amber-300/80">unsaved changes</span>
-        <span v-if="saveMsg" class="whitespace-pre-line text-[11px]" :class="saveOk ? 'text-accent-light' : 'text-red-400'">{{ saveMsg }}</span>
+        <div class="flex items-center gap-2 pt-1">
+          <button :disabled="opRunning" class="btn btn-danger-solid" @click="deleteStack"><Icon name="trash" /> Delete permanently</button>
+          <button class="btn btn-ghost" @click="deletePanel = false">Cancel</button>
+        </div>
       </div>
     </div>
 
-    <!-- operation output -->
-    <div v-if="opLines.length || opRunning" class="mt-4 rounded-lg border border-white/5 bg-ink-950/60 p-3">
-      <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-        <span class="h-1.5 w-1.5 rounded-full" :class="opRunning ? 'animate-pulse bg-amber-400' : opDropped ? 'bg-amber-400' : opOk ? 'bg-ok' : 'bg-red-400'" />
-        {{ opRunning ? 'running…' : opDropped ? 'connection to the operation dropped — it may still be running; reload to check' : opOk ? 'finished' : 'failed' }}
+    <div v-if="loadError && !notManaged" class="callout callout-warn mb-5"><Icon name="alert" /><span>{{ loadError }}</span></div>
+
+    <!-- operation output, right under the buttons that start it -->
+    <div v-if="opLines.length || opRunning" class="card mb-5 overflow-hidden">
+      <div class="card-header">
+        <span class="flex items-center gap-2 text-[13px] font-medium" :class="opRunning ? 'text-slate-200' : opDropped ? 'text-amber-300' : opOk ? 'text-ok' : 'text-red-300'">
+          <Icon v-if="opRunning" name="refresh" class="h-3.5 w-3.5 animate-spin" />
+          <Icon v-else :name="opOk && !opDropped ? 'check' : 'alert'" class="h-3.5 w-3.5" />
+          {{ opRunning ? 'Running…' : opDropped ? 'Lost the connection to the operation. It may still be running; reload to check.' : opOk ? 'Finished' : 'Failed' }}
+        </span>
+        <button v-if="!opRunning" class="btn btn-ghost btn-icon btn-sm ml-auto" aria-label="Dismiss output" @click="opLines = []"><Icon name="x" /></button>
       </div>
-      <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
+      <pre class="max-h-72 overflow-y-auto whitespace-pre-wrap bg-ink-950/60 px-4 py-3 font-mono text-[11.5px] leading-relaxed text-slate-300">{{ opLines.join('\n') }}</pre>
     </div>
 
     <!-- docker network conflict helper (compose "Pool overlaps" failures) -->
-    <div v-if="netIssue" class="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-      <h3 class="mb-1 text-sm font-semibold text-amber-300">Docker network conflict</h3>
-      <p class="text-xs text-slate-400">
-        <template v-if="netIssue === 'overlap'">
-          A network this stack defines asks for an address range an existing docker network already occupies.
-          Change the subnet under <code class="text-slate-500">networks: … ipam</code> in the compose file (any free
-          range works), or remove the conflicting network below if nothing uses it.
-        </template>
-        <template v-else>
-          Docker has no free address pools left for a new network — removing unused networks frees address space.
-        </template>
-      </p>
-      <p v-if="netErr" class="mt-2 text-xs text-red-400">{{ netErr }}</p>
-      <div v-if="networks.length" class="mt-3 space-y-1">
-        <div
-          v-for="n in networks"
-          :key="n.id"
-          class="flex items-center gap-3 rounded-md border px-3 py-1.5 text-xs"
-          :class="conflictNames.has(n.name) ? 'border-amber-400/30 bg-amber-400/5' : 'border-white/5'"
-        >
-          <span class="font-mono text-slate-200">{{ n.name }}</span>
-          <span v-if="conflictNames.has(n.name)" class="rounded-full border border-amber-400/40 px-1.5 py-px text-[10px] uppercase text-amber-300">conflict</span>
-          <span class="font-mono text-slate-500">{{ n.subnets.join(', ') || '—' }}</span>
-          <span class="ml-auto text-slate-500">{{ n.containers ? `${n.containers} container${n.containers > 1 ? 's' : ''}` : 'unused' }}</span>
-          <button
-            v-if="!n.builtin && n.containers === 0"
-            :disabled="netBusy === n.name"
-            class="rounded-md border border-red-500/25 px-2 py-1 text-[11px] text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-            @click="removeNetwork(n.name)"
-          >{{ netBusy === n.name ? 'Removing…' : 'Remove' }}</button>
+    <div v-if="netIssue" class="card mb-5 border-amber-500/25">
+      <div class="card-header"><span class="card-title flex items-center gap-2 text-amber-300"><Icon name="alert" class="h-4 w-4" /> Docker network conflict</span></div>
+      <div class="p-4 sm:p-5">
+        <p class="text-[13px] leading-relaxed text-slate-400">
+          <template v-if="netIssue === 'overlap'">
+            A network this stack defines asks for an address range an existing docker network already occupies. Change the
+            subnet under <code>networks: … ipam</code> in the compose file (any free range works), or remove the conflicting
+            network below if nothing uses it.
+          </template>
+          <template v-else>Docker has no free address pools left for a new network. Removing unused networks frees address space.</template>
+        </p>
+        <p v-if="netErr" class="mt-2 text-xs text-red-400">{{ netErr }}</p>
+        <div v-if="networks.length" class="mt-3 overflow-hidden rounded-lg border border-white/[0.08]">
+          <div
+            v-for="n in networks"
+            :key="n.id"
+            class="flex items-center gap-3 border-t border-white/[0.06] px-3 py-2 text-xs first:border-t-0"
+            :class="conflictNames.has(n.name) ? 'bg-amber-400/5' : ''"
+          >
+            <span class="font-mono text-slate-200">{{ n.name }}</span>
+            <span v-if="conflictNames.has(n.name)" class="badge badge-warn">conflict</span>
+            <span class="font-mono text-slate-500">{{ n.subnets.join(', ') || '·' }}</span>
+            <span class="ml-auto text-slate-500">{{ n.containers ? `${n.containers} container${n.containers > 1 ? 's' : ''}` : 'unused' }}</span>
+            <button
+              v-if="!n.builtin && n.containers === 0"
+              :disabled="netBusy === n.name"
+              class="btn btn-danger btn-sm"
+              @click="removeNetwork(n.name)"
+            >{{ netBusy === n.name ? 'Removing…' : 'Remove' }}</button>
+          </div>
         </div>
+        <button class="btn btn-sm mt-3" :disabled="opRunning" @click="runAction('up')"><Icon name="play" /> Run “Up” again</button>
       </div>
-      <button
-        class="mt-3 rounded-md border border-accent/25 px-3 py-1.5 text-xs text-accent-light hover:bg-accent/10 disabled:opacity-40"
-        :disabled="opRunning"
-        @click="runAction('up')"
-      >Run “Up” again</button>
     </div>
 
-    <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" class="mt-6" />
+    <!-- unmanaged compose project: no compose file here, but the containers are real -->
+    <template v-if="notManaged">
+      <div v-if="!svcData" class="card h-24" />
+      <div v-else-if="!rows.length" class="card">
+        <EmptyState icon="stacks" :title="`No stack named “${name}”`" text="There's no stack directory or running compose project with this name.">
+          <template #actions><NuxtLink to="/stacks" class="btn btn-sm">Back to stacks</NuxtLink></template>
+        </EmptyState>
+      </div>
+      <div v-else class="callout callout-info mb-5">
+        <Icon name="info" />
+        <div>
+          This compose project runs on the host, but homeport can't see its compose files, so it can't be edited or
+          compose-operated from here. You can still control and update its containers below.
+          <p class="mt-1 text-xs text-slate-500">
+            To manage it fully, mount its project folder into the homeport container at the <strong class="text-slate-400">same
+            path it has on the host</strong> (e.g. <code>-v /home/user/docker:/home/user/docker</code>). Visible projects are
+            adopted automatically; a parent folder of many projects can also be added under Settings → Capabilities → Compose roots.
+          </p>
+        </div>
+      </div>
+      <p v-if="bulkMsg" class="callout mb-5 whitespace-pre-line" :class="bulkOk ? 'callout-info' : 'callout-danger'"><Icon :name="bulkOk ? 'check' : 'alert'" />{{ bulkMsg }}</p>
 
-    <!-- where the stack's data actually lives: named volumes + host binds that
-         sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
-    <StackMounts v-if="!notManaged && !isNew" :stack="name" class="mt-6" @browse="onBrowse" />
+      <!-- whole-project update progress -->
+      <div v-if="updLines.length || updRunning" class="card mb-5 overflow-hidden">
+        <div class="card-header">
+          <span class="flex items-center gap-2 text-[13px] font-medium" :class="updRunning ? 'text-slate-200' : 'text-ok'">
+            <Icon :name="updRunning ? 'refresh' : 'check'" class="h-3.5 w-3.5" :class="updRunning ? 'animate-spin' : ''" />
+            {{ updRunning ? 'Updating containers…' : 'Update finished' }}
+          </span>
+        </div>
+        <pre class="max-h-64 overflow-y-auto whitespace-pre-wrap bg-ink-950/60 px-4 py-3 font-mono text-[11.5px] leading-relaxed text-slate-300">{{ updLines.join('\n') }}</pre>
+      </div>
+    </template>
 
     <!-- services in this stack (compose project) -->
-    <section v-if="rows.length" class="mt-6">
-      <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-        Services <span class="ml-1 font-normal normal-case text-slate-600">{{ runningCount }}/{{ rows.length }} running</span>
-      </h2>
-      <div class="space-y-1.5">
+    <section v-if="rows.length" class="mb-6">
+      <div class="mb-2.5 flex items-baseline gap-2">
+        <h2 class="section-title">Services</h2>
+        <span class="text-xs text-slate-500">{{ runningCount }}/{{ rows.length }} running</span>
+      </div>
+      <div class="card row-list overflow-hidden">
         <NuxtLink
           v-for="s in rows"
           :key="s.id"
           :to="`/services/${encodeURIComponent(s.id)}`"
-          class="flex items-center gap-3 rounded-lg border border-white/5 bg-ink-900 px-4 py-2.5 transition-colors hover:border-accent/30"
+          class="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.025] sm:px-5"
         >
           <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
           <div class="min-w-0 flex-1">
-            <span class="flex items-center gap-2 truncate text-sm text-slate-200">
+            <span class="flex items-center gap-2 truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">
               {{ s.displayName }}
-              <span
-                v-if="updates.entryFor(s)?.status === 'update'"
-                class="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-1.5 py-px text-[10px] text-sky-300"
-              >update</span>
+              <span v-if="updates.entryFor(s)?.status === 'update'" class="badge badge-info h-[18px] px-1 text-[10px]"><Icon name="arrow-up" class="h-2.5 w-2.5" />update</span>
             </span>
-            <span class="block truncate font-mono text-[11px] text-slate-600">{{ s.image }}</span>
+            <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
           </div>
-          <span v-if="!liveIds.has(s.id)" class="shrink-0 animate-pulse text-[11px] text-amber-300">recreating…</span>
+          <span v-if="!liveIds.has(s.id)" class="shrink-0 animate-pulse text-xs text-amber-300">recreating…</span>
           <template v-else>
-            <span v-if="stats[s.id]" class="hidden shrink-0 font-mono text-[11px] text-slate-500 sm:block">
-              CPU {{ stats[s.id].cpuPercent ?? '—' }}% · RAM {{ formatBytes(stats[s.id].memBytes) }}
+            <span v-if="stats[s.id]" class="hidden shrink-0 font-mono text-[11.5px] tabular-nums text-slate-500 sm:block">
+              {{ stats[s.id].cpuPercent ?? '·' }}% · {{ formatBytes(stats[s.id].memBytes) }}
             </span>
-            <StatusPill :state="s.state" :health="s.health" />
+            <span class="w-28 text-right"><StatusPill :state="s.state" :health="s.health" compact :text="s.statusText.replace(/\s*\(healthy\)/, '')" /></span>
           </template>
         </NuxtLink>
       </div>
     </section>
+
+    <!-- compose editor -->
+    <section v-if="!notManaged" class="mb-6">
+      <div class="card overflow-hidden">
+        <div class="card-header">
+          <Icon name="file-text" class="h-4 w-4 text-slate-500" />
+          <span class="card-title font-mono text-[12.5px]">{{ file || 'compose.yaml' }}</span>
+          <span v-if="dirty" class="badge badge-warn">unsaved</span>
+          <span v-if="saveMsg" class="whitespace-pre-line text-xs" :class="saveOk ? 'text-ok' : 'text-red-400'">{{ saveMsg }}</span>
+          <div class="ml-auto flex items-center gap-2">
+            <span v-if="caps.control" class="hidden items-center gap-1 text-[11px] text-slate-500 sm:flex"><span class="kbd">{{ modKey }}</span><span class="kbd">S</span> to save</span>
+            <button v-if="caps.control" :disabled="saving || !dirty" class="btn btn-primary btn-sm" @click="save">{{ saving ? 'Saving…' : isNew ? 'Create stack' : 'Save' }}</button>
+            <span v-else class="text-xs text-slate-500">read-only account</span>
+          </div>
+        </div>
+        <div class="bg-[#0d1117]" @keydown="onEditorKey">
+          <div ref="editorEl" class="max-h-[60vh] min-h-[16rem] overflow-auto text-[13px]" />
+        </div>
+      </div>
+      <!-- external project location -->
+      <p v-if="source !== 'stacks' && !isNew" class="mt-2 text-xs text-slate-500">
+        Managed in place at <code>{{ stackDir }}</code>: edits and compose operations act on the real files there. Delete it from
+        that directory if you want it gone.
+      </p>
+      <!-- git source -->
+      <div v-if="gitInfo" class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-white/[0.08] bg-ink-900/60 px-3.5 py-2.5 text-xs">
+        <Icon name="git-branch" class="h-3.5 w-3.5 text-sky-300" />
+        <a :href="gitInfo.repo" target="_blank" rel="noopener" class="font-mono text-slate-300 hover:text-slate-100 hover:underline">{{ gitInfo.repo }}</a>
+        <span class="text-slate-500">{{ gitInfo.branch }} @ <span class="font-mono">{{ gitInfo.commit }}</span></span>
+        <span class="truncate text-slate-500" :title="gitInfo.subject">“{{ gitInfo.subject }}”</span>
+        <span v-if="gitInfo.behind" class="badge badge-accent">{{ gitInfo.remoteCommit }} available</span>
+        <button class="btn btn-ghost btn-sm ml-auto" :disabled="gitChecking" @click="loadGit(true)">
+          <Icon name="refresh" :class="gitChecking ? 'animate-spin' : ''" /> {{ gitChecking ? 'Checking…' : 'Check for changes' }}
+        </button>
+      </div>
+    </section>
+
+    <!-- file browser: everything in the stack's directory -->
+    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" class="mb-6" />
+
+    <!-- where the stack's data actually lives: named volumes + host binds that
+         sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
+    <StackMounts v-if="!notManaged && !isNew" :stack="name" @browse="onBrowse" />
   </div>
 </template>
 
@@ -449,11 +452,23 @@ async function save() {
 
 // --- actions + op streaming ---
 const actions = [
-  { op: 'up', icon: 'play', label: 'Up', cls: 'border-accent/25 text-accent-light hover:bg-accent/10' },
-  { op: 'restart', icon: 'refresh', label: 'Restart', cls: 'border-white/10 text-slate-300 hover:bg-white/5' },
-  { op: 'pull', icon: 'download', label: 'Pull & up', cls: 'border-sky-400/25 text-sky-300 hover:bg-sky-400/10' },
-  { op: 'down', icon: 'square', label: 'Down', cls: 'border-red-500/20 text-red-300 hover:bg-red-500/10' },
+  { op: 'up', icon: 'play', label: 'Up', title: 'docker compose up -d' },
+  { op: 'restart', icon: 'refresh', label: 'Restart', title: 'docker compose restart' },
+  { op: 'pull', icon: 'download', label: 'Pull & up', title: 'docker compose pull, then up -d' },
+  { op: 'down', icon: 'square', label: 'Down', title: 'docker compose down (stops and removes the containers)' },
 ] as const
+
+// Ctrl/Cmd+S inside the editor saves instead of opening the browser's save dialog
+const modKey = ref('Ctrl')
+onMounted(() => {
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) modKey.value = '⌘'
+})
+function onEditorKey(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    if (caps.value.control && dirty.value && !saving.value) save()
+  }
+}
 
 const opLines = ref<string[]>([])
 const opRunning = ref(false)
@@ -676,5 +691,5 @@ onBeforeUnmount(() => {
   statsStop()
 })
 
-useHead({ title: `${name} — stacks — homeport` })
+useHead({ title: `${name} · Stacks · homeport` })
 </script>

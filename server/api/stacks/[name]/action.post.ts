@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   if (op !== 'up' && name === (await selfProject())) {
     throw createError({
       statusCode: 400,
-      statusMessage: `"${name}" is homeport's own stack — use Settings → About → Update homeport instead (compose ${op} from inside would kill homeport mid-operation).`,
+      statusMessage: `"${name}" is homeport's own stack: use the Update homeport button instead (sidebar, or Settings → Backup & about), since compose ${op} from inside would kill homeport mid-operation.`,
     })
   }
 

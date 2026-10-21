@@ -1,99 +1,86 @@
 <template>
-  <div class="grid min-h-screen place-items-center px-4">
-    <div class="w-full max-w-xs space-y-4 rounded-xl border border-white/5 bg-ink-900 p-6">
-      <div class="text-center">
-        <div class="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-xl bg-accent/15 text-accent"><Logo class="h-5 w-5" /></div>
-        <h1 class="text-lg font-semibold text-slate-100">homeport</h1>
-        <p class="text-xs text-slate-500">{{ needsSetup ? 'Welcome — create an admin password' : 'Sign in to view your fleet' }}</p>
+  <div class="relative grid min-h-screen place-items-center overflow-hidden px-4 py-10">
+    <div class="pointer-events-none absolute inset-0" style="background: radial-gradient(60% 45% at 50% 0%, rgb(var(--accent) / 0.13), transparent 70%)" />
+    <div class="relative w-full max-w-[360px]">
+      <div class="mb-6 text-center">
+        <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-accent/15 text-accent ring-1 ring-inset ring-accent/25">
+          <Logo class="h-6 w-6" />
+        </div>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-100">
+          {{ needsSetup ? 'Welcome to homeport' : awaitingTotp ? 'Two-factor check' : 'Sign in to homeport' }}
+        </h1>
+        <p class="mt-1 text-[13px] text-slate-500">
+          {{ needsSetup ? 'Create the admin password to get started.' : awaitingTotp ? (useRecovery ? 'Enter one of your recovery codes.' : 'Enter the 6-digit code from your authenticator app.') : 'Your self-hosted fleet, at a glance.' }}
+        </p>
       </div>
 
-      <!-- first-run setup -->
-      <form v-if="needsSetup" class="space-y-3" @submit.prevent="doSetup">
-        <div v-if="!writable" class="rounded-md border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-300">
-          The data volume is read-only, so a password can't be saved here. Set
-          <code>HOMEPORT_ADMIN_PASSWORD</code> (env) or fix the volume mount — or set
-          <code>HOMEPORT_ALLOW_OPEN=true</code> to run without a login.
-        </div>
-        <input
-          v-model="password"
-          type="password"
-          placeholder="New password"
-          autofocus
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
-        <input
-          v-model="confirm"
-          type="password"
-          placeholder="Confirm password"
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
-        <p class="text-[11px] text-slate-500">Use at least {{ minLen }} characters — this login guards your whole fleet.</p>
-        <button
-          type="submit"
-          :disabled="busy"
-          class="w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-60"
-        >{{ busy ? '…' : 'Create password' }}</button>
-        <button
-          type="button"
-          class="w-full text-center text-[11px] text-slate-500 hover:text-slate-300"
-          @click="doSkip"
-        >Skip — run without a login (not recommended)</button>
-      </form>
+      <div class="card p-6" style="box-shadow: var(--shadow-pop)">
+        <!-- first-run setup -->
+        <form v-if="needsSetup" class="space-y-4" @submit.prevent="doSetup">
+          <div v-if="!writable" class="callout callout-warn text-xs">
+            <Icon name="alert" />
+            <span>The data volume is read-only, so a password can't be saved here. Set <code>HOMEPORT_ADMIN_PASSWORD</code>
+              (env) or fix the volume mount, or set <code>HOMEPORT_ALLOW_OPEN=true</code> to run without a login.</span>
+          </div>
+          <div>
+            <label class="field-label" for="new-pw">New password</label>
+            <input id="new-pw" v-model="password" type="password" autocomplete="new-password" autofocus class="input h-10" />
+          </div>
+          <div>
+            <label class="field-label" for="confirm-pw">Confirm password</label>
+            <input id="confirm-pw" v-model="confirm" type="password" autocomplete="new-password" class="input h-10" />
+            <p class="field-hint">At least {{ minLen }} characters. This login guards your whole fleet.</p>
+          </div>
+          <button type="submit" :disabled="busy" class="btn btn-primary btn-lg w-full">{{ busy ? 'Creating…' : 'Create password' }}</button>
+          <button type="button" class="block w-full text-center text-xs text-slate-500 hover:text-slate-300" @click="doSkip">
+            Skip and run without a login (not recommended)
+          </button>
+        </form>
 
-      <!-- normal sign-in -->
-      <form v-else-if="!awaitingTotp" class="space-y-4" @submit.prevent="submit">
-        <input
-          v-model="username"
-          type="text"
-          placeholder="Username (leave blank if you're the admin)"
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
-        <input
-          v-model="password"
-          type="password"
-          placeholder="Password"
-          autofocus
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
-        <button
-          type="submit"
-          :disabled="busy"
-          class="w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-60"
-        >{{ busy ? '…' : 'Sign in' }}</button>
-      </form>
+        <!-- normal sign-in -->
+        <form v-else-if="!awaitingTotp" class="space-y-4" @submit.prevent="submit">
+          <div>
+            <label class="field-label flex items-baseline justify-between" for="username">
+              Username <span class="text-[11px] font-normal text-slate-500">optional</span>
+            </label>
+            <input id="username" v-model="username" type="text" autocomplete="username" spellcheck="false" class="input h-10" placeholder="Leave empty for the admin" />
+          </div>
+          <div>
+            <label class="field-label" for="password">Password</label>
+            <input id="password" v-model="password" type="password" autocomplete="current-password" autofocus class="input h-10" />
+          </div>
+          <button type="submit" :disabled="busy || !password" class="btn btn-primary btn-lg w-full">{{ busy ? 'Signing in…' : 'Sign in' }}</button>
+        </form>
 
-      <!-- 2FA step -->
-      <form v-else class="space-y-3" @submit.prevent="submitTotp">
-        <p class="text-center text-xs text-slate-500">
-          {{ useRecovery ? 'Enter one of your recovery codes.' : 'Enter the 6-digit code from your authenticator app.' }}
-        </p>
-        <input
-          v-if="!useRecovery"
-          v-model="totpCode"
-          inputmode="numeric"
-          maxlength="6"
-          placeholder="6-digit code"
-          autofocus
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-center text-sm tracking-widest text-slate-100 outline-none focus:border-accent/50"
-        />
-        <input
-          v-else
-          v-model="recoveryCode"
-          placeholder="Recovery code"
-          autofocus
-          class="w-full rounded-md border border-white/10 bg-ink-950 px-3 py-2 text-center text-sm text-slate-100 outline-none focus:border-accent/50"
-        />
-        <button
-          type="submit"
-          :disabled="busy"
-          class="w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-light disabled:opacity-60"
-        >{{ busy ? '…' : 'Verify' }}</button>
-        <button type="button" class="w-full text-center text-[11px] text-slate-500 hover:text-slate-300" @click="useRecovery = !useRecovery">
-          {{ useRecovery ? 'Use my authenticator app instead' : 'Use a recovery code instead' }}
-        </button>
-      </form>
+        <!-- 2FA step -->
+        <form v-else class="space-y-4" @submit.prevent="submitTotp">
+          <input
+            v-if="!useRecovery"
+            v-model="totpCode"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            placeholder="000000"
+            aria-label="6-digit code"
+            autofocus
+            class="input h-12 text-center font-mono text-lg tracking-[0.4em]"
+          />
+          <input
+            v-else
+            v-model="recoveryCode"
+            placeholder="Recovery code"
+            aria-label="Recovery code"
+            autofocus
+            class="input h-10 text-center font-mono"
+          />
+          <button type="submit" :disabled="busy" class="btn btn-primary btn-lg w-full">{{ busy ? 'Verifying…' : 'Verify' }}</button>
+          <button type="button" class="block w-full text-center text-xs text-slate-500 hover:text-slate-300" @click="useRecovery = !useRecovery">
+            {{ useRecovery ? 'Use my authenticator app instead' : 'Use a recovery code instead' }}
+          </button>
+        </form>
 
-      <p v-if="err" class="text-center text-xs text-red-400">{{ err }}</p>
+        <p v-if="err" class="callout callout-danger mt-4 py-2 text-xs" role="alert"><Icon name="alert" />{{ err }}</p>
+      </div>
     </div>
   </div>
 </template>
