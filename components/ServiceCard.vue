@@ -45,7 +45,7 @@
       <Sparkline v-if="cpuHistory.length > 1 && service.state === 'running'" :data="cpuHistory" color="#10b981" />
     </div>
     <span class="md:hidden"><StatusPill :state="service.state" :health="service.health" compact dot-only /></span>
-    <div class="flex w-[76px] shrink-0 justify-end">
+    <div class="flex w-[104px] shrink-0 justify-end opacity-100 transition-opacity pointer-fine:opacity-60 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100">
       <ServiceActions
         :service="service"
         :busy="busy"
@@ -86,10 +86,14 @@
       </div>
 
       <div class="relative flex h-7 shrink-0 items-center">
-        <span class="transition-opacity" :class="hasActions ? 'md:group-hover:opacity-0' : ''">
+        <span class="transition-opacity" :class="hasActions ? 'pointer-fine:group-hover:opacity-0 pointer-fine:group-focus-within:opacity-0' : ''">
           <StatusPill :state="service.state" :health="service.health" :text="statusShort" compact />
         </span>
-        <div v-if="hasActions" class="absolute right-0 top-0 hidden opacity-0 transition-opacity group-hover:opacity-100 md:flex">
+        <!-- mouse: actions replace the status on hover; keyboard: on focus -->
+        <div
+          v-if="hasActions"
+          class="pointer-events-none absolute right-0 top-0 flex rounded-lg bg-ink-900 opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 pointer-coarse:hidden pointer-fine:group-hover:pointer-events-auto pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:pointer-events-auto pointer-fine:group-focus-within:opacity-100"
+        >
           <ServiceActions
             :service="service"
             :busy="busy"
@@ -158,6 +162,17 @@
     <!-- non-running: the status text carries the info -->
     <p v-else-if="service.state !== 'running'" class="mt-3 truncate text-xs text-slate-500">{{ service.statusText }}</p>
 
+    <!-- touch screens have no hover: the same actions as a visible row -->
+    <div v-if="hasActions" class="-mb-1 mt-2.5 hidden justify-end border-t border-white/[0.06] pt-1.5 pointer-coarse:flex">
+      <ServiceActions
+        :service="service"
+        :busy="busy"
+        :control-enabled="controlEnabled"
+        @logs="showLogs = true"
+        @control="control"
+      />
+    </div>
+
     <LogsPanel v-if="showLogs" :id="service.id" :name="service.displayName" @close="showLogs = false" />
   </div>
 </template>
@@ -210,9 +225,10 @@ function pingTitle(url: string) {
 }
 
 const { data, refresh: refreshServices } = useServices()
-const controlEnabled = computed(() => data.value?.controlEnabled ?? false)
+// server flag AND this user's role (viewers get caps.control = false)
+const controlEnabled = computed(() => (data.value?.controlEnabled ?? false) && caps.value.control)
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
-const hasActions = computed(() => isContainer.value && (caps.value.logs || controlEnabled.value))
+const hasActions = computed(() => isContainer.value)
 const busy = ref(false)
 const { confirm } = useConfirm()
 const toast = useToast()

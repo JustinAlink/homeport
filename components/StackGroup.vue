@@ -10,8 +10,11 @@
         <Icon name="chevron-down" class="h-3.5 w-3.5 transition-transform" :class="open ? '' : '-rotate-90'" />
       </button>
       <!-- groups backed by a compose project link to the stack page -->
+      <h2 v-if="pinned" class="flex cursor-pointer items-center gap-1.5 truncate text-[14px] font-semibold text-slate-100" @click="toggle">
+        <Icon name="pin" class="h-3.5 w-3.5 text-accent-light" /> Pinned
+      </h2>
       <NuxtLink
-        v-if="project && caps.stacks"
+        v-else-if="project && caps.stacks"
         :to="`/stacks/${encodeURIComponent(project)}`"
         class="inline-flex min-w-0 items-center gap-1 truncate text-[14px] font-semibold text-slate-100 hover:text-accent-light"
         title="Open this stack"
@@ -51,8 +54,8 @@
 import type { Service } from '~/types/service'
 
 const props = withDefaults(
-  defineProps<{ name: string; services: Service[]; view?: 'grid' | 'list'; forceOpen?: boolean }>(),
-  { view: 'grid', forceOpen: false },
+  defineProps<{ name: string; services: Service[]; view?: 'grid' | 'list'; forceOpen?: boolean; pinned?: boolean }>(),
+  { view: 'grid', forceOpen: false, pinned: false },
 )
 const { stats } = useStats()
 const { caps } = useCapabilities()

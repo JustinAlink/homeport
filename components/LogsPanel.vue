@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" :aria-label="`Logs for ${name}`">
       <div class="absolute inset-0 bg-black/50 backdrop-blur-[2px]" @click="$emit('close')" />
-      <div class="relative flex h-full w-full max-w-3xl flex-col border-l border-white/10 bg-ink-900 p-4" style="box-shadow: var(--shadow-pop)">
+      <div ref="panel" class="relative flex h-full w-full max-w-3xl flex-col border-l border-white/10 bg-ink-900 p-4" style="box-shadow: var(--shadow-pop)">
         <div class="flex items-center gap-3 pb-3">
           <Icon name="file-text" class="h-4 w-4 text-slate-500" />
           <span class="text-[14px] font-semibold text-slate-100">{{ name }}</span>
@@ -25,6 +25,8 @@
 <script setup lang="ts">
 defineProps<{ id: string; name: string }>()
 const emit = defineEmits<{ close: [] }>()
+const panel = ref<HTMLElement | null>(null)
+useFocusTrap(panel, () => true)
 
 // Esc closes the slide-over, like every other overlay
 function onKey(e: KeyboardEvent) {

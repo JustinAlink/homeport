@@ -5,10 +5,12 @@
         Volumes and images on this host. Deleting a stack or container keeps its volumes and images unless you said
         otherwise; leftovers show up here as <span class="text-amber-300">unused</span>.
       </template>
-      <template #actions>
+      <template v-if="gateCaps.stacks || !gateLoaded" #actions>
         <button class="btn" :disabled="loading" @click="load"><Icon name="refresh" :class="loading ? 'animate-spin' : ''" /> Refresh</button>
       </template>
     </PageHeader>
+
+    <CapabilityGate need="stacks" feature="Storage management" text="This page lists volumes and images, what still uses them, and how much space unused ones take. It comes with compose stack management." icon="database">
 
     <div v-if="error" class="callout callout-warn"><Icon name="alert" /><span>{{ error }}</span></div>
     <div v-else-if="!loaded" class="space-y-3"><div class="grid grid-cols-2 gap-3 lg:grid-cols-4"><div v-for="i in 4" :key="i" class="card h-[88px]" /></div><div class="card h-64" /></div>
@@ -129,10 +131,12 @@
         is forever. Images are just downloads; removing an unused one costs a re-pull at most.
       </p>
     </template>
+    </CapabilityGate>
   </div>
 </template>
 
 <script setup lang="ts">
+const { caps: gateCaps, loaded: gateLoaded } = useCapabilities() // header actions hide while the feature is off
 interface VolRow {
   name: string
   driver: string

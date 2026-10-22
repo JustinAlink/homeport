@@ -200,6 +200,14 @@
 
       <div class="space-y-7">
         <StackGroup
+          v-if="pinnedServices.length"
+          name="Pinned"
+          :services="pinnedServices"
+          :view="view"
+          pinned
+          :force-open="!!q.trim() || filter !== 'all'"
+        />
+        <StackGroup
           v-for="g in groups"
           :key="g.name"
           :name="g.name"
@@ -239,15 +247,18 @@ const updates = useUpdates()
 const showGraph = ref(true) // on by default; '0' in storage hides it
 
 // Fleet graph range. 'live' = the in-memory rolling buffer; ranges load history.
-const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, load: loadFleetHistory } = useHistoryRange('host', '1h')
+const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, realPoints: fleetPoints, load: loadFleetHistory } = useHistoryRange('host', '1h')
 const { range: sysRange, past: systemPast, load: loadSystemHistory } = useHistoryRange('host-system', '1h')
 watch(graphRange, (r) => (sysRange.value = r))
 function loadGraphHistory() {
-  loadFleetHistory()
-  loadSystemHistory()
+  return Promise.all([loadFleetHistory(), loadSystemHistory()])
 }
 watch(showGraph, loadGraphHistory)
-onMounted(loadGraphHistory)
+onMounted(async () => {
+  await loadGraphHistory()
+  // a fresh install has no history yet: a flat zero line would read as "idle"
+  if (graphRange.value !== 'live' && fleetPoints.value < 2) graphRange.value = 'live'
+})
 
 const fleetSeries = computed(() => {
   const src = graphRange.value === 'live' ? fleetHistory.value : fleetPast.value ?? { cpu: [], mem: [] }
@@ -263,8 +274,12 @@ const fleetSeries = computed(() => {
 })
 const pings = usePings()
 const { caps } = useCapabilities()
-const q = ref('')
-const hostFilter = ref('')
+// search, status filter and host live in the URL, so Back from a container
+// page (or a reload, or a shared link) comes back to the same view
+const route = useRoute()
+const router = useRouter()
+const q = ref(String(route.query.q ?? ''))
+const hostFilter = ref(String(route.query.host ?? ''))
 const searchInput = ref<HTMLInputElement | null>(null)
 
 // Onboarding nudge: no reverse proxy detected yet, so offer to install one.
@@ -362,6 +377,8 @@ const exitCode = (s: Service) => {
   return m ? Number(m[1]) : null
 }
 const isRunning = (s: Service) => s.state === 'running'
+// "stopped" means actually down: a crash-looping container is restarting, not stopped
+const isStopped = (s: Service) => s.state !== 'running' && s.state !== 'restarting'
 // A clean exit (code 0) is usually a finished one-shot job, not a problem.
 const issueOf = (s: Service): { reason: string; tone: 'red' | 'amber' } | null => {
   if (s.state === 'running' && s.health === 'unhealthy') return { reason: 'unhealthy', tone: 'red' }
@@ -386,13 +403,21 @@ const updateCount = computed(() => visible.value.filter(hasUpdate).length)
 const updatesShown = computed(() => caps.value.updateCheck || caps.value.updates || updates.enabled.value)
 
 type Filter = 'all' | 'running' | 'stopped' | 'issues' | 'updates'
-const filter = ref<Filter>('all')
+const FILTER_KEYS: Filter[] = ['all', 'running', 'stopped', 'issues', 'updates']
+const filter = ref<Filter>(FILTER_KEYS.includes(route.query.status as Filter) ? (route.query.status as Filter) : 'all')
+watch([q, filter, hostFilter], () => {
+  const query: Record<string, string> = {}
+  if (q.value.trim()) query.q = q.value.trim()
+  if (filter.value !== 'all') query.status = filter.value
+  if (hostFilter.value) query.host = hostFilter.value
+  router.replace({ query })
+})
 const filters = computed(() => {
   const v = visible.value
   const out: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: 'All', count: v.length },
     { key: 'running', label: 'Running', count: v.filter(isRunning).length },
-    { key: 'stopped', label: 'Stopped', count: v.filter((s) => !isRunning(s)).length },
+    { key: 'stopped', label: 'Stopped', count: v.filter(isStopped).length },
   ]
   if (attention.value.length || filter.value === 'issues') out.push({ key: 'issues', label: 'Issues', count: attention.value.length })
   if (updateCount.value || filter.value === 'updates') out.push({ key: 'updates', label: 'Updates', count: updateCount.value })
@@ -403,7 +428,7 @@ const filtered = computed<Service[]>(() => {
   const term = q.value.trim().toLowerCase()
   return visible.value.filter((s) => {
     if (filter.value === 'running' && !isRunning(s)) return false
-    if (filter.value === 'stopped' && isRunning(s)) return false
+    if (filter.value === 'stopped' && !isStopped(s)) return false
     if (filter.value === 'issues' && !issueOf(s)) return false
     if (filter.value === 'updates' && !hasUpdate(s)) return false
     if (!term) return true
@@ -430,6 +455,12 @@ const groups = computed(() => {
     .map(([name, services]) => ({ name, services: services.sort((a, b) => a.displayName.localeCompare(b.displayName)) }))
 })
 
+// pinned containers (per browser, by name) get their own group at the top
+const pins = usePins()
+const pinnedServices = computed(() =>
+  filtered.value.filter((s) => pins.isPinned(s.name)).sort((a, b) => a.displayName.localeCompare(b.displayName)),
+)
+
 // collapse/expand every group at once (StackGroup persists per-group state in localStorage)
 const collapsedTick = useState('hp:collapse-tick', () => 0)
 const allCollapsed = computed(() => {
@@ -450,5 +481,6 @@ const unmatched = computed(() => {
   return list.filter((u) => (u.domains.join(' ') + u.upstream).toLowerCase().includes(term))
 })
 
-useHead({ title: 'homeport' })
+// the tab title carries the problem count, so a background tab still tells you
+useHead({ title: computed(() => (attention.value.length ? `(${attention.value.length}) homeport` : 'homeport')) })
 </script>

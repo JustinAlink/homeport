@@ -55,19 +55,28 @@
           <label class="check">
             <input v-model="form.dockerMode" type="radio" value="ssh" /> Remote over SSH
           </label>
-          <div v-if="form.dockerMode === 'ssh'" class="space-y-2 pl-6">
-            <input v-model="form.dockerHost" class="input" placeholder="ssh://user@host" />
-            <input v-model="form.dockerSshKey" class="input" placeholder="/ssh/id_ed25519  (key path, mounted read-only)" />
-            <input
-              v-model="form.dockerSshFingerprint"
-              class="input" :class="[locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
-              placeholder="SHA256:…  host key fingerprint (optional, recommended)"
-            />
-            <p class="text-[11px] text-slate-500">
-              Pin the host key to reject a changed/spoofed server. Get it with
-              <code>ssh-keyscan host | ssh-keygen -lf -</code>.
-              <span v-if="locked.dockerSshFingerprint">Set by <code>DOCKER_SSH_FINGERPRINT</code> — locked.</span>
-            </p>
+          <div v-if="form.dockerMode === 'ssh'" class="grid gap-3 pl-6 sm:grid-cols-2">
+            <Field v-slot="{ id }" label="SSH address">
+              <input :id="id" v-model="form.dockerHost" class="input font-mono" placeholder="ssh://user@host" spellcheck="false" />
+            </Field>
+            <Field v-slot="{ id }" label="Private key path" hint="Inside the container, mounted read-only.">
+              <input :id="id" v-model="form.dockerSshKey" class="input font-mono" placeholder="/ssh/id_ed25519" spellcheck="false" />
+            </Field>
+            <Field label="Host key fingerprint" optional class="sm:col-span-2">
+              <template #default="{ id }">
+                <input
+                  :id="id"
+                  v-model="form.dockerSshFingerprint"
+                  class="input font-mono" :class="[locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
+                  placeholder="SHA256:…"
+                  spellcheck="false"
+                />
+              </template>
+              <template #hint>
+                Recommended: rejects a changed or spoofed server. Get it with <code>ssh-keyscan host | ssh-keygen -lf -</code>.
+                <span v-if="locked.dockerSshFingerprint">Set by <code>DOCKER_SSH_FINGERPRINT</code>, locked.</span>
+              </template>
+            </Field>
           </div>
         </div>
         <p class="text-[11px] text-slate-500">
@@ -89,54 +98,52 @@
             :key="i"
             class="space-y-2 rounded-lg border border-white/[0.08] bg-ink-950/40 p-3"
           >
-            <div class="flex items-center gap-2">
-              <input v-model="h.name" class="input" placeholder="Display name (e.g. vps-1)" />
+            <div class="flex items-end gap-2">
+              <Field v-slot="{ id }" label="Name" class="flex-1">
+                <input :id="id" v-model="h.name" class="input" placeholder="e.g. vps-1" />
+              </Field>
               <button
                 type="button"
-                class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+                class="btn btn-icon shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+                :aria-label="`Remove host ${h.name || i + 1}`"
+                title="Remove host"
                 @click="form.hosts.splice(i, 1)"
-              >
-                Remove
-              </button>
+              ><Icon name="trash" /></button>
             </div>
-            <input v-model="h.dockerHost" class="input" placeholder="ssh://user@host  or  tcp://host:2375  (empty = local socket)" />
-            <div v-if="(h.dockerHost || '').startsWith('ssh://')" class="space-y-2 pl-3">
-              <input v-model="h.dockerSshKey" class="input" placeholder="/ssh/id_ed25519  (key path)" />
-              <input v-model="h.sshFingerprint" class="input" placeholder="SHA256:…  host key fingerprint (optional, recommended)" />
+            <Field v-slot="{ id }" label="Docker address" hint="Empty uses the local socket.">
+              <input :id="id" v-model="h.dockerHost" class="input font-mono" placeholder="ssh://user@host or tcp://host:2375" spellcheck="false" />
+            </Field>
+            <div v-if="(h.dockerHost || '').startsWith('ssh://')" class="grid gap-3 sm:grid-cols-2">
+              <Field v-slot="{ id }" label="Private key path">
+                <input :id="id" v-model="h.dockerSshKey" class="input font-mono" placeholder="/ssh/id_ed25519" spellcheck="false" />
+              </Field>
+              <Field v-slot="{ id }" label="Host key fingerprint" optional>
+                <input :id="id" v-model="h.sshFingerprint" class="input font-mono" placeholder="SHA256:…" spellcheck="false" />
+              </Field>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <select v-model="h.domainProvider" class="select">
-                <option value="">Proxy: auto / none</option>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <Field v-slot="{ id }" label="Reverse proxy">
+              <select :id="id" v-model="h.domainProvider" class="select">
+                <option value="">Auto-detect / none</option>
                 <option value="npm">Nginx Proxy Manager</option>
                 <option value="nginx">Nginx (plain)</option>
                 <option value="traefik">Traefik (labels)</option>
                 <option value="traefik-file">Traefik (file)</option>
                 <option value="caddy">Caddy</option>
               </select>
-              <input
-                v-if="h.domainProvider === 'npm'"
-                v-model="h.npmConfDir"
-                class="input"
-                placeholder="NPM proxy_host dir"
-              />
-              <input
-                v-else-if="h.domainProvider === 'nginx'"
-                v-model="h.nginxConfDir"
-                class="input"
-                placeholder="Nginx confs dir/file"
-              />
-              <input
-                v-else-if="h.domainProvider === 'traefik-file'"
-                v-model="h.traefikFilePath"
-                class="input"
-                placeholder="Traefik config file/dir"
-              />
-              <input
-                v-else-if="h.domainProvider === 'caddy'"
-                v-model="h.caddyfilePath"
-                class="input"
-                placeholder="Caddyfile path"
-              />
+              </Field>
+              <Field v-if="h.domainProvider === 'npm'" v-slot="{ id }" label="NPM proxy_host directory">
+                <input :id="id" v-model="h.npmConfDir" class="input font-mono" placeholder="/npm/proxy_host" spellcheck="false" />
+              </Field>
+              <Field v-else-if="h.domainProvider === 'nginx'" v-slot="{ id }" label="Nginx config dir or file">
+                <input :id="id" v-model="h.nginxConfDir" class="input font-mono" placeholder="/nginx/sites-enabled" spellcheck="false" />
+              </Field>
+              <Field v-else-if="h.domainProvider === 'traefik-file'" v-slot="{ id }" label="Traefik config file or dir">
+                <input :id="id" v-model="h.traefikFilePath" class="input font-mono" placeholder="/traefik/dynamic" spellcheck="false" />
+              </Field>
+              <Field v-else-if="h.domainProvider === 'caddy'" v-slot="{ id }" label="Caddyfile path">
+                <input :id="id" v-model="h.caddyfilePath" class="input font-mono" placeholder="/caddy/Caddyfile" spellcheck="false" />
+              </Field>
             </div>
           </div>
           <button
@@ -154,7 +161,8 @@
         <h2 class="text-[15px] font-semibold text-slate-100">Reverse proxy (domain mapping)</h2>
         <p v-if="locked.domainProvider" class="text-xs text-slate-500">Set by <code>DOMAIN_PROVIDER</code> — locked.</p>
         <div class="space-y-3" :class="locked.domainProvider ? 'pointer-events-none opacity-50' : ''">
-          <select v-model="form.domainProvider" class="select">
+          <Field v-slot="{ id }" label="Provider" hint="Auto-detect uses whichever config path below is set, and falls back to Traefik container labels.">
+          <select :id="id" v-model="form.domainProvider" class="select">
             <option value="">Auto-detect</option>
             <option value="npm">Nginx Proxy Manager</option>
             <option value="nginx">Nginx (plain)</option>
@@ -162,30 +170,19 @@
             <option value="traefik-file">Traefik (file)</option>
             <option value="caddy">Caddy</option>
           </select>
-          <input
-            v-if="form.domainProvider === 'npm' || (form.domainProvider === '' && form.npmConfDir)"
-            v-model="form.npmConfDir"
-            class="input"
-            placeholder="NPM proxy_host dir (in-container path)"
-          />
-          <input
-            v-if="form.domainProvider === 'nginx'"
-            v-model="form.nginxConfDir"
-            class="input"
-            placeholder="Nginx confs dir or file (e.g. /nginx/sites-enabled)"
-          />
-          <input
-            v-if="form.domainProvider === 'traefik-file'"
-            v-model="form.traefikFilePath"
-            class="input"
-            placeholder="Traefik dynamic config file/dir (YAML or TOML)"
-          />
-          <input
-            v-if="form.domainProvider === 'caddy'"
-            v-model="form.caddyfilePath"
-            class="input"
-            placeholder="Caddyfile path (in-container)"
-          />
+          </Field>
+          <Field v-if="form.domainProvider === 'npm' || (form.domainProvider === '' && form.npmConfDir)" v-slot="{ id }" label="NPM proxy_host directory" hint="The path inside the homeport container.">
+            <input :id="id" v-model="form.npmConfDir" class="input font-mono" placeholder="/npm/proxy_host" spellcheck="false" />
+          </Field>
+          <Field v-if="form.domainProvider === 'nginx'" v-slot="{ id }" label="Nginx config dir or file">
+            <input :id="id" v-model="form.nginxConfDir" class="input font-mono" placeholder="/nginx/sites-enabled" spellcheck="false" />
+          </Field>
+          <Field v-if="form.domainProvider === 'traefik-file'" v-slot="{ id }" label="Traefik dynamic config file or dir" hint="YAML or TOML.">
+            <input :id="id" v-model="form.traefikFilePath" class="input font-mono" placeholder="/traefik/dynamic" spellcheck="false" />
+          </Field>
+          <Field v-if="form.domainProvider === 'caddy'" v-slot="{ id }" label="Caddyfile path" hint="The path inside the homeport container.">
+            <input :id="id" v-model="form.caddyfilePath" class="input font-mono" placeholder="/caddy/Caddyfile" spellcheck="false" />
+          </Field>
         </div>
         <TestButton label="Test provider" :run="testProvider" />
       </section>
@@ -198,16 +195,21 @@
           data volume — set its file permissions accordingly.
         </p>
 
-        <div v-if="form.domainProvider === 'npm' || form.domainProvider === ''" class="space-y-2">
-          <p v-if="locked.npmApiUrl" class="text-xs text-slate-500">Set by <code>HOMEPORT_NPM_API_URL</code> — locked.</p>
-          <input v-model="form.npmApiUrl" class="input" placeholder="NPM API URL (e.g. http://npm:81)" />
-          <input v-model="form.npmApiIdentity" class="input" placeholder="NPM email / identity" />
-          <input v-model="form.npmApiSecret" type="password" class="input" :placeholder="npmApiSecretSet ? '•••••• stored, leave blank to keep' : 'NPM password'" autocomplete="new-password" />
+        <div v-if="form.domainProvider === 'npm' || form.domainProvider === ''" class="grid gap-3 sm:grid-cols-2">
+          <p v-if="locked.npmApiUrl" class="text-xs text-slate-500 sm:col-span-2">Set by <code>HOMEPORT_NPM_API_URL</code>, locked.</p>
+          <Field v-slot="{ id }" label="NPM API URL" class="sm:col-span-2">
+            <input :id="id" v-model="form.npmApiUrl" class="input font-mono" placeholder="http://nginx-proxy-manager:81" spellcheck="false" />
+          </Field>
+          <Field v-slot="{ id }" label="NPM email">
+            <input :id="id" v-model="form.npmApiIdentity" class="input" placeholder="admin@example.com" autocomplete="off" />
+          </Field>
+          <Field v-slot="{ id }" label="NPM password" :hint="npmApiSecretSet ? 'A password is stored; leave empty to keep it.' : undefined">
+            <input :id="id" v-model="form.npmApiSecret" type="password" class="input" :placeholder="npmApiSecretSet ? '••••••' : ''" autocomplete="new-password" />
+          </Field>
         </div>
-        <div v-if="form.domainProvider === 'caddy'" class="space-y-2">
-          <input v-model="form.caddyAdminUrl" class="input" placeholder="Caddy admin API (e.g. http://caddy:2019)" />
-          <p class="text-[11px] text-slate-500">The admin API is root-of-proxy — keep it on a private network, never published.</p>
-        </div>
+        <Field v-if="form.domainProvider === 'caddy'" v-slot="{ id }" label="Caddy admin API" hint="The admin API controls the whole proxy: keep it on a private network, never published.">
+          <input :id="id" v-model="form.caddyAdminUrl" class="input font-mono" placeholder="http://caddy:2019" spellcheck="false" />
+        </Field>
         <p v-if="form.domainProvider === 'traefik-file'" class="text-[11px] text-slate-500">
           Traefik file admin writes a <code>homeport.yml</code> in the dynamic-config dir (or only
           <code>homeport-*</code> keys in a single file). Mount it <strong>read-write</strong>.
@@ -442,34 +444,39 @@
               :key="i"
               class="space-y-2 rounded-lg border border-white/[0.08] bg-ink-950/40 p-3"
             >
-              <div class="flex items-center gap-2">
-                <input v-model="ch.name" class="input" placeholder="Channel name" />
-                <select v-model="ch.preset" class="select" :class="['max-w-[8rem]']">
+              <div class="flex items-end gap-2">
+                <Field v-slot="{ id }" label="Name" class="flex-1">
+                  <input :id="id" v-model="ch.name" class="input" placeholder="e.g. Discord #alerts" />
+                </Field>
+                <Field v-slot="{ id }" label="Type">
+                <select :id="id" v-model="ch.preset" class="select w-36">
                   <option value="discord">Discord</option>
                   <option value="slack">Slack</option>
                   <option value="ntfy">ntfy</option>
                   <option value="apprise">Apprise</option>
                   <option value="custom">Custom</option>
                 </select>
+                </Field>
                 <button
                   type="button"
-                  class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+                  class="btn btn-icon shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+                  :aria-label="`Remove channel ${ch.name || i + 1}`"
+                  title="Remove channel"
                   @click="form.alertChannels.splice(i, 1)"
-                >
-                  Remove
-                </button>
+                ><Icon name="trash" /></button>
               </div>
-              <input
-                v-model="ch.url"
-                class="input"
-                :placeholder="ch.preset === 'apprise' ? 'Apprise API endpoint — http://apprise:8000/notify/<key>' : 'Webhook URL (https://…)'"
-              />
-              <input
-                v-if="ch.preset === 'apprise'"
-                v-model="ch.urls"
-                class="input"
-                placeholder="Apprise URLs (optional) — e.g. pover://user@token, tgram://bot/chat"
-              />
+              <Field v-slot="{ id }" :label="ch.preset === 'apprise' ? 'Apprise API endpoint' : 'Webhook URL'">
+                <input
+                  :id="id"
+                  v-model="ch.url"
+                  class="input font-mono"
+                  :placeholder="ch.preset === 'apprise' ? 'http://apprise:8000/notify/<key>' : 'https://…'"
+                  spellcheck="false"
+                />
+              </Field>
+              <Field v-if="ch.preset === 'apprise'" v-slot="{ id }" label="Apprise URLs" optional>
+                <input :id="id" v-model="ch.urls" class="input font-mono" placeholder="pover://user@token, tgram://bot/chat" spellcheck="false" />
+              </Field>
               <textarea
                 v-if="ch.preset === 'custom'"
                 v-model="ch.template"
@@ -504,18 +511,30 @@
               Email channel (SMTP) — leave the server empty to disable. Uses implicit TLS when “TLS from the start”
               is checked (port 465), otherwise STARTTLS is used when the server offers it (587). “Send test” covers it.
             </p>
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input v-model="form.smtpHost" class="input" placeholder="smtp.example.com" />
-              <div class="flex items-center gap-3">
-                <input v-model.number="form.smtpPort" type="number" min="1" max="65535" class="input" :class="['max-w-[7rem]']" placeholder="587" />
-                <label class="flex items-center gap-1.5 text-xs text-slate-300">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field v-slot="{ id }" label="SMTP server">
+                <input :id="id" v-model="form.smtpHost" class="input" placeholder="smtp.example.com" spellcheck="false" />
+              </Field>
+              <div class="flex items-end gap-3">
+                <Field v-slot="{ id }" label="Port">
+                  <input :id="id" v-model.number="form.smtpPort" type="number" min="1" max="65535" class="input w-28" placeholder="587" />
+                </Field>
+                <label class="check mb-2 text-xs text-slate-300">
                   <input v-model="form.smtpSecure" type="checkbox" /> TLS from the start (465)
                 </label>
               </div>
-              <input v-model="form.smtpUser" class="input" placeholder="username (optional)" autocomplete="off" />
-              <input v-model="form.smtpPass" type="password" class="input" :placeholder="smtpPassSet ? '•••••• stored, leave blank to keep' : 'password (optional)'" autocomplete="new-password" />
-              <input v-model="form.smtpFrom" class="input" placeholder="from: homeport@example.com" />
-              <input v-model="form.smtpTo" class="input" placeholder="to: you@example.com (comma for more)" />
+              <Field v-slot="{ id }" label="Username" optional>
+                <input :id="id" v-model="form.smtpUser" class="input" autocomplete="off" />
+              </Field>
+              <Field v-slot="{ id }" label="Password" optional :hint="smtpPassSet ? 'A password is stored; leave empty to keep it.' : undefined">
+                <input :id="id" v-model="form.smtpPass" type="password" class="input" :placeholder="smtpPassSet ? '••••••' : ''" autocomplete="new-password" />
+              </Field>
+              <Field v-slot="{ id }" label="From">
+                <input :id="id" v-model="form.smtpFrom" class="input" placeholder="homeport@example.com" />
+              </Field>
+              <Field v-slot="{ id }" label="To" hint="Separate several addresses with commas.">
+                <input :id="id" v-model="form.smtpTo" class="input" placeholder="you@example.com" />
+              </Field>
             </div>
           </div>
         </div>
@@ -577,15 +596,23 @@
         </p>
         <p v-if="locked.registryCreds" class="text-xs text-slate-500">Set by <code>HOMEPORT_REGISTRY_AUTH</code> — locked.</p>
         <template v-else>
-          <div v-for="(c, i) in form.registryCreds" :key="i" class="flex flex-wrap items-center gap-2">
-            <input v-model="c.registry" class="input" :class="['min-w-[9rem] flex-1']" placeholder="registry host (e.g. ghcr.io)" />
-            <input v-model="c.username" class="input" :class="['min-w-[8rem] flex-1']" placeholder="username" autocomplete="off" />
-            <input v-model="c.token" type="password" class="input" :class="['min-w-[10rem] flex-1']" :placeholder="c.tokenSet ? '•••••• stored, blank keeps it' : 'token / password'" autocomplete="new-password" />
+          <div v-for="(c, i) in form.registryCreds" :key="i" class="grid items-end gap-2 rounded-lg border border-white/[0.08] bg-ink-950/40 p-3 sm:grid-cols-[1fr_1fr_1.3fr_auto]">
+            <Field v-slot="{ id }" label="Registry">
+              <input :id="id" v-model="c.registry" class="input font-mono" placeholder="ghcr.io" spellcheck="false" />
+            </Field>
+            <Field v-slot="{ id }" label="Username">
+              <input :id="id" v-model="c.username" class="input" autocomplete="off" />
+            </Field>
+            <Field v-slot="{ id }" label="Token or password">
+              <input :id="id" v-model="c.token" type="password" class="input" :placeholder="c.tokenSet ? 'stored, empty keeps it' : ''" autocomplete="new-password" />
+            </Field>
             <button
               type="button"
-              class="btn shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+              class="btn btn-icon shrink-0 text-slate-400 hover:!border-red-500/40 hover:!text-red-300"
+              :aria-label="`Remove ${c.registry || 'registry'} login`"
+              title="Remove login"
               @click="form.registryCreds.splice(i, 1)"
-            >Remove</button>
+            ><Icon name="trash" /></button>
           </div>
           <button
             type="button"
@@ -639,10 +666,16 @@
         <p v-if="caps.passwordEnvLocked" class="text-xs text-slate-500">
           The admin password is set via <code>HOMEPORT_ADMIN_PASSWORD</code> — change it there.
         </p>
-        <div v-else class="max-w-sm space-y-2">
-          <input v-model="pw.current" type="password" class="input" placeholder="Current password" autocomplete="current-password" />
-          <input v-model="pw.next" type="password" class="input" placeholder="New password" autocomplete="new-password" />
-          <input v-model="pw.confirm" type="password" class="input" placeholder="Confirm new password" autocomplete="new-password" />
+        <div v-else class="max-w-sm space-y-3">
+          <Field v-slot="{ id }" label="Current password">
+            <input :id="id" v-model="pw.current" type="password" class="input" autocomplete="current-password" />
+          </Field>
+          <Field v-slot="{ id }" label="New password">
+            <input :id="id" v-model="pw.next" type="password" class="input" autocomplete="new-password" />
+          </Field>
+          <Field v-slot="{ id }" label="Confirm new password">
+            <input :id="id" v-model="pw.confirm" type="password" class="input" autocomplete="new-password" />
+          </Field>
           <div class="flex items-center gap-3">
             <button
               type="button"
@@ -839,9 +872,11 @@ async function changePassword() {
   }
 }
 
-const showProviderHint = computed(
-  () => loaded.value && !form.domainProvider && !form.npmConfDir && !form.caddyfilePath && !form.nginxConfDir && !form.traefikFilePath,
-)
+// Ask the server what is actually mapping domains: auto-detect can find a
+// provider (e.g. Traefik labels) with none of the path fields filled in.
+const { data: svcData, refresh: refreshServices } = useServices()
+const detectedProvider = computed(() => svcData.value?.domainProvider ?? null)
+const showProviderHint = computed(() => loaded.value && !!svcData.value && !detectedProvider.value && !caps.value.demo)
 
 // connection tests (shared TestButton)
 async function testDocker() {
@@ -1147,6 +1182,7 @@ function addHost() {
 }
 
 onMounted(async () => {
+  if (!svcData.value) refreshServices() // for the "no reverse proxy" hint
   loadCaps()
   refreshSelfUpdate()
   try {
@@ -1197,15 +1233,7 @@ function discard() {
   if (snapshot.value) Object.assign(form, JSON.parse(snapshot.value))
   msg.value = ''
 }
-onBeforeRouteLeave(async () => {
-  if (!dirty.value) return true
-  return await confirm({
-    title: 'Leave without saving?',
-    message: 'Your settings changes have not been saved.',
-    confirmLabel: 'Discard changes',
-    danger: true,
-  })
-})
+useUnsavedGuard(() => dirty.value, 'Your settings changes have not been saved.')
 
 const toast = useToast()
 async function save() {

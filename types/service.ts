@@ -30,6 +30,7 @@ export interface Service {
   networks?: string[] // docker networks the container is attached to
   group: string // hub.group label > compose project > "Other"
   project: string | null
+  composeService?: string | null // compose service name (com.docker.compose.service)
   icon: string | null // hub.icon label
   domains: ServiceDomain[]
   hidden: boolean // hub.hide label

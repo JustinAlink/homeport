@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.28.0 (2026-10-21)
+## v2.28.0 (2026-10-22)
 
 A complete UI makeover: new design system, clearer pages, and the pain points
 found by using every page as a user.
@@ -32,6 +32,44 @@ found by using every page as a user.
 - **Stacks.** The operation log now appears right under the buttons that start it
   (it used to land below a tall editor, out of sight), services are listed above the
   compose editor, and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves.
+- **Command palette actions and keyboard shortcuts.** Type a container plus a verb
+  ("jelly logs", "restart sonarr", "update vault") to act on it from
+  <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd>; <kbd>?</kbd> shows every shortcut and
+  <kbd>G</kbd> then a letter jumps to a page (<kbd>G</kbd> <kbd>S</kbd> for Stacks).
+- **Pin containers** to a group at the top of the dashboard (per browser).
+- **Settings that stick.** On a homeport-managed stack, changing a container's
+  restart policy or CPU/memory limits now also writes them into the compose file
+  (comments and formatting kept, validated with `docker compose config`), so the
+  next `compose up` no longer silently reverts them.
+- **Nothing lost by accident.** Leaving the compose editor, a file editor, the
+  Environment tab or Settings with unsaved edits asks first (closing the browser
+  tab too). Deleting a stack together with its volumes now needs the stack name
+  typed.
+- **Dashboard.** Status filter, search and host live in the URL, so Back from a
+  container page returns to the same view. Crash-looping containers count as
+  issues, not as "Stopped". The browser tab title shows the number of problems.
+  Card actions show up on keyboard focus and are always visible on touch screens.
+- **Connection lost banner.** If homeport stops answering (restart, network), a
+  banner says so instead of showing stale data as live, and clears itself on
+  reconnect.
+- **Discoverable features.** Pages behind a capability that is turned off stay in
+  the sidebar marked "off" and explain how to switch them on, instead of
+  vanishing. Viewer accounts no longer see start/stop buttons they can't use.
+- **Labelled forms.** Every Settings field has a real label (placeholders
+  disappear while typing); login defaults the username to `admin`, which now
+  signs in as the main account.
+- **Logs** highlight filter matches, can wrap or not, and pause when you scroll up
+  with a "Latest" button to jump back.
+- **Catalog.** Apps offered by several template sources appear once (the earlier
+  source wins); the default order puts homeport's own curated apps first and the
+  best name match first when searching; a search with no template result offers
+  Docker Hub and GitHub instead.
+- **Fixes found along the way.** "domains via Traefik" no longer shows when no
+  proxy is configured (auto-detect's label fallback always reported itself, which
+  also hid the no-proxy onboarding card); Activity entries link to their container
+  or stack; a fresh install's graphs open on live data instead of an empty hour;
+  focus stays inside open dialogs; copy buttons for container names, images and
+  URLs.
 - **Smaller fixes.** Catalog descriptions with raw markdown
   (`[Name](https://…) is a …`) now read as plain text; the logs slide-over closes on
   <kbd>Esc</kbd> and logs can be filtered; labelled login fields (the username

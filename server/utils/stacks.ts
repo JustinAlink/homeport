@@ -194,6 +194,35 @@ export function deleteStackDir(name: string): void {
   rmSync(join(stacksDir(), safe), { recursive: true, force: true })
 }
 
+/**
+ * Save a stack's compose file and validate it with `docker compose config`; on
+ * failure the previous version is restored from the .bak and the validator's
+ * output thrown. Shared by the editor's save and the container page's
+ * "save to compose file".
+ */
+export async function saveStackValidated(name: string, content: string, createNew = false): Promise<StackFile> {
+  const saved = await saveStack(name, content, createNew)
+  const check = await validateCompose(saved.name)
+  if (!check.ok) {
+    // restore the previous good version from .bak; backup:false so the rejected
+    // content doesn't overwrite that good .bak
+    try {
+      const good = readFileSync(`${saved.dir}/${saved.file}.bak`, 'utf8')
+      await saveStack(saved.name, good, false, false)
+    } catch {
+      // no backup (new stack): leave the invalid file for the user to fix
+    }
+    throw new ComposeValidationError(check.output || 'unknown error')
+  }
+  return saved
+}
+
+export class ComposeValidationError extends Error {
+  constructor(public output: string) {
+    super(`compose validation failed:\n${output}`)
+  }
+}
+
 export async function readStack(name: string): Promise<StackFile | null> {
   const s = await resolveStack(name)
   if (!s) return null

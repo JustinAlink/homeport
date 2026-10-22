@@ -2,11 +2,13 @@
   <div class="page">
     <PageHeader title="Domains" :subtitle="provider ? `Reverse-proxy routes, managed through ${provider}.` : 'Reverse-proxy routes pointing domains at your containers.'">
       <template #actions>
-        <button v-if="caps.create && !hpCaps.viewer" class="btn" :class="adding ? '' : 'btn-primary'" @click="adding = !adding">
+        <button v-if="caps.create && !hpCaps.viewer && hpCaps.proxyAdmin" class="btn" :class="adding ? '' : 'btn-primary'" @click="adding = !adding">
           <Icon :name="adding ? 'x' : 'plus'" /> {{ adding ? 'Close' : 'Add domain' }}
         </button>
       </template>
     </PageHeader>
+
+    <CapabilityGate need="proxyAdmin" feature="Domain management" text="homeport can create, edit and delete reverse-proxy routes for you (Nginx Proxy Manager, Caddy or Traefik files). Turn on proxy management and add its credentials." icon="globe">
 
     <DomainForm v-if="adding" class="mb-5 max-w-2xl" @saved="onSaved" @cancel="adding = false" />
 
@@ -57,6 +59,7 @@
         </div>
       </div>
     </template>
+    </CapabilityGate>
   </div>
 </template>
 

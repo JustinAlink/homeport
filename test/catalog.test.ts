@@ -15,6 +15,7 @@ import {
   slugify,
   normalizeCategory,
   plainDescription,
+  imageKey,
 } from '../server/utils/catalog-core.ts'
 import { BUILTIN_CATALOG } from '../server/utils/catalog-builtin.ts'
 
@@ -186,4 +187,17 @@ test('parsePortainerTemplates: descriptions come out as plain text', () => {
     'test',
   )
   assert.equal(apps[0]?.description, 'Demo does things')
+})
+
+test('mergeApps: one entry per image across sources, the earlier source wins', () => {
+  const app = (slug: string, name: string, image: string, source: string) =>
+    ({ slug, name, description: '', categories: [], icon: '', image, source, compose: '', inputs: [] }) as any
+  const merged = mergeApps([
+    [app('adguard-home', 'AdGuard Home', 'adguard/adguardhome:latest', 'built-in')],
+    [app('adguard', 'Adguard', 'docker.io/adguard/adguardhome', 'remote'), app('other', 'Other', '', 'remote')],
+    [app('adguardhome-container', 'Adguardhome (container)', 'adguard/adguardhome:v0.107', 'remote2'), app('other2', 'Other 2', '', 'remote2')],
+  ])
+  assert.deepEqual(merged.map((a) => a.slug).sort(), ['adguard-home', 'other', 'other2'])
+  assert.equal(imageKey('lscr.io/linuxserver/sonarr:4@sha256:abc'), 'linuxserver/sonarr')
+  assert.equal(imageKey('library/ghost:5'), 'ghost')
 })

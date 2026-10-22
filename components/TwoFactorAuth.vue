@@ -11,7 +11,7 @@
         <span class="rounded-full border border-accent/30 px-1.5 py-0.5 text-[10px] uppercase text-accent-light">enabled</span>
         <span class="text-xs text-slate-400">{{ recoveryRemaining }} recovery code{{ recoveryRemaining === 1 ? '' : 's' }} left</span>
         <div class="ml-auto flex gap-2">
-          <button type="button" class="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="showRegenerate = !showRegenerate">Regenerate codes</button>
+          <button type="button" class="btn btn-sm" @click="showRegenerate = !showRegenerate">Regenerate codes</button>
           <button type="button" class="rounded border border-red-500/20 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10" @click="showDisable = true">Disable</button>
         </div>
       </div>
@@ -42,7 +42,7 @@
       <div class="grid grid-cols-2 gap-1 font-mono text-xs text-slate-100 sm:grid-cols-3">
         <code v-for="c in freshCodes" :key="c" class="rounded bg-ink-950 px-2 py-1">{{ c }}</code>
       </div>
-      <button type="button" class="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/5" @click="copyRecovery">{{ copied ? 'Copied' : 'Copy all' }}</button>
+      <button type="button" class="btn btn-sm" @click="copyRecovery">{{ copied ? 'Copied' : 'Copy all' }}</button>
     </div>
 
     <!-- not enabled: start enrollment -->
@@ -56,7 +56,7 @@
       <div class="w-40 rounded bg-white p-2 [&>svg]:h-auto [&>svg]:w-full" v-html="qrSvg" />
       <div class="flex items-center gap-2">
         <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded bg-ink-950 px-2 py-1.5 font-mono text-xs text-slate-100">{{ secret }}</code>
-        <button type="button" class="shrink-0 rounded-md border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/5" @click="copySecret">{{ secretCopied ? 'Copied' : 'Copy' }}</button>
+        <button type="button" class="btn btn-sm shrink-0" @click="copySecret">{{ secretCopied ? 'Copied' : 'Copy' }}</button>
       </div>
       <input v-model="code" inputmode="numeric" maxlength="6" :class="fieldCls" placeholder="6-digit code" @keyup.enter="confirmEnroll" />
       <div class="flex items-center gap-3">

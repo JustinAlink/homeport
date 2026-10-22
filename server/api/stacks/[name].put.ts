@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { getConfig } from '../../utils/config'
-import { saveStack, validateCompose } from '../../utils/stacks'
+import { saveStackValidated } from '../../utils/stacks'
 import { demoStackSave } from '../../utils/demo'
 
 // Save (or create with ?create=1) a stack's compose file. The saved file is
@@ -23,22 +22,9 @@ export default defineEventHandler(async (event) => {
 
   let saved
   try {
-    saved = await saveStack(name, content, create)
+    saved = await saveStackValidated(name, content, create)
   } catch (e: any) {
     throw createError({ statusCode: 400, statusMessage: e?.message || 'save failed' })
-  }
-
-  const check = await validateCompose(saved.name)
-  if (!check.ok) {
-    // restore the previous good version from .bak — backup:false so we don't
-    // overwrite that good .bak with the rejected content.
-    try {
-      const good = readFileSync(`${saved.dir}/${saved.file}.bak`, 'utf8')
-      await saveStack(saved.name, good, false, false)
-    } catch {
-      // no backup (new stack) — leave the invalid file for the user to fix
-    }
-    throw createError({ statusCode: 400, statusMessage: `compose validation failed:\n${check.output || 'unknown error'}` })
   }
 
   return { ok: true, stack: saved }

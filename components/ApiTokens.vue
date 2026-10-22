@@ -32,7 +32,7 @@
       <p class="text-[11px] text-accent-light">Copy this now — it won't be shown again.</p>
       <div class="flex items-center gap-2">
         <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded bg-ink-950 px-2 py-1.5 font-mono text-xs text-slate-100">{{ fresh }}</code>
-        <button type="button" class="shrink-0 rounded-md border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/5" @click="copy(fresh)">
+        <button type="button" class="btn btn-sm shrink-0" @click="copy(fresh)">
           {{ copied ? 'Copied' : 'Copy' }}
         </button>
       </div>

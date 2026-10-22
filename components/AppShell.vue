@@ -63,15 +63,18 @@
             :key="item.to"
             :to="item.to"
             class="group relative flex h-9 items-center gap-3 rounded-lg px-2.5 text-[13.5px] transition-colors"
-            :class="isActive(item.to)
-              ? 'bg-white/[0.07] font-medium text-slate-100'
-              : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'"
+            :class="[
+              isActive(item.to) ? 'bg-white/[0.07] font-medium text-slate-100' : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200',
+              item.off && !isActive(item.to) ? 'opacity-55' : '',
+            ]"
+            :title="item.off ? `${item.label} is turned off: open it to see how to switch it on` : undefined"
             @click="drawer = false"
           >
             <span v-if="isActive(item.to)" class="absolute -left-3 top-2 h-5 w-[3px] rounded-r-full bg-accent" />
             <Icon :name="item.icon" class="h-[18px] w-[18px] shrink-0" :class="isActive(item.to) ? 'text-accent-light' : 'text-slate-500 group-hover:text-slate-300'" />
             {{ item.label }}
             <span v-if="item.badge" class="ml-auto rounded-full bg-sky-400/15 px-1.5 py-px text-[10.5px] font-semibold tabular-nums text-sky-300">{{ item.badge }}</span>
+            <span v-else-if="item.off" class="ml-auto text-[10.5px] font-medium uppercase tracking-wide text-slate-600">off</span>
           </NuxtLink>
         </div>
       </nav>
@@ -107,23 +110,37 @@
               @click="theme.set(t.value)"
             ><Icon :name="t.icon" class="h-3.5 w-3.5" /></button>
           </div>
+          <button class="btn btn-ghost btn-icon btn-sm ml-auto" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" @click="shortcutsOpen = true">
+            <Icon name="command" class="h-3.5 w-3.5" />
+          </button>
           <button
             v-if="!caps.forwardAuth"
-            class="btn btn-ghost btn-sm ml-auto"
+            class="btn btn-ghost btn-sm"
             title="Log out"
             @click="logout"
           ><Icon name="logout" class="h-3.5 w-3.5" /> Log out</button>
-          <span v-else class="ml-auto text-[11px] text-slate-500" title="Authenticated by your reverse proxy (forward-auth)">via proxy</span>
+          <span v-else class="text-[11px] text-slate-500" title="Authenticated by your reverse proxy (forward-auth)">via proxy</span>
         </div>
       </div>
     </aside>
 
     <!-- content -->
     <main class="min-w-0 flex-1 pt-14 md:pt-0">
+      <Transition name="fade">
+        <div
+          v-if="!connection.online.value && !selfUpdate.busy.value"
+          class="sticky top-14 z-30 flex items-center justify-center gap-2 border-b border-amber-500/25 bg-amber-500/[0.12] px-4 py-2 text-[13px] text-amber-200 backdrop-blur md:top-0"
+          role="status"
+        >
+          <Icon name="refresh" class="h-3.5 w-3.5 animate-spin" />
+          Lost the connection to homeport. Retrying; what you see may be out of date.
+        </div>
+      </Transition>
       <slot />
     </main>
 
     <CommandPalette />
+    <ShortcutsDialog :open="shortcutsOpen" :mod="modKey" @close="shortcutsOpen = false" />
   </div>
 </template>
 
@@ -132,11 +149,17 @@ import type { ThemeChoice } from '~/composables/useTheme'
 
 const route = useRoute()
 const drawer = ref(false)
-const { caps } = useCapabilities()
+const { caps, loaded: capsLoaded } = useCapabilities()
 const theme = useTheme()
 const updates = useUpdates()
 const selfUpdate = useSelfUpdate()
 const palette = usePalette()
+const connection = useConnection()
+const shortcutsOpen = ref(false)
+// grabbed during setup: composables shouldn't be first called from async callbacks
+const services = useServices()
+const toast = useToast()
+const confirmState = useConfirmState()
 
 const bare = computed(() => route.path === '/login')
 watch(() => route.fullPath, () => (drawer.value = false))
@@ -156,19 +179,22 @@ onMounted(() => {
   if (/Mac|iPhone|iPad/.test(navigator.platform)) modKey.value = '⌘'
 })
 
+// Pages behind an opt-in capability stay listed (dimmed, "off") so they can be
+// discovered; the page itself explains how to switch it on. Viewers can't change
+// settings, so for them the switched-off pages are simply left out.
 const sections = computed(() => {
   const c = caps.value
+  const gated = (on: boolean, item: { to: string; label: string; icon: string; badge?: number }) =>
+    on ? [item] : c.viewer || !capsLoaded.value ? [] : [{ ...item, off: true }]
   const manage = [
-    ...(c.stacks ? [{ to: '/stacks', label: 'Stacks', icon: 'stacks' }] : []),
-    ...(c.updateCheck || c.updates
-      ? [{ to: '/updates', label: 'Updates', icon: 'arrow-up', badge: updateCount.value || undefined }]
-      : []),
+    ...gated(c.stacks, { to: '/stacks', label: 'Stacks', icon: 'stacks' }),
+    ...gated(c.updateCheck || c.updates, { to: '/updates', label: 'Updates', icon: 'arrow-up', badge: updateCount.value || undefined }),
     { to: '/catalog', label: 'App catalog', icon: 'catalog' },
   ]
   const infra = [
-    ...(c.proxyAdmin ? [{ to: '/domains', label: 'Domains', icon: 'globe' }] : []),
-    ...(c.stacks ? [{ to: '/networks', label: 'Networks', icon: 'network' }] : []),
-    ...(c.stacks ? [{ to: '/storage', label: 'Storage', icon: 'database' }] : []),
+    ...gated(c.proxyAdmin, { to: '/domains', label: 'Domains', icon: 'globe' }),
+    ...gated(c.stacks, { to: '/networks', label: 'Networks', icon: 'network' }),
+    ...gated(c.stacks, { to: '/storage', label: 'Storage', icon: 'database' }),
   ]
   return [
     {
@@ -181,7 +207,7 @@ const sections = computed(() => {
     { label: 'Manage', items: manage },
     ...(infra.length ? [{ label: 'Infrastructure', items: infra }] : []),
     ...(c.viewer ? [] : [{ label: 'System', items: [{ to: '/settings', label: 'Settings', icon: 'sliders' }] }]),
-  ] as { label: string; items: { to: string; label: string; icon: string; badge?: number }[] }[]
+  ] as { label: string; items: { to: string; label: string; icon: string; badge?: number; off?: boolean }[] }[]
 })
 
 onMounted(() => {
@@ -208,10 +234,46 @@ async function logout() {
   await navigateTo('/login')
 }
 
+// "?" opens the shortcut sheet; "g" then a letter jumps to a page (see utils/shortcuts.ts)
+let gPending = 0
+function onKey(e: KeyboardEvent) {
+  if (bare.value || e.metaKey || e.ctrlKey || e.altKey || isTyping(e)) return
+  if (palette.isOpen.value || confirmState.value.open) return
+  if (e.key === '?') {
+    e.preventDefault()
+    shortcutsOpen.value = !shortcutsOpen.value
+    return
+  }
+  if (e.key === 'Escape' && shortcutsOpen.value) {
+    shortcutsOpen.value = false
+    return
+  }
+  const now = Date.now()
+  if (gPending && now - gPending < 1200) {
+    gPending = 0
+    const target = GOTO.find((g) => g.key === e.key.toLowerCase())
+    if (target) {
+      e.preventDefault()
+      shortcutsOpen.value = false
+      navigateTo(target.to)
+    }
+    return
+  }
+  if (e.key === 'g') gPending = now
+}
+
 onMounted(() => {
   theme.init()
   useCapabilities().load()
+  window.addEventListener('keydown', onKey)
+  // a lost connection raises the banner; recovery refreshes the live data
+  startConnectionWatch(() => {
+    services.refresh()
+    updates.refresh()
+    toast.success('Reconnected to homeport')
+  })
 })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>

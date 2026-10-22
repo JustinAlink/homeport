@@ -91,7 +91,8 @@
                 <span v-if="pings.pings.value[d.url]" class="flex items-center gap-1.5 text-[11.5px] text-slate-500">
                   <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
                 </span>
-                <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon ml-auto" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
+                <CopyButton :text="d.url" label="URL" class="ml-auto" />
+                <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
               </div>
               <div v-if="service.ports.length" class="flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5">
                 <span class="mr-1 w-16 shrink-0 text-xs text-slate-500">Ports</span>
@@ -138,8 +139,12 @@
               <button v-if="restart.selected !== restart.policy" class="btn btn-ghost btn-sm" @click="restart.selected = restart.policy!">Cancel</button>
               <span v-if="restart.msg" class="text-xs" :class="restart.ok ? 'text-ok' : 'text-red-400'">{{ restart.msg }}</span>
             </div>
+            <label v-if="caps.control && canWriteCompose && restart.selected !== restart.policy" class="check mt-3 text-xs text-slate-400">
+              <input v-model="writeCompose" type="checkbox" />
+              <span>Also save it to <span class="font-mono">{{ composeProject }}</span>'s compose file, so it survives the next <code>up</code></span>
+            </label>
             <p v-if="!caps.control" class="field-hint">Changing it needs the start/stop capability.</p>
-            <p v-else-if="restart.composeManaged" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
+            <p v-else-if="restart.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
               <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick.</span>
             </p>
@@ -183,8 +188,12 @@
               </button>
               <span v-if="resources.msg" class="text-xs" :class="resources.ok ? 'text-ok' : 'text-red-400'">{{ resources.msg }}</span>
             </div>
+            <label v-if="caps.control && canWriteCompose && resourcesDirty" class="check mt-3 text-xs text-slate-400">
+              <input v-model="writeCompose" type="checkbox" />
+              <span>Also save them to <span class="font-mono">{{ composeProject }}</span>'s compose file, so they survive the next <code>up</code></span>
+            </label>
             <p v-if="!caps.control" class="field-hint">Changing them needs the start/stop capability.</p>
-            <p v-else-if="resources.composeManaged" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
+            <p v-else-if="resources.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
               <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated.</span>
             </p>
@@ -199,9 +208,10 @@
             <dl class="row-list text-[13px]">
               <div v-for="d in details" :key="d.label" class="flex items-baseline gap-3 px-4 py-2 sm:px-5">
                 <dt class="w-24 shrink-0 text-xs text-slate-500">{{ d.label }}</dt>
-                <dd class="min-w-0 break-words" :class="d.mono ? 'font-mono text-xs text-slate-300' : 'text-slate-200'">
+                <dd class="flex min-w-0 flex-1 items-start gap-1 break-words" :class="d.mono ? 'font-mono text-xs text-slate-300' : 'text-slate-200'">
                   <NuxtLink v-if="d.to" :to="d.to" class="link">{{ d.value }}</NuxtLink>
-                  <template v-else>{{ d.value }}</template>
+                  <span v-else class="min-w-0">{{ d.value }}</span>
+                  <CopyButton v-if="d.mono" :text="d.value" :label="d.label.toLowerCase()" class="-my-0.5 ml-auto" />
                 </dd>
               </div>
             </dl>
@@ -535,6 +545,22 @@ async function loadRestartPolicy() {
   }
 }
 
+// A managed stack's next `compose up` recreates the container from its file,
+// reverting live `docker update` changes, so offer to write them there too.
+const writeCompose = ref(true)
+const canWriteCompose = computed(
+  () => !!composeProject.value && stackManaged.value && !!service.value?.composeService && caps.value.stacks,
+)
+/** Returns a note for the result line, or throws with the reason the file wasn't updated. */
+async function saveToCompose(patch: Record<string, unknown>): Promise<string> {
+  if (!canWriteCompose.value || !writeCompose.value) return ''
+  const r = await $fetch<{ changed: boolean; file: string }>(`/api/stacks/${encodeURIComponent(composeProject.value!)}/service-settings`, {
+    method: 'POST',
+    body: { service: service.value!.composeService, ...patch },
+  })
+  return r.changed ? ` Saved to ${r.file}.` : ''
+}
+
 async function saveRestartPolicy() {
   restart.saving = true
   restart.msg = ''
@@ -542,7 +568,13 @@ async function saveRestartPolicy() {
     await $fetch('/api/restart-policy', { method: 'POST', body: { id, policy: restart.selected } })
     restart.policy = restart.selected
     restart.ok = true
-    restart.msg = restart.selected === 'no' ? 'applied — this container will stay down after a reboot.' : 'applied.'
+    restart.msg = restart.selected === 'no' ? 'Applied: this container will stay down after a reboot.' : 'Applied.'
+    try {
+      restart.msg += await saveToCompose({ restart: restart.selected })
+    } catch (e: any) {
+      restart.ok = false
+      restart.msg += ` Not saved to the compose file: ${errMsg(e, 'write failed')}`
+    }
   } catch (e: any) {
     restart.ok = false
     restart.msg = errMsg(e, 'could not change the restart policy')
@@ -609,7 +641,16 @@ async function saveResources() {
     resourcesLoadedCpus.value = resources.cpus
     resourcesLoadedMemory.value = resources.memory
     resources.ok = true
-    resources.msg = 'applied.'
+    resources.msg = 'Applied.'
+    const patch: Record<string, unknown> = {}
+    if ('cpus' in body) patch.cpus = resources.cpus || null
+    if ('memory' in body) patch.memory = resources.memory || null
+    try {
+      resources.msg += await saveToCompose(patch)
+    } catch (e: any) {
+      resources.ok = false
+      resources.msg += ` Not saved to the compose file: ${errMsg(e, 'write failed')}`
+    }
   } catch (e: any) {
     resources.ok = false
     resources.msg = errMsg(e, 'could not change resource limits')
@@ -647,11 +688,11 @@ const details = computed(() => {
 // Opens on the last hour of persisted history (instant), like the dashboard;
 // 'live' only fills after a minute of polling. History was never loaded on
 // mount before (only on a range change), so the graph always opened empty.
-const { range, past, load: loadHistory } = useHistoryRange(id, '1h')
+const { range, past, realPoints, load: loadHistory } = useHistoryRange(id, '1h')
 async function initHistory() {
   await loadHistory()
   // no persisted history (feature off, or a brand-new container): show live instead
-  if (range.value !== 'live' && (past.value?.cpu.length ?? 0) < 2) range.value = 'live'
+  if (range.value !== 'live' && realPoints.value < 2) range.value = 'live'
 }
 const series = computed(() => {
   const live = stats.history.value[id] ?? { cpu: [], mem: [] }
@@ -881,6 +922,7 @@ async function applyEnv() {
       body: { id, env: envRows.value.map((row) => ({ key: row.key.trim(), value: row.keep ? null : row.value })) },
     })
     envSteps.value = r.steps
+    envSnapshot.value = JSON.stringify(envRows.value) // applied: no longer an unsaved edit
     await refresh()
     if (r.newId) {
       const sep = id.indexOf('::')
@@ -903,6 +945,17 @@ async function applyEnv() {
 }
 
 // a ?tab= this setup doesn't offer (capability off) falls back to the overview
+// Unsaved edits on this page: the environment table, the restart policy and the limits.
+const envSnapshot = ref('')
+watch(envLoaded, (l) => {
+  if (l) envSnapshot.value = JSON.stringify(envRows.value)
+})
+const envDirty = computed(() => envLoaded.value && !!envSnapshot.value && JSON.stringify(envRows.value) !== envSnapshot.value && !applying.value)
+useUnsavedGuard(
+  () => envDirty.value || (restart.policy !== null && restart.selected !== restart.policy) || (resources.loaded && resourcesDirty.value && !resources.saving),
+  'Changes on this container page have not been applied.',
+)
+
 // (declared down here: `tabs` reads updateEntry, which is defined above this line)
 watch(
   () => capsLoaded.value && tabs.value.length,

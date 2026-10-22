@@ -7,6 +7,7 @@
         @mousedown.self="close"
       >
         <div
+          ref="panel"
           class="w-full max-w-xl overflow-hidden rounded-xl border border-white/10 bg-ink-900"
           style="box-shadow: var(--shadow-pop)"
           role="dialog"
@@ -18,7 +19,7 @@
               ref="input"
               v-model="q"
               class="h-12 w-full bg-transparent text-[15px] text-slate-100 outline-none placeholder:text-slate-500"
-              placeholder="Search containers, stacks, pages…"
+              placeholder="Search containers, stacks, pages, actions…"
               spellcheck="false"
               autocomplete="off"
               @keydown.down.prevent="move(1)"
@@ -52,6 +53,7 @@
                   <span v-if="item.hint" class="block truncate text-[11.5px] text-slate-500">{{ item.hint }}</span>
                 </span>
                 <span v-if="item.state" class="dot" :class="stateDot(item.state)" />
+                <span v-if="item.keys" class="flex shrink-0 gap-0.5"><span v-for="k in item.keys" :key="k" class="kbd">{{ k }}</span></span>
                 <Icon v-if="item.idx === active" name="arrow-right" class="h-3.5 w-3.5 shrink-0 text-slate-500" />
               </button>
             </template>
@@ -61,7 +63,7 @@
           <div class="flex items-center gap-4 border-t border-white/[0.06] px-4 py-2 text-[11px] text-slate-500">
             <span class="flex items-center gap-1"><span class="kbd">↑</span><span class="kbd">↓</span> move</span>
             <span class="flex items-center gap-1"><span class="kbd">↵</span> open</span>
-            <span class="ml-auto hidden sm:inline">tip: press <span class="kbd">/</span> on the dashboard to filter</span>
+            <span class="ml-auto hidden sm:inline">try “restart”, “logs” or “update” after a name · <span class="kbd">?</span> for all shortcuts</span>
           </div>
         </div>
       </div>
@@ -86,12 +88,25 @@ interface Item {
   service?: Service
   state?: string
   keywords?: string
+  keys?: string[]
+  /** actions rank just below the thing they act on */
+  weight?: number
 }
 
 const { isOpen, open, close } = usePalette()
 const { data, refresh } = useServices()
 const { caps } = useCapabilities()
 const theme = useTheme()
+const updates = useUpdates()
+const pins = usePins()
+const { confirm } = useConfirm()
+const toast = useToast()
+const panel = ref<HTMLElement | null>(null)
+useFocusTrap(panel, isOpen)
+const gotoKeys = (to: string) => {
+  const g = GOTO.find((x) => x.to === to)
+  return g ? ['G', g.key.toUpperCase()] : undefined
+}
 const q = ref('')
 const active = ref(0)
 const input = ref<HTMLInputElement | null>(null)
@@ -113,12 +128,16 @@ const pages = computed<Item[]>(() => {
     p.push({ key: 'p:/storage', label: 'Storage', icon: 'database', to: '/storage', group: 'Pages', keywords: 'volumes images prune disk' })
   }
   if (!c.viewer) p.push({ key: 'p:/settings', label: 'Settings', icon: 'sliders', to: '/settings', group: 'Pages', keywords: 'config preferences' })
-  return p
+  return p.map((i) => ({ ...i, keys: gotoKeys(i.to!) }))
 })
 
 const actions = computed<Item[]>(() => [
   ...(caps.value.stacks ? [{ key: 'a:new-stack', label: 'New stack', icon: 'plus', to: '/stacks?new=1', group: 'Actions', keywords: 'create compose' }] : []),
   ...(caps.value.proxyAdmin && !caps.value.viewer ? [{ key: 'a:add-domain', label: 'Add a domain', icon: 'globe', to: '/domains?add=1', group: 'Actions', keywords: 'proxy route' }] : []),
+  ...(caps.value.updateCheck || caps.value.updates
+    ? [{ key: 'a:check', label: 'Check for image updates now', icon: 'refresh', group: 'Actions', keywords: 'updates registry pull', run: checkUpdates }]
+    : []),
+  { key: 'a:shortcuts', label: 'Keyboard shortcuts', icon: 'command', group: 'Actions', keywords: 'keys help hotkeys', keys: ['?'], run: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' })) },
   {
     key: 'a:theme',
     label: theme.isDark.value ? 'Switch to light theme' : 'Switch to dark theme',
@@ -144,6 +163,51 @@ const services = computed<Item[]>(() =>
     })),
 )
 
+// Verbs for a container, offered when it matches the query ("jelly restart" works too).
+function containerActions(s: Service): Item[] {
+  const page = `/services/${encodeURIComponent(s.id)}`
+  const up = s.state === 'running' || s.state === 'restarting'
+  const base = { group: 'Actions', service: s, weight: 0.9 }
+  const out: Item[] = []
+  if (caps.value.control) {
+    if (up) {
+      out.push({ ...base, key: `x:restart:${s.id}`, label: `Restart ${s.displayName}`, keywords: 'restart reboot', run: () => control(s, 'restart') })
+      out.push({ ...base, key: `x:stop:${s.id}`, label: `Stop ${s.displayName}`, keywords: 'stop halt', run: () => control(s, 'stop') })
+    } else {
+      out.push({ ...base, key: `x:start:${s.id}`, label: `Start ${s.displayName}`, keywords: 'start run', run: () => control(s, 'start') })
+    }
+  }
+  if (caps.value.logs) out.push({ ...base, key: `x:logs:${s.id}`, label: `Logs: ${s.displayName}`, keywords: 'logs output', to: `${page}?tab=logs` })
+  if (caps.value.terminal && up) out.push({ ...base, key: `x:term:${s.id}`, label: `Terminal: ${s.displayName}`, keywords: 'terminal shell exec console', to: `${page}?tab=terminal` })
+  if (updates.entryFor(s)?.status === 'update') out.push({ ...base, key: `x:upd:${s.id}`, label: `Update ${s.displayName}`, keywords: 'update upgrade pull', to: `${page}?tab=update` })
+  const pinned = pins.isPinned(s.name)
+  out.push({ ...base, key: `x:pin:${s.id}`, label: `${pinned ? 'Unpin' : 'Pin'} ${s.displayName} ${pinned ? 'from' : 'to'} the top`, keywords: 'pin favorite star', run: () => pins.toggle(s.name) })
+  return out
+}
+
+async function control(s: Service, action: 'start' | 'stop' | 'restart') {
+  if (action === 'stop' && !(await confirm({ message: `Stop “${s.displayName}”?`, confirmLabel: 'Stop', danger: true }))) return
+  try {
+    await $fetch('/api/control', { method: 'POST', body: { id: s.id, action } })
+    toast.success(`${s.displayName}: ${action === 'stop' ? 'stopped' : action === 'start' ? 'started' : 'restarted'}`)
+    refresh()
+  } catch (e: any) {
+    toast.error(errMsg(e, `Could not ${action} ${s.displayName}`))
+  }
+}
+
+async function checkUpdates() {
+  toast.info('Checking every image against its registry…')
+  try {
+    await $fetch('/api/updates/check', { method: 'POST' })
+    await updates.refresh()
+    const n = Object.values(updates.entries.value).filter((e) => e.status === 'update').length
+    toast.success(n ? `${n} image${n > 1 ? 's have' : ' has'} an update` : 'Everything is up to date')
+  } catch (e: any) {
+    toast.error(errMsg(e, 'Update check failed'))
+  }
+}
+
 const stacks = computed<Item[]>(() => {
   if (!caps.value.stacks) return []
   const names = new Set<string>()
@@ -158,14 +222,25 @@ const stacks = computed<Item[]>(() => {
   }))
 })
 
-function score(item: Item, term: string): number {
+function scoreOne(item: Item, term: string): number {
   const label = item.label.toLowerCase()
   if (label === term) return 100
   if (label.startsWith(term)) return 80
-  if (label.split(/[\s\-_.]/).some((w) => w.startsWith(term))) return 60
+  if (label.split(/[\s\-_.:]/).some((w) => w.startsWith(term))) return 60
   if (label.includes(term)) return 40
   const rest = `${item.hint ?? ''} ${item.keywords ?? ''}`.toLowerCase()
   return rest.includes(term) ? 20 : 0
+}
+// every word of the query has to match somewhere ("jelly logs" → Logs: jellyfin)
+function score(item: Item, term: string): number {
+  const words = term.split(/\s+/).filter(Boolean)
+  let total = 0
+  for (const w of words) {
+    const s = scoreOne(item, w)
+    if (!s) return 0
+    total += s
+  }
+  return (total / words.length) * (item.weight ?? 1)
 }
 
 const results = computed<(Item & { idx: number })[]>(() => {
@@ -175,7 +250,14 @@ const results = computed<(Item & { idx: number })[]>(() => {
     // empty query: pages and actions first, then a taste of the fleet
     all = [...pages.value, ...actions.value, ...services.value.slice(0, 6)]
   } else {
-    all = [...services.value, ...stacks.value, ...pages.value, ...actions.value]
+    // verbs for the containers the query is about
+    const verbs = services.value
+      .map((i) => ({ i, s: Math.max(...term.split(/\s+/).map((w) => scoreOne({ ...i, hint: '', keywords: '' }, w))) }))
+      .filter((x) => x.s >= 40)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 3)
+      .flatMap((x) => containerActions(x.i.service!))
+    all = [...services.value, ...stacks.value, ...pages.value, ...actions.value, ...verbs]
       .map((i) => ({ i, s: score(i, term) }))
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)

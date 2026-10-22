@@ -22,21 +22,27 @@
     </div>
 
     <ol v-else class="card row-list overflow-hidden">
-      <li
-        v-for="(r, i) in rows"
-        :key="i"
-        class="flex items-center gap-3 px-4 py-3 text-[13.5px] sm:px-5"
-      >
-        <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/[0.04]"><Icon :name="r.icon" class="h-3.5 w-3.5" :class="r.cls" /></span>
-        <span class="min-w-0 flex-1 truncate text-slate-200" :title="r.text">{{ r.text }}</span>
-        <span v-if="r.host" class="badge shrink-0">{{ r.host }}</span>
-        <span class="w-16 shrink-0 text-right text-xs tabular-nums text-slate-500" :title="new Date(r.at).toLocaleString()">{{ ago(r.at) }}</span>
+      <li v-for="(r, i) in rows" :key="i">
+        <component
+          :is="linkFor(r) ? NuxtLinkC : 'div'"
+          v-bind="linkFor(r) ? { to: linkFor(r) } : {}"
+          class="group flex items-center gap-3 px-4 py-3 text-[13.5px] sm:px-5"
+          :class="linkFor(r) ? 'transition-colors hover:bg-white/[0.025]' : ''"
+        >
+          <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/[0.04]"><Icon :name="r.icon" class="h-3.5 w-3.5" :class="r.cls" /></span>
+          <span class="min-w-0 flex-1 truncate text-slate-200" :class="linkFor(r) ? 'group-hover:text-accent-light' : ''" :title="r.text">{{ r.text }}</span>
+          <span v-if="r.host" class="badge shrink-0">{{ r.host }}</span>
+          <span class="w-16 shrink-0 text-right text-xs tabular-nums text-slate-500" :title="new Date(r.at).toLocaleString()">{{ ago(r.at) }}</span>
+          <Icon v-if="linkFor(r)" name="chevron-right" class="hidden h-4 w-4 shrink-0 text-slate-600 group-hover:text-slate-300 sm:block" />
+        </component>
       </li>
     </ol>
   </div>
 </template>
 
 <script setup lang="ts">
+import { NuxtLink as NuxtLinkC } from '#components'
+
 interface AlertRow { id: string; name: string; host?: string; kind: string; from: string; to: string; at: number }
 interface OpRow { id: string; title: string; done: boolean; ok: boolean | null; startedAt: number; finishedAt: number }
 
@@ -71,9 +77,12 @@ async function load() {
   }
 }
 
-interface Row { at: number; icon: string; cls: string; text: string; host?: string; group: Filter }
+interface Row { at: number; icon: string; cls: string; text: string; host?: string; group: Filter; name?: string; stack?: string }
 
 function eventRow(e: AlertRow): Row {
+  return { ...eventRowBase(e), name: e.name }
+}
+function eventRowBase(e: AlertRow): Row {
   switch (e.kind) {
     case 'down':
       return { at: e.at, icon: 'x', cls: 'text-red-400', text: `${e.name} went down (${e.from} → ${e.to})`, host: e.host, group: 'status' }
@@ -98,8 +107,10 @@ function opRow(o: OpRow): Row {
     at: o.startedAt,
     icon: o.done ? (o.ok ? 'check' : 'x') : 'refresh',
     cls: o.done ? (o.ok ? 'text-ok' : 'text-red-400') : 'animate-spin text-amber-300',
-    text: `${o.title}${o.done ? (o.ok ? ` finished${dur}` : ` failed${dur}`) : ' — running…'}`,
+    text: `${o.title}${o.done ? (o.ok ? ` finished${dur}` : ` failed${dur}`) : ', running…'}`,
     group: 'ops',
+    // op titles are "<verb> <stack>"; a deleted stack has no page to open
+    stack: /^delete /.test(o.title) ? undefined : o.title.split(' ').pop(),
   }
 }
 
@@ -107,6 +118,18 @@ const rows = computed(() => {
   const all = [...events.value.map(eventRow), ...opsList.value.map(opRow)].sort((a, b) => b.at - a.at)
   return filter.value === 'all' ? all : all.filter((r) => r.group === filter.value)
 })
+
+// Rows open what they're about: the container (matched by name in the live list,
+// since ids change on every recreate), or the stack an operation ran on.
+const { data: svc, refresh: refreshServices } = useServices()
+function linkFor(r: Row): string | null {
+  if (r.stack) return `/stacks/${encodeURIComponent(r.stack)}`
+  if (!r.name) return null
+  const stackMatch = /^stack (.+)$/.exec(r.name)
+  if (stackMatch) return `/stacks/${encodeURIComponent(stackMatch[1])}`
+  const s = (svc.value?.services ?? []).find((x) => x.name === r.name && (!r.host || !x.host || x.host === r.host))
+  return s ? `/services/${encodeURIComponent(s.id)}` : null
+}
 
 function ago(at: number): string {
   const s = Math.max(0, Math.round((Date.now() - at) / 1000))
@@ -118,6 +141,9 @@ function ago(at: number): string {
   return `${Math.round(h / 24)}d ago`
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  if (!svc.value) refreshServices()
+})
 useHead({ title: 'Activity · homeport' })
 </script>

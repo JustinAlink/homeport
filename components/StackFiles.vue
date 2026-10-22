@@ -108,10 +108,19 @@
 
     <!-- editor modal -->
     <div v-if="editing !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]" @click.self="closeEditor">
-      <div class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900" style="box-shadow: var(--shadow-pop)">
+      <div
+        ref="modalEl"
+        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900"
+        style="box-shadow: var(--shadow-pop)"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`Edit ${editing}`"
+        @keydown="onModalKey"
+      >
         <div class="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
           <span class="font-mono text-sm text-slate-200">{{ editing }}</span>
           <span v-if="editing === composeFile" class="badge badge-accent" title="Validated with docker compose config on save">compose</span>
+          <span v-if="fileDirty" class="badge badge-warn">unsaved</span>
           <button class="btn btn-ghost btn-icon btn-sm ml-auto" aria-label="Close" @click="closeEditor"><Icon name="x" /></button>
         </div>
         <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto bg-[#0d1117] text-[13px]" />
@@ -195,6 +204,11 @@ const fileSaving = ref(false)
 const fileMsg = ref('')
 const fileOk = ref(false)
 let fileView: any = null
+// unsaved-edit tracking for the editor: baseline = content as opened / last saved
+const fileDirty = ref(false)
+let fileBaseline = ''
+const { confirm: confirmDialog } = useConfirm()
+useUnsavedGuard(() => editing.value !== null && fileDirty.value, 'The file you are editing has unsaved changes.')
 
 async function setupFileEditor(content: string, yamlMode: boolean) {
   const [{ EditorView, basicSetup }, { oneDark }, yamlExt] = await Promise.all([
@@ -211,9 +225,14 @@ async function setupFileEditor(content: string, yamlMode: boolean) {
       ...(yamlExt ? [yamlExt.yaml()] : []),
       oneDark,
       EditorView.editable.of(!props.readOnly),
+      EditorView.updateListener.of((u: any) => {
+        if (u.docChanged) fileDirty.value = fileView.state.doc.toString() !== fileBaseline
+      }),
       EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
     ],
   })
+  fileBaseline = content
+  fileDirty.value = false
 }
 
 async function openEditor(relPath: string, initial = '') {
@@ -240,9 +259,23 @@ async function openEditor(relPath: string, initial = '') {
   await setupFileEditor(content, /\.ya?ml$/i.test(relPath))
 }
 
-function closeEditor() {
+const modalEl = ref<HTMLElement | null>(null)
+useFocusTrap(modalEl, () => editing.value !== null)
+function onModalKey(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    if (!props.readOnly && !fileSaving.value) saveFile()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    closeEditor()
+  }
+}
+
+async function closeEditor() {
+  if (fileDirty.value && !(await confirmDialog({ title: 'Discard unsaved changes?', message: `Your edits to ${editing.value} have not been saved.`, confirmLabel: 'Discard', danger: true }))) return
   fileView?.destroy()
   fileView = null
+  fileDirty.value = false
   editing.value = null
 }
 
@@ -255,6 +288,8 @@ async function saveFile() {
       method: 'PUT',
       body: { path: editing.value, content: fileView.state.doc.toString() },
     })
+    fileBaseline = fileView.state.doc.toString()
+    fileDirty.value = false
     fileOk.value = true
     fileMsg.value = 'Saved.'
     load()

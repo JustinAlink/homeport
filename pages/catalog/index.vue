@@ -261,7 +261,7 @@
           class="select w-auto"
           title="Sort order"
         >
-          <option value="default">Sort: recommended</option>
+          <option value="default">Sort: {{ query.trim() ? 'best match' : 'built-in first' }}</option>
           <option value="name">Sort: name A–Z</option>
         </select>
         <button
@@ -279,9 +279,15 @@
         >{{ allCategories ? 'show less' : `+${categories.length - CATEGORY_LIMIT} more` }}</button>
       </div>
 
-      <p v-if="!filtered.length" class="card p-10 text-center text-[13px] text-slate-500">
-        No apps match<template v-if="query"> “{{ query }}”</template>.
-      </p>
+      <div v-if="!filtered.length" class="card">
+        <EmptyState icon="search" :title="query ? `No templates match “${query.trim()}”` : 'No apps in this category'">
+          <template v-if="query.trim()">Any image on Docker Hub or repository on GitHub can be installed too.</template>
+          <template v-if="query.trim()" #actions>
+            <button class="btn btn-primary btn-sm" @click="searchElsewhere('hub')"><Icon name="box" /> Search Docker Hub</button>
+            <button class="btn btn-sm" @click="searchElsewhere('github')"><Icon name="git-branch" /> Search GitHub</button>
+          </template>
+        </EmptyState>
+      </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <NuxtLink
@@ -592,9 +598,32 @@ const filtered = computed(() => {
   })
 })
 
-const sorted = computed(() =>
-  sort.value === 'name' ? [...filtered.value].sort((a, b) => a.name.localeCompare(b.name)) : filtered.value,
-)
+// The server list is already A-Z, so the default order has to mean something
+// else: the best name match when searching, otherwise homeport's own curated
+// (built-in) apps first.
+const sorted = computed(() => {
+  if (sort.value === 'name') return [...filtered.value].sort((a, b) => a.name.localeCompare(b.name))
+  const q = query.value.trim().toLowerCase()
+  const rank = (a: { name: string; source: string }) => {
+    const n = a.name.toLowerCase()
+    const match = !q ? 0 : n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 3
+    return match * 2 + (a.source === 'built-in' ? 0 : 1)
+  }
+  return [...filtered.value].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+})
+
+// no template matched: carry the search over to Docker Hub / GitHub
+function searchElsewhere(where: 'hub' | 'github') {
+  const q = query.value.trim()
+  view.value = where
+  if (where === 'hub') {
+    hubQuery.value = q
+    searchHub()
+  } else {
+    ghQuery.value = q
+    searchGithub()
+  }
+}
 
 // pagination — reset to page 1 whenever the filter changes; clamp when it shrinks
 watch([query, category, sort], () => (page.value = 1))

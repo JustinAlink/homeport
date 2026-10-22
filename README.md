@@ -58,7 +58,7 @@ all live and builds the page for you. **Zero tiles to configure.**
 - **Automatic domains** — homeport reads your reverse proxy, so it already knows `webapp → app.example.com`.
 - **Live** — updates the instant a container starts, stops, or goes unhealthy (Docker events, not polling).
 - **Graphs & uptime** — per-container CPU/RAM sparklines, per-stack totals, and a fleet graph with a 1h/6h/24h range (containers vs. whole-machine, straight from procfs) — plus optional up/down pings.
-- **Find anything fast**: <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> jumps to any container, stack or page; the dashboard filters by status (running, stopped, issues, updates), flags what needs attention, and switches between cards and a dense list.
+- **Find anything fast**: <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> jumps to any container, stack or page and runs actions ("restart sonarr", "jelly logs"); <kbd>?</kbd> lists every shortcut. The dashboard filters by status, flags what needs attention, pins favourites to the top, and switches between cards and a dense list.
 - **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
 
 ### 🛠️ Manage — opt-in, only what you enable

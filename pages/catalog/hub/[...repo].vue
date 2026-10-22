@@ -57,7 +57,7 @@
           <div class="mb-2 flex items-center gap-2">
             <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Ports</span>
             <button
-              class="rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-slate-400 hover:bg-white/5"
+              class="btn btn-sm h-6 px-2 text-[11px]"
               @click="portRows.push({ container: null, host: null, on: true })"
             >+ add</button>
           </div>

@@ -5,11 +5,13 @@
         Docker networks on this host. Every network claims an address range, and a compose file that pins an already-taken
         subnet fails with “Pool overlaps”. Networks nothing references can be removed here.
       </template>
-      <template #actions>
+      <template v-if="gateCaps.stacks || !gateLoaded" #actions>
         <button class="btn" :disabled="loading" @click="load"><Icon name="refresh" :class="loading ? 'animate-spin' : ''" /> Refresh</button>
         <button v-if="caps.control" class="btn btn-primary" @click="creating = !creating"><Icon name="plus" /> New network</button>
       </template>
     </PageHeader>
+
+    <CapabilityGate need="stacks" feature="Network management" text="This page lists docker networks, their address ranges and which containers use them, and lets you create, attach and remove networks. It comes with compose stack management." icon="network">
 
     <!-- create form -->
     <div v-if="creating" class="card mb-5 space-y-3 p-4 sm:p-5">
@@ -107,10 +109,12 @@
         change the subnet in the owning compose file (or remove an unused network and recreate it here).
       </p>
     </template>
+    </CapabilityGate>
   </div>
 </template>
 
 <script setup lang="ts">
+const { caps: gateCaps, loaded: gateLoaded } = useCapabilities() // header actions hide while the feature is off
 interface NetRow {
   id: string
   name: string

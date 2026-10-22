@@ -65,7 +65,7 @@
             <a
               v-if="e.type === 'file'"
               :href="downloadHref(e.name)"
-              class="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400 opacity-0 transition-opacity hover:bg-white/5 group-hover:opacity-100"
+              class="btn btn-ghost btn-sm h-6 shrink-0 px-2 text-[11px] opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
               :download="e.name"
             >download</a>
           </div>
@@ -157,6 +157,11 @@ const fileSaving = ref(false)
 const fileMsg = ref('')
 const fileOk = ref(false)
 let fileView: any = null
+// unsaved-edit tracking for the editor: baseline = content as opened / last saved
+const fileDirty = ref(false)
+let fileBaseline = ''
+const { confirm: confirmDialog } = useConfirm()
+useUnsavedGuard(() => editing.value !== null && fileDirty.value, 'The file you are editing has unsaved changes.')
 
 async function setupEditor(content: string, yamlMode: boolean) {
   const [{ EditorView, basicSetup }, { oneDark }, yamlExt] = await Promise.all([
@@ -173,9 +178,14 @@ async function setupEditor(content: string, yamlMode: boolean) {
       ...(yamlExt ? [yamlExt.yaml()] : []),
       oneDark,
       EditorView.editable.of(!props.readOnly),
+      EditorView.updateListener.of((u: any) => {
+        if (u.docChanged) fileDirty.value = fileView.state.doc.toString() !== fileBaseline
+      }),
       EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
     ],
   })
+  fileBaseline = content
+  fileDirty.value = false
 }
 
 async function openEditor(relPath: string, initial = '') {
@@ -200,9 +210,11 @@ async function openEditor(relPath: string, initial = '') {
   await setupEditor(content, /\.ya?ml$/i.test(relPath))
 }
 
-function closeEditor() {
+async function closeEditor() {
+  if (fileDirty.value && !(await confirmDialog({ title: 'Discard unsaved changes?', message: `Your edits to ${editing.value} have not been saved.`, confirmLabel: 'Discard', danger: true }))) return
   fileView?.destroy()
   fileView = null
+  fileDirty.value = false
   editing.value = null
   load()
 }
@@ -235,6 +247,8 @@ async function saveFile() {
       method: 'PUT',
       body: { id: props.container, root: props.root, path: editing.value, content: fileView.state.doc.toString() },
     })
+    fileBaseline = fileView.state.doc.toString()
+    fileDirty.value = false
     fileOk.value = true
     fileMsg.value = 'Saved.'
   } catch (e: any) {

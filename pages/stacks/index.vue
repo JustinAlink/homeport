@@ -7,11 +7,13 @@
           (<code>{{ data.roots.join(', ') }}</code>)</template>, plus running projects whose files homeport can see.
         Apps installed from the <NuxtLink to="/catalog" class="link">catalog</NuxtLink> land here too.
       </template>
-      <template #actions>
+      <template v-if="gateCaps.stacks || !gateLoaded" #actions>
         <NuxtLink to="/catalog" class="btn"><Icon name="catalog" /> Install an app</NuxtLink>
         <button class="btn btn-primary" @click="creating = !creating"><Icon name="plus" /> New stack</button>
       </template>
     </PageHeader>
+
+    <CapabilityGate need="stacks" feature="Compose stack management" text="Stacks let homeport deploy, edit and update docker compose projects, and install apps from the catalog. It needs the stacks directory mounted and a few more socket-proxy permissions." icon="stacks">
 
     <div v-if="error" class="callout callout-warn mb-4"><Icon name="alert" /><span>{{ error }}</span></div>
     <div v-else-if="!data" class="space-y-2"><div v-for="i in 4" :key="i" class="card h-[72px]" /></div>
@@ -140,10 +142,12 @@
         </div>
       </section>
     </template>
+    </CapabilityGate>
   </div>
 </template>
 
 <script setup lang="ts">
+const { caps: gateCaps, loaded: gateLoaded } = useCapabilities() // header actions hide while the feature is off
 interface StackRow {
   name: string
   state: 'running' | 'partial' | 'stopped'

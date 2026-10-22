@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeUsername, validateUsername, mintUser, MIN_USERNAME_LENGTH } from '../server/utils/users-core.ts'
+import { normalizeUsername, validateUsername, mintUser, MIN_USERNAME_LENGTH, isAdminLoginName } from '../server/utils/users-core.ts'
 
 test('normalizeUsername: trims and lowercases', () => {
   assert.equal(normalizeUsername('  Teammate  '), 'teammate')
@@ -33,4 +33,9 @@ test('mintUser: id present, username normalized, hash passed through, createdAt 
   // distinct ids across calls
   const rec2 = mintUser('other', 'salt:hash2', 5000)
   assert.notEqual(rec.id, rec2.id)
+})
+
+test('isAdminLoginName: empty and "admin" (any case/spacing) mean the primary account', () => {
+  for (const u of ['', '  ', 'admin', ' Admin ', 'ADMIN', undefined, null]) assert.equal(isAdminLoginName(u as any), true, String(u))
+  for (const u of ['administrator', 'teammate', 'admin2']) assert.equal(isAdminLoginName(u), false, u)
 })

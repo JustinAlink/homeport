@@ -12,6 +12,8 @@ export interface ConfirmOptions {
   cancelLabel?: string
   /** Red styling for destructive actions. */
   danger?: boolean
+  /** Type-to-confirm: the confirm button stays disabled until this exact text is typed. */
+  requireText?: string
 }
 
 interface ConfirmState extends ConfirmOptions {

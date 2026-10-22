@@ -11,6 +11,7 @@
         <Icon name="filter" class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
         <input v-model="filterText" class="input input-sm pl-8" placeholder="Filter lines…" aria-label="Filter log lines" spellcheck="false" />
       </div>
+      <button class="btn btn-sm" :class="wrap ? 'btn-accent' : ''" :aria-pressed="wrap" title="Wrap long lines" @click="toggleWrap">Wrap</button>
       <button class="btn btn-sm" :class="follow ? 'btn-accent' : ''" :title="follow ? 'Pause auto-scroll' : 'Resume auto-scroll'" @click="toggleFollow">
         {{ follow ? 'Following' : 'Paused' }}
       </button>
@@ -31,22 +32,29 @@
     </div>
 
     <p v-if="status === 'failed'" class="callout callout-warn mb-2 py-2 text-xs">
-      The log stream dropped. If homeport sits behind a reverse proxy, it may be buffering the stream — or the
+      The log stream dropped. If homeport sits behind a reverse proxy, it may be buffering the stream, or the
       logs capability / socket-proxy access was lost. Reconnect to retry.
     </p>
 
-    <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-white/[0.06] bg-[#0d1117] px-3 py-2 font-mono text-[11.5px] leading-relaxed">
-      <div v-for="(l, i) in shownLines" :key="i" class="flex gap-3 whitespace-pre-wrap break-all rounded px-1 hover:bg-white/[0.03]">
+    <div class="relative min-h-0 flex-1">
+    <div ref="scroller" class="h-full overflow-auto rounded-lg border border-white/[0.06] bg-[#0d1117] px-3 py-2 font-mono text-[11.5px] leading-relaxed" @scroll="onScroll">
+      <div v-for="(l, i) in shownLines" :key="i" class="flex gap-3 rounded px-1 hover:bg-white/[0.03]" :class="wrap ? 'whitespace-pre-wrap break-all' : 'w-max min-w-full whitespace-pre'">
         <span v-if="l.t" class="shrink-0 select-none text-[#6e7681]">{{ shortTime(l.t) }}</span>
-        <span :class="l.s === 'stderr' ? 'text-[#f0b72f]' : 'text-[#c9d1d9]'">{{ l.line }}</span>
+        <span :class="l.s === 'stderr' ? 'text-[#f0b72f]' : 'text-[#c9d1d9]'"><template v-for="(part, j) in highlight(l.line)" :key="j"><mark v-if="part.hit" class="rounded-sm bg-amber-400/30 text-current">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
       </div>
       <p v-if="lines.length && !shownLines.length" class="py-8 text-center text-xs text-[#6e7681]">No lines match “{{ filterText }}”.</p>
       <p v-if="!lines.length && status === 'open'" class="py-8 text-center text-xs text-[#6e7681]">
-        connected — no log output yet
+        Connected, no log output yet.
       </p>
       <p v-else-if="!lines.length && status === 'connecting'" class="py-8 text-center text-xs text-[#6e7681]">
-        connecting to the log stream…
+        Connecting to the log stream…
       </p>
+    </div>
+    <button
+      v-if="!atBottom && lines.length"
+      class="btn btn-sm absolute bottom-3 right-4 shadow-lg"
+      @click="jumpToEnd"
+    ><Icon name="chevron-down" /> Latest</button>
     </div>
   </div>
 </template>
@@ -105,6 +113,50 @@ function connect() {
   }
 }
 
+// lines wrap by default; off keeps one log line per row (scroll sideways)
+const wrap = ref(true)
+onMounted(() => {
+  try {
+    if (localStorage.getItem('hp:logs-wrap') === '0') wrap.value = false
+  } catch {}
+})
+function toggleWrap() {
+  wrap.value = !wrap.value
+  try {
+    localStorage.setItem('hp:logs-wrap', wrap.value ? '1' : '0')
+  } catch {}
+}
+
+/** Split a line around case-insensitive filter matches so they can be marked. */
+function highlight(line: string): { text: string; hit: boolean }[] {
+  const t = filterText.value.trim()
+  if (!t) return [{ text: line, hit: false }]
+  const out: { text: string; hit: boolean }[] = []
+  const low = line.toLowerCase()
+  const needle = t.toLowerCase()
+  let i = 0
+  for (let at = low.indexOf(needle); at >= 0; at = low.indexOf(needle, i)) {
+    if (at > i) out.push({ text: line.slice(i, at), hit: false })
+    out.push({ text: line.slice(at, at + needle.length), hit: true })
+    i = at + needle.length
+  }
+  if (i < line.length) out.push({ text: line.slice(i), hit: false })
+  return out
+}
+
+// scrolling up pauses following; the "Latest" button jumps back and resumes
+const atBottom = ref(true)
+function onScroll() {
+  const el = scroller.value
+  if (!el) return
+  atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  if (!atBottom.value && follow.value) follow.value = false
+}
+function jumpToEnd() {
+  follow.value = true
+  scrollToEnd()
+}
+
 function toggleFollow() {
   follow.value = !follow.value
   if (follow.value) scrollToEnd()
@@ -113,6 +165,7 @@ function toggleFollow() {
 function scrollToEnd() {
   nextTick(() => {
     if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight
+    atBottom.value = true
   })
 }
 

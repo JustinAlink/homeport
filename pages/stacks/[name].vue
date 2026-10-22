@@ -66,7 +66,7 @@
           ><Icon name="git-branch" /> {{ gitInfo.behind ? 'Update from git' : 'Redeploy from git' }}</button>
           <div class="btn-group">
             <button
-              v-for="a in actions"
+              v-for="a in shownActions"
               :key="a.op"
               :disabled="opRunning || isNew"
               class="btn"
@@ -458,6 +458,14 @@ const actions = [
   { op: 'down', icon: 'square', label: 'Down', title: 'docker compose down (stops and removes the containers)' },
 ] as const
 
+// "Update stack (N)" already is pull & up, so don't offer the same thing twice
+const shownActions = computed(() =>
+  caps.value.updates && updatable.value.length && !gitInfo.value ? actions.filter((a) => a.op !== 'pull') : actions,
+)
+
+// unsaved compose edits: guard in-app navigation and tab close
+useUnsavedGuard(() => dirty.value && !notManaged.value && !saving.value, `Your edits to ${name}'s compose file have not been saved.`)
+
 // Ctrl/Cmd+S inside the editor saves instead of opening the browser's save dialog
 const modKey = ref('Ctrl')
 onMounted(() => {
@@ -592,10 +600,12 @@ async function deleteStack() {
   if (
     del.volumes &&
     !(await confirm({
-      message: `Also delete ALL named volumes of “${name}”?`,
-      detail: 'Databases and app data in them are gone for good.',
-      confirmLabel: 'Delete volumes',
+      title: `Delete “${name}” and all of its data?`,
+      message: 'Every named volume of this stack is deleted with it: databases, uploads, app settings.',
+      detail: 'This cannot be undone.',
+      confirmLabel: 'Delete stack and data',
       danger: true,
+      requireText: name,
     }))
   )
     return

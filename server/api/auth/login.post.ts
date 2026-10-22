@@ -2,6 +2,7 @@ import { createSessionToken, createPendingTotpToken, SESSION_COOKIE } from '../.
 import { hasPassword, verifyPassword } from '../../utils/auth'
 import { isTotpEnabled } from '../../utils/totp'
 import { verifyUserLogin } from '../../utils/users'
+import { isAdminLoginName } from '../../utils/users-core'
 import {
   lockRemaining,
   recordFailure,
@@ -44,7 +45,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody<{ username?: string; password?: string }>(event)
-  const username = typeof body?.username === 'string' ? body.username.trim() : ''
+  // "admin" or an empty field = the primary account (see isAdminLoginName)
+  const rawName = typeof body?.username === 'string' ? body.username.trim() : ''
+  const username = isAdminLoginName(rawName) ? '' : rawName
   const attempts = username ? viewerAttempts : adminAttempts
 
   const wait = lockRemaining(attempts.get(ip), now)

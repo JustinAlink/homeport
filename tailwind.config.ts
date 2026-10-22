@@ -8,6 +8,13 @@ const v = (name: string) => `rgb(var(--${name}) / <alpha-value>)`
 
 export default <Partial<Config>>{
   darkMode: 'class',
+  // hover-only affordances need a touch fallback: pointer-coarse = phones/tablets
+  plugins: [
+    ({ addVariant }: any) => {
+      addVariant('pointer-fine', '@media (hover: hover) and (pointer: fine)')
+      addVariant('pointer-coarse', '@media (hover: none), (pointer: coarse)')
+    },
+  ],
   theme: {
     extend: {
       colors: {

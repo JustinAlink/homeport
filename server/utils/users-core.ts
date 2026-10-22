@@ -21,6 +21,15 @@ export function normalizeUsername(u: string): string {
   return u.trim().toLowerCase()
 }
 
+/**
+ * The primary account has no stored username; "admin" (reserved below, so no
+ * viewer can own it) and an empty field both mean "sign in as the admin".
+ */
+export function isAdminLoginName(u: string | undefined | null): boolean {
+  const n = normalizeUsername(u ?? '')
+  return n === '' || n === 'admin'
+}
+
 /** Username rules, or null if valid. "admin" is reserved for the primary account. */
 export function validateUsername(u: string): string | null {
   const n = normalizeUsername(u)

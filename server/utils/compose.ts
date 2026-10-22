@@ -6,6 +6,7 @@ import { getConfig } from './config'
 import { demoServices } from './demo'
 import { listSystemdServices, type SystemdUnit } from './systemd'
 import { getHosts, isMultiHost, type HostConfig } from './hosts'
+import { reportedProviderName } from './provider-label-core'
 
 const isIp = (h: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(h)
 
@@ -27,6 +28,7 @@ function toService(host: HostConfig, c: RawContainer, domains: ServiceDomain[], 
     networks: c.networks,
     group: l['hub.group'] || c.project || 'Other',
     project: c.project,
+    composeService: c.service,
     icon: l['hub.icon'] || null,
     domains,
     hidden: l['hub.hide'] === 'true',
@@ -91,7 +93,7 @@ async function buildHost(host: HostConfig, multi: boolean) {
     .filter((r) => !usedRoutes.has(r))
     .map((r) => ({ domains: r.domains, upstream: `${r.upstreamHost}:${r.upstreamPort}`, ssl: r.ssl }))
 
-  return { services, unmatched, providerName: provider?.name ?? null }
+  return { services, unmatched, providerName: reportedProviderName(provider?.name, host, routes.length) }
 }
 
 /** Compose the dashboard payload across every configured host. */

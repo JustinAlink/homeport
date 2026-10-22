@@ -285,13 +285,40 @@ export function parseCatalogDocument(
 }
 
 /** Merge apps from several sources; the FIRST occurrence of a slug wins (built-in first). */
+/**
+ * Same-app key for an image: repo path without registry host, tag, digest or
+ * docker's implicit `library/`. Kept in step with utils/image.ts on the client.
+ */
+export function imageKey(img: string): string {
+  let s = (img || '').trim().toLowerCase()
+  const at = s.indexOf('@')
+  if (at >= 0) s = s.slice(0, at)
+  const colon = s.lastIndexOf(':')
+  if (colon > s.lastIndexOf('/')) s = s.slice(0, colon)
+  const slash = s.indexOf('/')
+  if (slash > 0) {
+    const first = s.slice(0, slash)
+    if (first.includes('.') || first.includes(':') || first === 'localhost') s = s.slice(slash + 1)
+  }
+  return s.startsWith('library/') ? s.slice('library/'.length) : s
+}
+
+/**
+ * Merge sources in priority order (built-in first). An app is dropped when an
+ * earlier source already has the same slug OR the same image: community lists
+ * overlap heavily, so one app used to appear up to three times
+ * ("Adguard", "AdGuard Home", "Adguardhome (container)").
+ */
 export function mergeApps(lists: CatalogApp[][]): CatalogApp[] {
   const seen = new Set<string>()
+  const seenImages = new Set<string>()
   const out: CatalogApp[] = []
   for (const list of lists) {
     for (const app of list) {
-      if (seen.has(app.slug)) continue
+      const img = app.image ? imageKey(app.image) : ''
+      if (seen.has(app.slug) || (img && seenImages.has(img))) continue
       seen.add(app.slug)
+      if (img) seenImages.add(img)
       out.push(app)
     }
   }

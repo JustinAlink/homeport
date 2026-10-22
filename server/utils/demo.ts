@@ -79,6 +79,7 @@ function toService(s: Seed, i: number): Service {
     networks: [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])],
     group: s.group,
     project: s.group,
+    composeService: s.name,
     icon: null,
     domains: (s.domains || []).map((d) => ({
       domain: d.domain,

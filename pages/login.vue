@@ -41,9 +41,10 @@
         <form v-else-if="!awaitingTotp" class="space-y-4" @submit.prevent="submit">
           <div>
             <label class="field-label flex items-baseline justify-between" for="username">
-              Username <span class="text-[11px] font-normal text-slate-500">optional</span>
+              Username
             </label>
-            <input id="username" v-model="username" type="text" autocomplete="username" spellcheck="false" class="input h-10" placeholder="Leave empty for the admin" />
+            <input id="username" v-model="username" type="text" autocomplete="username" spellcheck="false" class="input h-10" />
+            <p class="field-hint">“admin” for the main account; viewer accounts use their own name.</p>
           </div>
           <div>
             <label class="field-label" for="password">Password</label>
@@ -86,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-const username = ref('')
+const username = ref('admin')
 const password = ref('')
 const confirm = ref('')
 const err = ref('')

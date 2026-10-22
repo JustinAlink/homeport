@@ -26,6 +26,9 @@ export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
   })
   const intervalSec = computed(() => (range.value === 'live' ? 7 : 60))
   const past = ref<{ cpu: number[]; mem: number[] } | null>(null)
+  // samples that were really recorded (fillGaps pads the rest), so callers can
+  // tell an empty history (fresh install, history off) from a flat one
+  const realPoints = ref(0)
 
   async function load() {
     if (range.value === 'live') return
@@ -33,12 +36,14 @@ export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
       const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
         params: { id, range: range.value },
       })
+      realPoints.value = r.cpu.filter((v) => v != null).length
       past.value = { cpu: fillGaps(r.cpu), mem: fillGaps(r.mem) }
     } catch {
+      realPoints.value = 0
       past.value = null
     }
   }
   watch(range, load)
 
-  return { range, intervalSec, past, load }
+  return { range, intervalSec, past, realPoints, load }
 }

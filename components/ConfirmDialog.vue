@@ -7,7 +7,7 @@
         @click.self="settle(false)"
         @keydown.esc="settle(false)"
       >
-        <div class="cd-panel w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-5 sm:p-6" style="box-shadow: var(--shadow-pop)" role="alertdialog" aria-modal="true">
+        <div ref="panel" class="cd-panel w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-5 sm:p-6" style="box-shadow: var(--shadow-pop)" role="alertdialog" aria-modal="true">
           <div class="flex gap-4">
             <div
               class="grid h-10 w-10 shrink-0 place-items-center rounded-full"
@@ -21,6 +21,10 @@
               </p>
             </div>
           </div>
+          <div v-if="state.requireText" class="mt-5 sm:pl-14">
+            <label class="field-label" for="cd-require">Type <span class="font-mono text-slate-100">{{ state.requireText }}</span> to confirm</label>
+            <input id="cd-require" ref="requireInput" v-model="typed" class="input font-mono" autocomplete="off" spellcheck="false" />
+          </div>
           <div class="mt-6 flex justify-end gap-2">
             <button
               ref="cancelBtn"
@@ -30,6 +34,7 @@
             <button
               class="btn"
               :class="state.danger ? 'btn-danger-solid' : 'btn-primary'"
+              :disabled="!canConfirm"
               @click="settle(true)"
             >{{ state.confirmLabel || 'Confirm' }}</button>
           </div>
@@ -42,21 +47,30 @@
 <script setup lang="ts">
 const { state, settle } = useConfirm()
 const cancelBtn = ref<HTMLButtonElement | null>(null)
+const requireInput = ref<HTMLInputElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
+const typed = ref('')
+const canConfirm = computed(() => !state.value.requireText || typed.value.trim() === state.value.requireText)
+useFocusTrap(panel, () => state.value.open)
 
-// Focus the safe (cancel) button when the dialog opens, and support Enter-to-confirm.
+// Focus the safe choice when the dialog opens (or the type-to-confirm field),
+// and support Enter-to-confirm.
 watch(
   () => state.value.open,
   (open) => {
     if (!open) return
-    nextTick(() => cancelBtn.value?.focus())
+    typed.value = ''
+    nextTick(() => (state.value.requireText ? requireInput.value : cancelBtn.value)?.focus())
   },
 )
 
 function onKey(e: KeyboardEvent) {
   if (!state.value.open) return
   if (e.key === 'Enter') {
+    // Enter on the Cancel button cancels; elsewhere it confirms (when allowed)
+    if (document.activeElement === cancelBtn.value) return
     e.preventDefault()
-    settle(true)
+    if (canConfirm.value) settle(true)
   } else if (e.key === 'Escape') {
     settle(false)
   }
