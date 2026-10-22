@@ -22,8 +22,14 @@ Security: a fresh install can no longer be claimed by a stranger.
   setup screen after this update (the startup log says why). Create a password
   with the code from the log, or set `HOMEPORT_ALLOW_OPEN=true` to keep running
   without a login.
+- Also ships everything from v2.31.2 (domain checks that fall back to the
+  reverse proxy, the warning before editing a git-tracked file).
 
 ## v2.31.2 (2026-10-22)
+
+No image or GitHub release was published for this tag (its image build hit a
+transient npm error); these changes ship in v2.32.0.
+
 
 - **Bug: every domain looked down on servers that can't reach their own public
   address.** From inside Docker, many servers can't connect to their own public IP
