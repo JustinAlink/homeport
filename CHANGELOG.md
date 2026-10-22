@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.32.0 (2026-10-22)
+
+Security: a fresh install can no longer be claimed by a stranger.
+
+- **First-run setup needs a one-time code from homeport's log.** Until an admin
+  password existed, the setup screen was open to anyone who reached it, so an
+  install that was reachable from the internet before you finished setup could be
+  taken over, along with control of Docker, by whoever found it first. Setup now
+  asks for a code that homeport prints to its log when it starts
+  (`docker logs homeport 2>&1 | grep "setup code"`), so only someone with access
+  to the server can finish it. The code is kept in memory and a restart makes a
+  new one; wrong codes are rate-limited and logged; it prints even with
+  `HOMEPORT_LOG_LEVEL=silent`. `install.sh` prints a link with the code already
+  filled in. Setting `HOMEPORT_ADMIN_PASSWORD` still skips setup entirely.
+- **"Skip and run without a login" is gone from the setup screen.** Running with
+  no login now needs `HOMEPORT_ALLOW_OPEN=true` in homeport's environment, where
+  it shows up in your compose file instead of being one click any visitor could
+  make.
+- **Upgrade note:** if you chose "skip" in an older version, homeport shows the
+  setup screen after this update (the startup log says why). Create a password
+  with the code from the log, or set `HOMEPORT_ALLOW_OPEN=true` to keep running
+  without a login.
+
 ## v2.31.2 (2026-10-22)
 
 - **Bug: every domain looked down on servers that can't reach their own public
