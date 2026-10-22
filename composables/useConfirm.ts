@@ -14,7 +14,11 @@ export interface ConfirmOptions {
   danger?: boolean
   /** Type-to-confirm: the confirm button stays disabled until this exact text is typed. */
   requireText?: string
+  /** A second way forward next to Confirm (only through choose(), never confirm()). */
+  altLabel?: string
 }
+
+export type Choice = 'confirm' | 'alt' | 'cancel'
 
 interface ConfirmState extends ConfirmOptions {
   open: boolean
@@ -22,7 +26,7 @@ interface ConfirmState extends ConfirmOptions {
 
 // Module-level resolver — confirm() is only ever called from a client interaction,
 // so there's no SSR cross-request concern.
-let resolver: ((v: boolean) => void) | null = null
+let resolver: ((v: Choice) => void) | null = null
 
 export function useConfirmState() {
   return useState<ConfirmState>('hp:confirm', () => ({ open: false, message: '' }))
@@ -31,22 +35,32 @@ export function useConfirmState() {
 export function useConfirm() {
   const state = useConfirmState()
 
-  function confirm(opts: ConfirmOptions | string): Promise<boolean> {
-    const o = typeof opts === 'string' ? { message: opts } : opts
-    resolver?.(false) // resolve any dangling prompt as cancelled
+  function open(o: ConfirmOptions): Promise<Choice> {
+    resolver?.('cancel') // resolve any dangling prompt as cancelled
     state.value = { open: true, confirmLabel: 'Confirm', cancelLabel: 'Cancel', danger: false, ...o }
-    return new Promise<boolean>((resolve) => {
+    return new Promise<Choice>((resolve) => {
       resolver = resolve
     })
   }
 
-  function settle(value: boolean) {
+  /** Yes / no. The alternative button is never shown here, so a caller can't mistake it for "yes". */
+  async function confirm(opts: ConfirmOptions | string): Promise<boolean> {
+    const o = typeof opts === 'string' ? { message: opts } : { ...opts, altLabel: undefined }
+    return (await open(o)) === 'confirm'
+  }
+
+  /** Confirm, a named alternative (altLabel), or cancel. */
+  function choose(opts: ConfirmOptions): Promise<Choice> {
+    return open(opts)
+  }
+
+  function settle(value: boolean | 'alt') {
     if (!state.value.open) return
     state.value = { ...state.value, open: false }
     const r = resolver
     resolver = null
-    r?.(value)
+    r?.(value === 'alt' ? 'alt' : value ? 'confirm' : 'cancel')
   }
 
-  return { confirm, settle, state }
+  return { confirm, choose, settle, state }
 }

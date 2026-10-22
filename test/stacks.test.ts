@@ -4,6 +4,7 @@ import {
   findComposeFile,
   safeStackName,
   stackStatuses,
+  declaredServices,
   composeArgs,
   externalProjectFromLabels,
   projectNameFromDir,
@@ -38,9 +39,9 @@ test('stackStatuses: running/partial/stopped + unmanaged projects', () => {
       { project: null, state: 'running' }, // standalone container — ignored
     ],
   )
-  assert.deepEqual(stacks.find((s) => s.name === 'media'), { name: 'media', state: 'running', running: 2, total: 2 })
-  assert.deepEqual(stacks.find((s) => s.name === 'web'), { name: 'web', state: 'partial', running: 1, total: 2 })
-  assert.deepEqual(stacks.find((s) => s.name === 'idle'), { name: 'idle', state: 'stopped', running: 0, total: 0 })
+  assert.deepEqual(stacks.find((s) => s.name === 'media'), { name: 'media', state: 'running', running: 2, total: 2, missing: [] })
+  assert.deepEqual(stacks.find((s) => s.name === 'web'), { name: 'web', state: 'partial', running: 1, total: 2, missing: [] })
+  assert.deepEqual(stacks.find((s) => s.name === 'idle'), { name: 'idle', state: 'stopped', running: 0, total: 0, missing: [] })
   assert.deepEqual(unmanaged, [{ name: 'rogue', running: 1, total: 1 }])
 })
 
@@ -90,4 +91,47 @@ test('composeArgs: pull implies up -d', () => {
   assert.deepEqual(composeArgs('up'), [['up', '-d', '--remove-orphans']])
   assert.deepEqual(composeArgs('down'), [['down']])
   assert.deepEqual(composeArgs('pull'), [['pull'], ['up', '-d', '--remove-orphans']])
+})
+
+test('declaredServices: names, images and profile-gated services', () => {
+  const d = declaredServices(`services:
+  app:
+    image: nginx:alpine
+  worker:
+    build: .
+  debug:
+    image: busybox
+    profiles: [debug]
+`)
+  assert.deepEqual(d, [
+    { name: 'app', image: 'nginx:alpine', optional: false },
+    { name: 'worker', image: undefined, optional: false },
+    { name: 'debug', image: 'busybox', optional: true },
+  ])
+  assert.equal(declaredServices('services: [broken'), null)
+  assert.equal(declaredServices('version: "3"'), null)
+})
+
+test('stackStatuses: counts from the compose file, so down stacks and missing services show', () => {
+  const declared = {
+    media: [
+      { name: 'jellyfin', image: 'jellyfin/jellyfin', optional: false },
+      { name: 'sonarr', optional: false },
+      { name: 'debug', optional: true },
+    ],
+    down: [{ name: 'db', image: 'postgres:16', optional: false }],
+  }
+  const { stacks } = stackStatuses(
+    ['media', 'down'],
+    [{ project: 'media', state: 'running', service: 'jellyfin' }],
+    declared,
+  )
+  // sonarr was never created: 1 of 2 running, not "1/1"; the profile-only service doesn't count
+  assert.deepEqual(stacks.find((s) => s.name === 'media'), {
+    name: 'media', state: 'partial', running: 1, total: 2, missing: [{ name: 'sonarr' }],
+  })
+  // a stack that was taken down still lists what it would run
+  assert.deepEqual(stacks.find((s) => s.name === 'down'), {
+    name: 'down', state: 'stopped', running: 0, total: 1, missing: [{ name: 'db', image: 'postgres:16' }],
+  })
 })

@@ -3,7 +3,7 @@
     <PageHeader title="Dashboard">
       <template #subtitle>
         <template v-if="data">
-          {{ data.stats.running }} of {{ data.stats.total }} containers running across your fleet<template v-if="data.domainProvider"> · domains via {{ data.domainProvider }}</template>
+          {{ data.stats.running }} of {{ data.stats.total }} containers running across your fleet<template v-if="missingTotal"> · {{ missingTotal }} stack service{{ missingTotal > 1 ? 's' : '' }} not started</template><template v-if="data.domainProvider"> · domains via {{ data.domainProvider }}</template>
         </template>
         <template v-else>Your fleet at a glance</template>
       </template>
@@ -108,12 +108,12 @@
         <div class="flex flex-wrap gap-1.5">
           <NuxtLink
             v-for="a in attention"
-            :key="a.service.id"
-            :to="`/services/${encodeURIComponent(a.service.id)}`"
+            :key="a.key"
+            :to="a.to"
             class="chip"
           >
             <span class="dot h-1.5 w-1.5" :class="a.tone === 'red' ? 'bg-red-400' : 'bg-amber-400'" />
-            <span class="font-medium text-slate-100">{{ a.service.displayName }}</span>
+            <span class="font-medium text-slate-100">{{ a.name }}</span>
             <span class="text-slate-500">{{ a.reason }}</span>
           </NuxtLink>
         </div>
@@ -202,16 +202,20 @@
         <StackGroup
           v-if="pinnedServices.length"
           name="Pinned"
+          kind="pinned"
           :services="pinnedServices"
           :view="view"
-          pinned
           :force-open="!!q.trim() || filter !== 'all'"
         />
         <StackGroup
           v-for="g in groups"
-          :key="g.name"
+          :key="g.key"
           :name="g.name"
+          :kind="g.kind"
           :services="g.services"
+          :stack="g.stack"
+          :project="g.project"
+          :missing="g.missing"
           :view="view"
           :force-open="!!q.trim() || filter !== 'all'"
         />
@@ -237,8 +241,10 @@
 
 <script setup lang="ts">
 import type { Service } from '~/types/service'
+import type { StackInfo, GroupKind } from '~/composables/useStacks'
 
 const { data, error, loading, refresh, start, stop } = useServices()
+const stacksStore = useStacks() // declared early: watchers below run immediately
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
@@ -353,6 +359,17 @@ function onKey(e: KeyboardEvent) {
   searchInput.value?.focus()
 }
 
+// stack info (compose-declared services) refreshes with the live container list
+watch(() => caps.value.stacks, (on) => on && stacksStore.refresh(), { immediate: true })
+let stacksTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => data.value?.generatedAt,
+  () => {
+    if (stacksTimer) clearTimeout(stacksTimer)
+    stacksTimer = setTimeout(() => stacksStore.refresh(), 600)
+  },
+)
+
 onMounted(() => {
   start()
   stats.start()
@@ -393,12 +410,23 @@ const hasUpdate = (s: Service) => updates.entryFor(s)?.status === 'update'
 const visible = computed<Service[]>(() =>
   (data.value?.services || []).filter((s) => !s.hidden && (!hostFilter.value || s.host === hostFilter.value)),
 )
-const attention = computed(() =>
-  visible.value.flatMap((s) => {
+// Containers in trouble, plus stacks that are partly up because a service in
+// their compose file never got a container (a failed start, not a deliberate down).
+const attention = computed(() => [
+  ...visible.value.flatMap((s) => {
     const i = issueOf(s)
-    return i ? [{ service: s, ...i }] : []
+    return i ? [{ key: s.id, name: s.displayName, to: `/services/${encodeURIComponent(s.id)}`, ...i }] : []
   }),
-)
+  ...stacksStore.stacks.value
+    .filter((st) => st.running > 0 && st.missing?.length)
+    .map((st) => ({
+      key: `stack:${st.name}`,
+      name: st.name,
+      to: `/stacks/${encodeURIComponent(st.name)}`,
+      reason: `${st.missing!.map((m) => m.name).join(', ')} not running`,
+      tone: 'amber' as const,
+    })),
+])
 const updateCount = computed(() => visible.value.filter(hasUpdate).length)
 const updatesShown = computed(() => caps.value.updateCheck || caps.value.updates || updates.enabled.value)
 
@@ -415,9 +443,9 @@ watch([q, filter, hostFilter], () => {
 const filters = computed(() => {
   const v = visible.value
   const out: { key: Filter; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: v.length },
+    { key: 'all', label: 'All', count: v.length + missingTotal.value },
     { key: 'running', label: 'Running', count: v.filter(isRunning).length },
-    { key: 'stopped', label: 'Stopped', count: v.filter(isStopped).length },
+    { key: 'stopped', label: 'Stopped', count: v.filter(isStopped).length + missingTotal.value },
   ]
   if (attention.value.length || filter.value === 'issues') out.push({ key: 'issues', label: 'Issues', count: attention.value.length })
   if (updateCount.value || filter.value === 'updates') out.push({ key: 'updates', label: 'Updates', count: updateCount.value })
@@ -439,21 +467,87 @@ const filtered = computed<Service[]>(() => {
   })
 })
 
-// In the multi-host "All" view, prefix the group with the host so stacks don't merge.
-const groupKey = (s: Service) => (multiHost.value && !hostFilter.value && s.host ? `${s.host} · ${s.group}` : s.group)
+// --- grouping: a dashboard group IS a stack -------------------------------
+// Compose containers group by their stack; a hub.group label still files a
+// container under a custom group; containers started on their own go to
+// "Standalone containers"; systemd units to "Host services". Managed stacks
+// also carry the services their compose file declares but that have no
+// container, so a stack that was taken down doesn't vanish from the dashboard.
+const STANDALONE = 'Standalone containers'
+const primaryHostId = computed(() => data.value?.hosts?.[0]?.id ?? 'default')
+// stacks live on the primary host; with a single host everything is on it
+const onPrimary = (s: Service) => {
+  if (!multiHost.value || s.kind !== 'container') return true
+  const sep = s.id.indexOf('::')
+  return sep < 0 || s.id.slice(0, sep) === primaryHostId.value
+}
 
-const groups = computed(() => {
-  const map = new Map<string, Service[]>()
-  for (const s of filtered.value) {
-    const k = groupKey(s)
-    const arr = map.get(k) || []
-    arr.push(s)
-    map.set(k, arr)
+interface Group {
+  key: string
+  name: string
+  kind: GroupKind
+  services: Service[]
+  stack: StackInfo | null
+  project: string | null
+  missing: { name: string; image?: string }[]
+  order: number
+}
+
+function classify(s: Service): Omit<Group, 'services' | 'missing'> {
+  // in the multi-host "All" view, prefix with the host so same-named stacks don't merge
+  const prefix = multiHost.value && !hostFilter.value && s.host ? `${s.host} · ` : ''
+  if (s.kind === 'systemd') return { key: `host:${prefix}`, name: `${prefix}Host services`, kind: 'host', stack: null, project: null, order: 2 }
+  const custom = !!s.group && s.group !== (s.project || 'Other')
+  if (custom) return { key: `custom:${prefix}${s.group}`, name: `${prefix}${s.group}`, kind: 'custom', stack: null, project: null, order: 1 }
+  if (s.project) {
+    const stack = onPrimary(s) ? stacksStore.byName(s.project) : null
+    // without the stacks capability (or before the list loads) a project is just a stack we can't operate
+    const kind: GroupKind = stack || !caps.value.stacks || !stacksStore.loaded.value ? 'stack' : 'unmanaged'
+    return { key: `stack:${prefix}${s.project}`, name: `${prefix}${s.project}`, kind, stack, project: s.project, order: 1 }
   }
-  return [...map.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([name, services]) => ({ name, services: services.sort((a, b) => a.displayName.localeCompare(b.displayName)) }))
+  return { key: `standalone:${prefix}`, name: `${prefix}${STANDALONE}`, kind: 'standalone', stack: null, project: null, order: 3 }
+}
+
+// not-running (declared, no container) services show under All and Stopped, and
+// under Issues when the rest of their stack is up (that's a failed start)
+function missingFor(stack: StackInfo | null) {
+  if (!stack?.missing?.length) return []
+  const f = filter.value
+  if (!(f === 'all' || f === 'stopped' || (f === 'issues' && stack.running > 0))) return []
+  const term = q.value.trim().toLowerCase()
+  return stack.missing.filter((m) => !term || `${stack.name} ${m.name} ${m.image ?? ''}`.toLowerCase().includes(term))
+}
+
+const groups = computed<Group[]>(() => {
+  const map = new Map<string, Group>()
+  for (const s of filtered.value) {
+    const c = classify(s)
+    const g = map.get(c.key) || { ...c, services: [], missing: [] }
+    g.services.push(s)
+    map.set(c.key, g)
+  }
+  for (const g of map.values()) g.missing = missingFor(g.stack)
+  // managed stacks with no container left at all (taken down) still get a group
+  const primaryShown = !hostFilter.value || hosts.value[0]?.name === hostFilter.value
+  if (primaryShown) {
+    for (const st of stacksStore.stacks.value) {
+      const prefix = multiHost.value && !hostFilter.value ? `${hosts.value[0]?.name} · ` : ''
+      const key = `stack:${prefix}${st.name}`
+      if (map.has(key)) continue
+      const missing = missingFor(st)
+      if (missing.length) map.set(key, { key, name: `${prefix}${st.name}`, kind: 'stack', services: [], stack: st, project: st.name, missing, order: 1 })
+    }
+  }
+  return [...map.values()]
+    .map((g) => ({ ...g, services: g.services.sort((a, b) => a.displayName.localeCompare(b.displayName)) }))
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
 })
+
+const missingTotal = computed(() =>
+  !hostFilter.value || hosts.value[0]?.name === hostFilter.value
+    ? stacksStore.stacks.value.reduce((n, s) => n + (s.missing?.length ?? 0), 0)
+    : 0,
+)
 
 // pinned containers (per browser, by name) get their own group at the top
 const pins = usePins()

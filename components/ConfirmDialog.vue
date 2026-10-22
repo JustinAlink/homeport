@@ -25,12 +25,13 @@
             <label class="field-label" for="cd-require">Type <span class="font-mono text-slate-100">{{ state.requireText }}</span> to confirm</label>
             <input id="cd-require" ref="requireInput" v-model="typed" class="input font-mono" autocomplete="off" spellcheck="false" />
           </div>
-          <div class="mt-6 flex justify-end gap-2">
+          <div class="mt-6 flex flex-wrap justify-end gap-2">
             <button
               ref="cancelBtn"
               class="btn"
               @click="settle(false)"
             >{{ state.cancelLabel || 'Cancel' }}</button>
+            <button v-if="state.altLabel" class="btn" data-alt @click="settle('alt')">{{ state.altLabel }}</button>
             <button
               class="btn"
               :class="state.danger ? 'btn-danger-solid' : 'btn-primary'"
@@ -68,7 +69,7 @@ function onKey(e: KeyboardEvent) {
   if (!state.value.open) return
   if (e.key === 'Enter') {
     // Enter on the Cancel button cancels; elsewhere it confirms (when allowed)
-    if (document.activeElement === cancelBtn.value) return
+    if (document.activeElement === cancelBtn.value || (document.activeElement as HTMLElement | null)?.hasAttribute('data-alt')) return
     e.preventDefault()
     if (canConfirm.value) settle(true)
   } else if (e.key === 'Escape') {

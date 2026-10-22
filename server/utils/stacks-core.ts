@@ -1,4 +1,6 @@
-// Pure, dependency-free compose-stack logic — unit-testable in isolation.
+// Pure compose-stack logic (no fs, no docker), unit-testable in isolation.
+
+import { parseYAML } from 'confbox/yaml'
 
 /** Compose file pick order inside a stack directory (Dockge/compose convention). */
 export const COMPOSE_FILENAMES = ['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml']
@@ -22,11 +24,42 @@ export function safeStackName(name: string): string | null {
 
 export type StackState = 'running' | 'partial' | 'stopped'
 
+/** A service as declared in a compose file. `optional` = behind a profile, so not started by default. */
+export interface DeclaredService {
+  name: string
+  image?: string
+  optional: boolean
+}
+
+/**
+ * The services a compose file declares. Counting a stack from its file (not from
+ * whichever containers happen to exist) is what keeps a stack visible after
+ * `down` and makes "3/3 running" honest when a fourth service never started.
+ * null when the file can't be read as YAML (callers fall back to containers).
+ */
+export function declaredServices(content: string): DeclaredService[] | null {
+  let doc: any
+  try {
+    doc = parseYAML(content)
+  } catch {
+    return null
+  }
+  const services = doc?.services
+  if (!services || typeof services !== 'object' || Array.isArray(services)) return null
+  return Object.entries(services).map(([name, def]: [string, any]) => ({
+    name,
+    image: typeof def?.image === 'string' ? def.image : undefined,
+    optional: Array.isArray(def?.profiles) && def.profiles.length > 0,
+  }))
+}
+
 export interface StackStatus {
   name: string
   state: StackState
   running: number
   total: number
+  /** declared (non-profile) services that have no container at all */
+  missing: { name: string; image?: string }[]
 }
 
 /**
@@ -36,28 +69,34 @@ export interface StackStatus {
  */
 export function stackStatuses(
   stackNames: string[],
-  containers: { project: string | null; state: string }[],
+  containers: { project: string | null; state: string; service?: string | null }[],
+  declared: Record<string, DeclaredService[] | null> = {},
 ): { stacks: StackStatus[]; unmanaged: { name: string; running: number; total: number }[] } {
-  const byProject = new Map<string, { running: number; total: number }>()
+  const byProject = new Map<string, { running: number; total: number; services: Set<string> }>()
   for (const c of containers) {
     if (!c.project) continue
-    const e = byProject.get(c.project) || { running: 0, total: 0 }
+    const e = byProject.get(c.project) || { running: 0, total: 0, services: new Set<string>() }
     e.total++
     if (c.state === 'running' || c.state === 'restarting') e.running++
+    if (c.service) e.services.add(c.service)
     byProject.set(c.project, e)
   }
 
   const stacks: StackStatus[] = stackNames.map((name) => {
-    const e = byProject.get(name)
-    if (!e || e.total === 0) return { name, state: 'stopped' as const, running: 0, total: e?.total ?? 0 }
-    const state: StackState = e.running === 0 ? 'stopped' : e.running === e.total ? 'running' : 'partial'
-    return { name, state, running: e.running, total: e.total }
+    const e = byProject.get(name) || { running: 0, total: 0, services: new Set<string>() }
+    // declared services with no container count towards the total as "not running"
+    const missing = (declared[name] ?? [])
+      .filter((d) => !d.optional && !e.services.has(d.name))
+      .map((d) => ({ name: d.name, ...(d.image ? { image: d.image } : {}) }))
+    const total = e.total + missing.length
+    const state: StackState = e.running === 0 ? 'stopped' : e.running === total ? 'running' : 'partial'
+    return { name, state, running: e.running, total, missing }
   })
 
   const known = new Set(stackNames)
   const unmanaged = [...byProject.entries()]
     .filter(([p]) => !known.has(p))
-    .map(([name, e]) => ({ name, ...e }))
+    .map(([name, e]) => ({ name, running: e.running, total: e.total }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return { stacks, unmanaged }

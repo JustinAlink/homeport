@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.28.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.29.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -247,7 +247,7 @@ Zero-config by default; add labels to any container to customize its card:
 | Label | Effect |
 |---|---|
 | `hub.name` | Display name |
-| `hub.group` | Override the group/stack it's filed under |
+| `hub.group` | File it under a custom dashboard group instead of its stack (containers outside any stack otherwise go under "Standalone containers") |
 | `hub.icon` | An emoji/character shown before the name |
 | `hub.hide` | `true` to hide it from the dashboard |
 | `hub.noalert` | `true` to exclude it from alerting |

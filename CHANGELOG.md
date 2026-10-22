@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.29.0 (2026-10-22)
+
+Stacks and containers, made one model. A **stack** is a docker compose project;
+its **containers** are the running parts of it.
+
+- **Dashboard groups are stacks.** Each group header shows the stack's real
+  state and its actions: Start, Restart, Update, Stop (compose down). Containers
+  started with plain `docker run` sit in "Standalone containers" (the old
+  "Other"), systemd units in "Host services". A `hub.group` label still files a
+  container under a custom group, marked as such.
+- **Counted from the compose file.** A stack that was stopped (`down`) no longer
+  vanishes from the dashboard, and a service that never got a container (a failed
+  pull or start) shows as "Not running" instead of the stack claiming "3/3". Partly
+  started stacks appear under Needs attention.
+- **Container actions explain what the stack will do.** Stopping one container of a
+  stack says it comes back on the stack's next start and offers "Stop the whole
+  stack"; deleting one says the compose file still lists it and offers to open it.
+  Container pages link to their stack ("Stack: media") and show its compose service.
+- **One word per thing.** "Stack" instead of compose project, group or "Other";
+  the Stacks page defines it, and "Unmanaged compose projects" is now "Stacks
+  homeport can't edit".
+
 ## v2.28.0 (2026-10-22)
 
 A complete UI makeover: new design system, clearer pages, and the pain points

@@ -42,6 +42,8 @@ const seeds: Seed[] = [
   { name: 'restic-backup', image: 'mazzolino/restic:1.6.0', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
   // an "unmanaged" compose project: runs on the host, but no stack dir in /stacks
   { name: 'legacy-app', image: 'legacy/app:1.0', group: 'legacy-app', statusText: 'Up 3 months', ports: [9000] },
+  // started with plain `docker run`: no compose project (group '' = standalone)
+  { name: 'speedtest', image: 'openspeedtest/latest', group: '', statusText: 'Up 9 days', ports: [3000] },
 ]
 
 // Compose projects without a stack dir — shown read-only on the stacks pages.
@@ -76,10 +78,10 @@ function toService(s: Seed, i: number): Service {
     createdAt: Date.now() - (i + 1) * DAY,
     ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
     internalPorts: (s.ports || []).slice(),
-    networks: [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])],
-    group: s.group,
-    project: s.group,
-    composeService: s.name,
+    networks: s.group ? [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])] : ['bridge'],
+    group: s.group || 'Other',
+    project: s.group || null,
+    composeService: s.group ? s.name : null,
     icon: null,
     domains: (s.domains || []).map((d) => ({
       domain: d.domain,
@@ -284,8 +286,18 @@ export function demoProxyAdmin(): ProxyAdmin {
 
 const demoStackContent = new Map<string, string>()
 
+// Declared in a demo compose file but never started, so the dashboard and stack
+// pages can show a "not running" service (what a real stack looks like after a
+// failed start, or after `down`).
+const DEMO_NOT_CREATED: Record<string, { name: string; image: string }[]> = {
+  media: [{ name: 'bazarr', image: 'lscr.io/linuxserver/bazarr:1.4.5' }],
+}
+
 function synthCompose(group: string): string {
-  const members = seeds.filter((s) => s.group === group)
+  const members = [
+    ...seeds.filter((s) => s.group === group),
+    ...(DEMO_NOT_CREATED[group] ?? []).map((d) => ({ ...d, group, statusText: '' }) as Seed),
+  ]
   const svc = (s: Seed) =>
     [
       `  ${s.name}:`,
@@ -300,17 +312,19 @@ function synthCompose(group: string): string {
 const DEMO_EXTERNAL_STACK = 'downloads'
 
 export function demoStackList() {
-  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => !UNMANAGED_GROUPS.has(g))
+  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g && !UNMANAGED_GROUPS.has(g))
   const stacks = groups.map((g) => {
     const members = seeds.map((s, i) => ({ s, i })).filter(({ s }) => s.group === g)
     const running = members.filter(({ s, i }) => (demoOverrides[`demo-${i}`] || s.state || 'running') === 'running').length
-    const total = members.length
+    const missing = (DEMO_NOT_CREATED[g] ?? []).map(({ name, image }) => ({ name, image }))
+    const total = members.length + missing.length
     const external = g === DEMO_EXTERNAL_STACK
     return {
       name: g,
       state: running === 0 ? 'stopped' : running === total ? 'running' : 'partial',
       running,
       total,
+      missing,
       file: 'compose.yaml',
       source: external ? 'adopted' : 'stacks',
       dir: external ? `/home/demo/docker/${g}` : undefined,
@@ -606,7 +620,7 @@ const demoExtraNetworks: ReturnType<typeof demoNetworks> = []
 // network name → service id → attached ('on') / detached ('off') override
 const demoNetOverrides = new Map<string, Map<string, 'on' | 'off'>>()
 export function demoNetworks() {
-  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g !== 'systemd')
+  const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g && g !== 'systemd')
   const projectNets = groups.map((g, gi) => {
     const attached = seeds
       .map((s, i) => ({ s, i }))

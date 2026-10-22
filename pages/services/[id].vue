@@ -16,6 +16,12 @@
         <span class="font-mono text-xs">{{ service.image }}</span>
       </template>
       <template v-if="service" #actions>
+        <NuxtLink
+          v-if="composeProject && caps.stacks"
+          :to="`/stacks/${encodeURIComponent(composeProject)}`"
+          class="btn"
+          :title="stackManaged ? 'This container is part of a stack: open its compose file and stack actions' : 'Open the stack this container belongs to'"
+        ><Icon name="stacks" /> Stack: {{ composeProject }}</NuxtLink>
         <a
           v-if="service.domains[0]"
           :href="service.domains[0].url"
@@ -223,8 +229,9 @@
           <div class="card-header border-red-500/15">
             <span class="card-title text-red-300">Danger zone</span>
             <span v-if="composeProject && stackManaged" class="text-xs text-slate-500">
-              Part of the managed stack “{{ composeProject }}”: a deleted or recreated container comes back on the stack's next
-              <code>up</code>. For a permanent change use the <NuxtLink :to="`/stacks/${composeProject}`" class="link">stack page</NuxtLink>.
+              This container belongs to the stack “{{ composeProject }}”: what happens to it here lasts until the stack is next
+              started or updated, which recreates it from the compose file. For a lasting change, edit the
+              <NuxtLink :to="`/stacks/${composeProject}`" class="link">stack</NuxtLink>.
             </span>
           </div>
           <div class="row-list">
@@ -277,17 +284,17 @@
         <div v-if="composeProject && stackManaged" class="callout callout-info">
           <Icon name="info" />
           <span>
-            This container belongs to the managed stack “{{ composeProject }}”. Set its environment in the compose file so the
-            change survives redeploys. <NuxtLink :to="`/stacks/${composeProject}`" class="link">Open the stack</NuxtLink>
+            This container belongs to the stack “{{ composeProject }}”. Set its environment in the stack's compose file so the
+            change survives the next start or update. <NuxtLink :to="`/stacks/${composeProject}`" class="link">Open the stack</NuxtLink>
           </span>
         </div>
         <template v-else>
           <div v-if="composeProject && stackChecked" class="callout callout-warn">
             <Icon name="alert" />
             <span>
-              Part of the “{{ composeProject }}” compose project (not managed by homeport). Changes apply now, but a future
-              <code>docker compose up</code> from its original file recreates the container with the old environment, so mirror
-              the change there too.
+              Part of the stack “{{ composeProject }}”, whose compose file homeport can't see. Changes apply now, but the next
+              <code>docker compose up</code> from that file recreates the container with the old environment, so mirror the
+              change there too.
             </span>
           </div>
           <div v-if="!envLoaded" class="card card-pad space-y-2"><div v-for="i in 4" :key="i" class="skeleton h-9" /></div>
@@ -392,9 +399,9 @@
             </button>
           </div>
           <p v-if="updateEntry?.status === 'update' && composeProject && stackChecked && !stackManaged" class="border-t border-white/[0.06] px-4 py-3 text-xs leading-relaxed text-slate-500 sm:px-5">
-            Part of the “{{ composeProject }}” compose project (not managed by homeport): updating pulls the image and recreates
+            Part of the stack “{{ composeProject }}”, whose compose file homeport can't see: updating pulls the image and recreates
             this container in place with its current settings.
-            <NuxtLink v-if="projectSiblings > 1" :to="`/stacks/${composeProject}`" class="link">Update the whole project at once</NuxtLink>
+            <NuxtLink v-if="projectSiblings > 1" :to="`/stacks/${composeProject}`" class="link">Update the whole stack at once</NuxtLink>
           </p>
         </div>
         <OpSteps :steps="applySteps" title="Update steps" :redirecting="redirecting" :new-page="newPage" />
@@ -416,7 +423,8 @@ const { data, loading, refresh, start, stop } = useServices()
 const stats = useStats()
 const { caps, loaded: capsLoaded, load: loadCaps } = useCapabilities()
 const updates = useUpdates()
-const { confirm } = useConfirm()
+const { confirm, choose } = useConfirm()
+const stackAware = useStackAwareActions()
 const toast = useToast()
 
 const applying = ref(false)
@@ -677,7 +685,8 @@ const details = computed(() => {
     { label: 'Container', value: s.name, mono: true },
     { label: 'Image', value: s.image, mono: true },
   ]
-  if (s.project) d.push({ label: 'Compose', value: s.project, to: caps.value.stacks ? `/stacks/${encodeURIComponent(s.project)}` : undefined })
+  if (s.project) d.push({ label: 'Stack', value: s.project, to: caps.value.stacks ? `/stacks/${encodeURIComponent(s.project)}` : undefined })
+  if (s.project && s.composeService) d.push({ label: 'Service', value: s.composeService, mono: true })
   if (s.host) d.push({ label: 'Host', value: s.host })
   if (s.createdAt) d.push({ label: 'Created', value: new Date(s.createdAt).toLocaleString() })
   if (s.health) d.push({ label: 'Health', value: s.health })
@@ -742,7 +751,20 @@ async function deleteContainer() {
     deleteImage.value ? 'its image' : '',
     deleteProxyRoutes.value ? 'its proxy domains' : '',
   ].filter(Boolean)
-  if (!(await confirm({
+  const stack = stackAware.stackOf(service.value)
+  if (stack) {
+    // deleting one container doesn't take it out of the compose file
+    const c = await choose({
+      title: `Delete “${name}”?`,
+      message: `It belongs to the stack “${stack}”, and its compose file still lists it, so the next time the stack is started or updated it is created again.${extras.length ? ` Also removed now: ${extras.join(', ')}.` : ''}`,
+      detail: 'To remove it for good, delete its service from the compose file.',
+      confirmLabel: 'Delete container',
+      altLabel: 'Open the compose file',
+      danger: true,
+    })
+    if (c === 'alt') return navigateTo(`/stacks/${encodeURIComponent(stack)}`)
+    if (c !== 'confirm') return
+  } else if (!(await confirm({
     title: `Delete “${name}”?`,
     message: `Delete “${name}” permanently?${extras.length ? ` Also removed: ${extras.join(', ')}.` : ''}`,
     detail: 'This cannot be undone.',
@@ -778,7 +800,7 @@ async function deleteContainer() {
 // --- controls ---
 const busy = ref<'' | 'start' | 'stop' | 'restart'>('')
 async function control(action: 'start' | 'stop' | 'restart') {
-  if (action === 'stop' && !(await confirm({ message: `Stop “${service.value?.displayName}”?`, confirmLabel: 'Stop', danger: true }))) return
+  if (action === 'stop' && !(await stackAware.confirmStop(service.value!))) return
   busy.value = action
   try {
     await $fetch('/api/control', { method: 'POST', body: { id, action } })
@@ -805,12 +827,10 @@ async function checkStackManaged() {
     stackChecked.value = true
     return
   }
-  try {
-    const r = await $fetch<{ stacks: { name: string }[] }>('/api/stacks')
-    stackManaged.value = (r.stacks ?? []).some((s) => s.name === composeProject.value)
-  } catch {
-    stackManaged.value = false // stacks unavailable — direct update is the only path
-  }
+  // shared stacks store: the stack-aware stop/delete dialogs read it too
+  const store = useStacks()
+  await store.refresh()
+  stackManaged.value = !!stackAware.stackOf(service.value) // false if stacks unavailable: direct update is the only path
   stackChecked.value = true
 }
 // resolved on load — the Overview danger zone, Update and Environment tabs all use it

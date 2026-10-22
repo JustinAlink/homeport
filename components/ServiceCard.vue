@@ -230,14 +230,10 @@ const controlEnabled = computed(() => (data.value?.controlEnabled ?? false) && c
 const remoteIcons = computed(() => data.value?.remoteIcons ?? true)
 const hasActions = computed(() => isContainer.value)
 const busy = ref(false)
-const { confirm } = useConfirm()
+const stackAware = useStackAwareActions()
 const toast = useToast()
 async function control(action: 'start' | 'stop' | 'restart') {
-  if (
-    action === 'stop' &&
-    !(await confirm({ message: `Stop “${props.service.displayName}”?`, confirmLabel: 'Stop', danger: true }))
-  )
-    return
+  if (action === 'stop' && !(await stackAware.confirmStop(props.service))) return
   busy.value = true
   try {
     await $fetch('/api/control', { method: 'POST', body: { id: props.service.id, action } })

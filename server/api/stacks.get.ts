@@ -2,7 +2,9 @@ import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { listContainersFor } from '../utils/docker'
 import { listAllStacks, externalProjects } from '../utils/stacks'
-import { stackStatuses } from '../utils/stacks-core'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { stackStatuses, declaredServices, type DeclaredService } from '../utils/stacks-core'
 import { isGitStack } from '../utils/git-stacks'
 import { demoStackList } from '../utils/demo'
 
@@ -30,7 +32,16 @@ export default defineEventHandler(async () => {
 
   const all = listAllStacks(containers)
   const external = externalProjects(containers)
-  const { stacks, unmanaged } = stackStatuses(all.map((a) => a.name), containers)
+  // count from each compose file, so stopped (`down`) and never-started services show up too
+  const declared: Record<string, DeclaredService[] | null> = {}
+  for (const a of all) {
+    try {
+      declared[a.name] = declaredServices(readFileSync(join(a.dir, a.file), 'utf8'))
+    } catch {
+      declared[a.name] = null
+    }
+  }
+  const { stacks, unmanaged } = stackStatuses(all.map((a) => a.name), containers, declared)
 
   return {
     stacks: stacks.map((s) => {

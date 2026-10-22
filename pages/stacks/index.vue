@@ -2,10 +2,10 @@
   <div class="page">
     <PageHeader title="Stacks">
       <template #subtitle>
-        Compose projects homeport manages: folders with a compose file in
-        <code>{{ data?.dir || '/stacks' }}</code><template v-if="data?.roots?.length"> or a compose root
-          (<code>{{ data.roots.join(', ') }}</code>)</template>, plus running projects whose files homeport can see.
-        Apps installed from the <NuxtLink to="/catalog" class="link">catalog</NuxtLink> land here too.
+        A stack is one docker compose project: a compose file that runs a set of containers together. These are the
+        compose projects homeport manages, from <code>{{ data?.dir || '/stacks' }}</code><template v-if="data?.roots?.length">
+          and <code>{{ data.roots.join(', ') }}</code></template> plus running projects whose files it can see. Apps installed
+        from the <NuxtLink to="/catalog" class="link">catalog</NuxtLink> become stacks too.
       </template>
       <template v-if="gateCaps.stacks || !gateLoaded" #actions>
         <NuxtLink to="/catalog" class="btn"><Icon name="catalog" /> Install an app</NuxtLink>
@@ -102,7 +102,11 @@
             </div>
             <p class="mt-0.5 truncate text-xs text-slate-500">
               <template v-if="stackServices(s.name).length">{{ stackServices(s.name).join(' · ') }}</template>
-              <template v-else>no running containers</template>
+              <template v-if="s.missing?.length">
+                <template v-if="stackServices(s.name).length"> · </template>
+                <span class="text-slate-600" :title="'Declared in the compose file, no container'">{{ s.missing.map((m) => m.name).join(' · ') }} (not running)</span>
+              </template>
+              <template v-if="!stackServices(s.name).length && !s.missing?.length">no containers</template>
               <span class="font-mono text-slate-600"> · {{ s.file }}</span>
             </p>
           </div>
@@ -121,10 +125,10 @@
       </div>
 
       <section v-if="data.unmanaged.length" class="mt-9">
-        <h2 class="section-title">Unmanaged compose projects</h2>
+        <h2 class="section-title">Stacks homeport can't edit</h2>
         <p class="mb-3 mt-1 max-w-3xl text-xs leading-relaxed text-slate-500">
-          Running compose projects whose files homeport can't see. You can view and control their containers, but not edit or
-          compose-operate them. To manage one fully, mount its folder into the homeport container at the
+          Running stacks whose compose files homeport can't see. You can view and control their containers, but not edit them
+          or run compose on them. To manage one fully, mount its folder into the homeport container at the
           <strong class="text-slate-400">same path it has on the host</strong> (shown below) and it's adopted automatically. A parent
           folder of several projects can be added once under Settings → Capabilities → Compose roots.
         </p>
@@ -153,6 +157,7 @@ interface StackRow {
   state: 'running' | 'partial' | 'stopped'
   running: number
   total: number
+  missing?: { name: string; image?: string }[]
   file?: string
   git?: boolean
   source?: 'stacks' | 'root' | 'adopted'
@@ -241,7 +246,7 @@ async function createFromGit() {
 
 const dotCls = (s: string) => (s === 'running' ? 'bg-ok' : s === 'partial' ? 'bg-amber-400' : 'bg-slate-500')
 const stateText = (s: string) => (s === 'running' ? 'text-ok' : s === 'partial' ? 'text-amber-300' : 'text-slate-400')
-const stateLabel = (s: string) => (s === 'running' ? 'Running' : s === 'partial' ? 'Partly up' : 'Stopped')
+const stateLabel = (s: string) => (s === 'running' ? 'Running' : s === 'partial' ? 'Partly running' : 'Stopped')
 
 let poll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {

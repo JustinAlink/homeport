@@ -18,8 +18,8 @@
         <span v-if="deleting" class="badge badge-danger"><span class="dot h-1.5 w-1.5 animate-pulse bg-red-400" />deleting…</span>
         <span v-if="notManaged && rows.length" class="badge">unmanaged</span>
       </template>
-      <template v-if="rows.length" #subtitle>
-        {{ runningCount }} of {{ rows.length }} service{{ rows.length === 1 ? '' : 's' }} running
+      <template v-if="rows.length || missingRows.length" #subtitle>
+        {{ runningCount }} of {{ serviceTotal }} service{{ serviceTotal === 1 ? '' : 's' }} running<template v-if="missingRows.length">: {{ missingRows.map((m) => m.name).join(', ') }} {{ missingRows.length > 1 ? 'have' : 'has' }} no container</template>
       </template>
       <template #actions>
         <!-- unmanaged project: no compose file, so act on the containers directly -->
@@ -195,10 +195,10 @@
     </template>
 
     <!-- services in this stack (compose project) -->
-    <section v-if="rows.length" class="mb-6">
+    <section v-if="rows.length || missingRows.length" class="mb-6">
       <div class="mb-2.5 flex items-baseline gap-2">
         <h2 class="section-title">Services</h2>
-        <span class="text-xs text-slate-500">{{ runningCount }}/{{ rows.length }} running</span>
+        <span class="text-xs text-slate-500">{{ runningCount }}/{{ serviceTotal }} running</span>
       </div>
       <div class="card row-list overflow-hidden">
         <NuxtLink
@@ -223,6 +223,7 @@
             <span class="w-28 text-right"><StatusPill :state="s.state" :health="s.health" compact :text="s.statusText.replace(/\s*\(healthy\)/, '')" /></span>
           </template>
         </NuxtLink>
+        <NotRunningCard v-for="m in missingRows" :key="'m:' + m.name" :name="m.name" :image="m.image" :stack="name" layout="row" />
       </div>
     </section>
 
@@ -303,6 +304,11 @@ watchEffect(() => {
 })
 const rows = computed(() => (stackSvcs.value.length ? stackSvcs.value : seenSvcs.value))
 const liveIds = computed(() => new Set(stackSvcs.value.map((s) => s.id)))
+
+// services the compose file declares that have no container (down, or failed to start)
+const stacksStore = useStacks()
+const missingRows = computed(() => (notManaged.value ? [] : stacksStore.byName(name)?.missing ?? []))
+const serviceTotal = computed(() => rows.value.length + missingRows.value.length)
 
 // whole-project update: recreate every container that has a newer image
 const updatable = computed(() => rows.value.filter((s) => updates.entryFor(s)?.status === 'update'))
@@ -480,6 +486,13 @@ function onEditorKey(e: KeyboardEvent) {
 
 const opLines = ref<string[]>([])
 const opRunning = ref(false)
+// refresh after every compose operation (up/down change which services have containers)
+watch(
+  () => opRunning.value,
+  (running) => {
+    if (!running) stacksStore.refresh()
+  },
+)
 const opOk = ref<boolean | null>(null)
 const opDropped = ref(false)
 let es: EventSource | null = null
@@ -682,7 +695,7 @@ async function loadGit(force = false) {
 
 onMounted(() => {
   load()
-  loadCaps()
+  loadCaps().then(() => stacksStore.refresh())
   svcStart()
   statsStart()
   updates.refresh()

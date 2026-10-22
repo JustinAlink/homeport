@@ -99,7 +99,7 @@ const { caps } = useCapabilities()
 const theme = useTheme()
 const updates = useUpdates()
 const pins = usePins()
-const { confirm } = useConfirm()
+const stackAware = useStackAwareActions()
 const toast = useToast()
 const panel = ref<HTMLElement | null>(null)
 useFocusTrap(panel, isOpen)
@@ -186,7 +186,7 @@ function containerActions(s: Service): Item[] {
 }
 
 async function control(s: Service, action: 'start' | 'stop' | 'restart') {
-  if (action === 'stop' && !(await confirm({ message: `Stop “${s.displayName}”?`, confirmLabel: 'Stop', danger: true }))) return
+  if (action === 'stop' && !(await stackAware.confirmStop(s))) return
   try {
     await $fetch('/api/control', { method: 'POST', body: { id: s.id, action } })
     toast.success(`${s.displayName}: ${action === 'stop' ? 'stopped' : action === 'start' ? 'started' : 'restarted'}`)
