@@ -97,7 +97,11 @@
                 <!-- domain and its status stack on a phone, sit side by side when there's room -->
                 <div class="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-3">
                   <a :href="d.url" target="_blank" rel="noopener noreferrer" class="min-w-0 truncate text-[13.5px] text-slate-100 hover:text-accent-light">{{ d.domain }}</a>
-                  <span v-if="pings.pings.value[d.url]" class="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-slate-500">
+                  <span
+                    v-if="pings.pings.value[d.url]"
+                    class="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-slate-500"
+                    :title="pings.pings.value[d.url].via === 'proxy' ? VIA_PROXY_NOTE : undefined"
+                  >
                     <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
                   </span>
                 </div>
@@ -502,7 +506,7 @@ function pingClass(url: string) {
 }
 function pingTitle(url: string) {
   const p = pings.pings.value[url]
-  return !p ? '' : p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms} ms`
+  return !p ? '' : p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms} ms${p.via === 'proxy' ? ' · via proxy' : ''}`
 }
 
 const restartOptions = [

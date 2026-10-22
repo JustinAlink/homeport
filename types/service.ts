@@ -71,6 +71,8 @@ export interface StatsResponse {
 export interface PingResult {
   status: number // HTTP status, or 0 = no response (down)
   ms: number
+  /** 'proxy': the public address didn't answer from inside Docker, so this came straight from the reverse proxy */
+  via?: 'proxy'
 }
 export type PingMap = Record<string, PingResult>
 

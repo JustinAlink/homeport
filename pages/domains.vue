@@ -38,7 +38,12 @@
                     rel="noopener noreferrer"
                     class="truncate text-[13.5px] font-medium text-slate-100 hover:text-accent-light"
                   >{{ d }}</a>
-                  <span v-if="pingOf(r, d)" class="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px]" :class="pingBad(pingOf(r, d)!) ? 'text-amber-300' : 'text-slate-500'">
+                  <span
+                    v-if="pingOf(r, d)"
+                    class="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px]"
+                    :class="pingBad(pingOf(r, d)!) ? 'text-amber-300' : 'text-slate-500'"
+                    :title="pingOf(r, d)!.via === 'proxy' ? VIA_PROXY_NOTE : undefined"
+                  >
                     <span class="dot h-1.5 w-1.5" :class="pingDot(pingOf(r, d)!)" />{{ pingText(pingOf(r, d)!) }}
                   </span>
                 </span>
@@ -103,7 +108,7 @@ const pingOf = (r: AdminRoute, d: string): PingResult | undefined => pingsApi.pi
 // 4xx is the app answering (a login wall is fine); 5xx or silence means it isn't
 const pingBad = (p: PingResult) => p.status === 0 || p.status >= 500
 const pingDot = (p: PingResult) => (p.status === 0 ? 'bg-red-400' : p.status >= 500 ? 'bg-amber-400' : 'bg-ok')
-const pingText = (p: PingResult) => (p.status === 0 ? 'no answer' : `HTTP ${p.status} · ${p.ms} ms`)
+const pingText = (p: PingResult) => (p.status === 0 ? 'no answer' : `HTTP ${p.status} · ${p.ms} ms${p.via === 'proxy' ? ' · via proxy' : ''}`)
 const { caps: hpCaps, load: loadHpCaps } = useCapabilities()
 const routes = ref<AdminRoute[]>([])
 const provider = ref('')

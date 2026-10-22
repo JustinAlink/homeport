@@ -225,7 +225,7 @@ function pingClass(url: string) {
 }
 function pingTitle(url: string) {
   const p = pings.value[url]
-  return !p ? '' : p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms}ms`
+  return !p ? '' : p.status === 0 ? 'unreachable' : `HTTP ${p.status} · ${p.ms}ms${p.via === 'proxy' ? ` (${VIA_PROXY_NOTE})` : ''}`
 }
 
 const { data, refresh: refreshServices } = useServices()

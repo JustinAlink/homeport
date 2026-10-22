@@ -5,3 +5,7 @@ export function formatBytes(b: number): string {
   if (b >= 1024) return Math.round(b / 1024) + ' KiB'
   return Math.round(b) + ' B'
 }
+
+/** Why a domain's status says "via proxy" (server/utils/ping-core.ts). */
+export const VIA_PROXY_NOTE =
+  "Checked through your reverse proxy: this server's public address can't be reached from inside Docker (no NAT loopback, or a firewall), so homeport asked the proxy directly. The app and its proxy route work; reachability from the internet wasn't tested."
