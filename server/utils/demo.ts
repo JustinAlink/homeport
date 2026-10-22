@@ -78,7 +78,8 @@ function toService(s: Seed, i: number): Service {
     createdAt: Date.now() - (i + 1) * DAY,
     ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
     internalPorts: (s.ports || []).slice(),
-    networks: s.group ? [`${s.group}_default`, ...(i % 4 === 0 ? ['npm-network'] : [])] : ['bridge'],
+    // from the demo network table, so connect/disconnect show up on the container too
+    networks: demoNetworks().filter((n) => n.attached?.some((c) => c.id === `demo-${i}`)).map((n) => n.name),
     group: s.group || 'Other',
     project: s.group || null,
     composeService: s.group ? s.name : null,
@@ -87,6 +88,7 @@ function toService(s: Seed, i: number): Service {
       domain: d.domain,
       url: `${d.ssl ? 'https' : 'http'}://${d.domain}`,
       ssl: !!d.ssl,
+      via: 'name' as const, // demo routes point at container names, like most real proxy setups
     })),
     hidden: false,
     noalert: false,
@@ -637,13 +639,19 @@ export function demoNetworks() {
       project: g,
     }
   })
-  const npmAttached = seeds
+  // the shared network the reverse proxy (traefik) uses to reach apps by name; radarr
+  // is left off on purpose so the "proxy can't reach it" warning has a demo case
+  const proxyAttached = seeds
     .map((s, i) => ({ s, i }))
-    .filter(({ s, i }) => s.group !== 'systemd' && i % 4 === 0)
+    .filter(({ s }) => (s.domains?.length || s.name === 'traefik') && s.name !== 'radarr')
+    .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
+  const bridgeAttached = seeds
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => !s.group)
     .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
   const nets = [
-    { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: 0, attached: [] as { id: string; name: string }[], project: null as string | null },
-    { id: 'demo-net-npm', name: 'npm-network', driver: 'bridge', builtin: false, subnets: ['192.168.0.0/20'], containers: npmAttached.length, attached: npmAttached, project: null },
+    { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: bridgeAttached.length, attached: bridgeAttached as { id: string; name: string }[], project: null as string | null },
+    { id: 'demo-net-proxy', name: 'proxy', driver: 'bridge', builtin: false, subnets: ['192.168.0.0/20'], containers: proxyAttached.length, attached: proxyAttached, project: null },
     // an unused leftover — the removable kind that causes "Pool overlaps" on reinstalls
     { id: 'demo-net-old', name: 'oldapp_default', driver: 'bridge', builtin: false, subnets: ['172.18.0.0/16'], containers: 0, attached: [], project: 'oldapp' },
     ...projectNets,
@@ -895,10 +903,12 @@ export function demoLogLines(id: string, count: number, seed?: number): { s: 'st
 
 export function demoPings(): PingMap {
   const out: PingMap = {}
+  // apps the demo proxy can't reach (not on the `proxy` network) answer 502, as they would for real
+  const onProxy = new Set((demoNetworks().find((n) => n.name === 'proxy')?.attached ?? []).map((c) => c.id))
   seeds.forEach((s, i) => {
     for (const d of s.domains || []) {
       const url = `${d.ssl ? 'https' : 'http'}://${d.domain}`
-      out[url] = i === 7 ? { status: 0, ms: 0 } : i % 5 === 0 ? { status: 502, ms: 140 } : { status: 200, ms: 18 + ((i * 17) % 160) }
+      out[url] = !onProxy.has(`demo-${i}`) ? { status: 502, ms: 9 } : i === 7 ? { status: 0, ms: 0 } : i % 5 === 0 ? { status: 502, ms: 140 } : { status: 200, ms: 18 + ((i * 17) % 160) }
     }
   })
   return out

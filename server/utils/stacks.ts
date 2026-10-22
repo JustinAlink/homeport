@@ -218,8 +218,10 @@ export async function saveStackValidated(name: string, content: string, createNe
 }
 
 export class ComposeValidationError extends Error {
-  constructor(public output: string) {
+  output: string
+  constructor(output: string) {
     super(`compose validation failed:\n${output}`)
+    this.output = output
   }
 }
 

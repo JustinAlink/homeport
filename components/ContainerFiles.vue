@@ -178,10 +178,11 @@ async function setupEditor(content: string, yamlMode: boolean) {
       ...(yamlExt ? [yamlExt.yaml()] : []),
       oneDark,
       EditorView.editable.of(!props.readOnly),
+      EditorView.contentAttributes.of({ 'aria-label': `Edit ${editing.value}` }),
       EditorView.updateListener.of((u: any) => {
         if (u.docChanged) fileDirty.value = fileView.state.doc.toString() !== fileBaseline
       }),
-      EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
+      EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' }, '.cm-gutterElement': { color: '#9aa3b2' } }),
     ],
   })
   fileBaseline = content

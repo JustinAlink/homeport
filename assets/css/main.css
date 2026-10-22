@@ -24,9 +24,10 @@
   --slate-100: 13 18 30;
   --slate-200: 30 38 54;
   --slate-300: 51 61 80;
-  --slate-400: 82 94 115;
-  --slate-500: 110 122 143;
-  --slate-600: 150 160 177;
+  /* 500 and 600 are secondary text: both clear WCAG AA (4.5:1) on every surface */
+  --slate-400: 70 82 102;
+  --slate-500: 92 104 124;
+  --slate-600: 98 110 130;
   --slate-700: 203 210 222;
 
   --line: 15 23 42;
@@ -38,7 +39,7 @@
   --primary: 79 70 229;
   --primary-hover: 67 56 202;
 
-  --ok: 5 150 105;
+  --ok: 5 112 82;
   --ok-soft: 16 185 129;
 
   --red-300: 185 28 28;
@@ -48,7 +49,7 @@
   --amber-400: 217 119 6;
   --amber-500: 245 158 11;
   --sky-200: 3 105 161;
-  --sky-300: 2 116 179;
+  --sky-300: 3 105 161;
   --sky-400: 2 132 199;
   --sky-500: 3 105 161;
 
@@ -67,9 +68,9 @@
   --slate-100: 243 246 250;
   --slate-200: 222 228 237;
   --slate-300: 192 202 216;
-  --slate-400: 146 159 178;
-  --slate-500: 110 125 148;
-  --slate-600: 82 95 116;
+  --slate-400: 160 172 190;
+  --slate-500: 132 145 166;
+  --slate-600: 128 141 163;
   --slate-700: 58 69 87;
 
   --line: 226 232 240;
@@ -78,8 +79,8 @@
   --accent-dark: 99 102 241;
   --accent-light: 165 180 252;
   --on-accent: 255 255 255;
-  --primary: 99 102 241;
-  --primary-hover: 116 120 246;
+  --primary: 91 94 236;
+  --primary-hover: 80 82 222;
 
   --ok: 52 211 153;
   --ok-soft: 16 185 129;
@@ -294,6 +295,21 @@
   .check > input {
     @apply mt-[3px] shrink-0;
   }
+  .check:has(> input:disabled) {
+    @apply cursor-not-allowed;
+  }
+  .check > input:disabled {
+    @apply opacity-50;
+  }
+  /* Settings pinned by an environment variable: the controls dim and stop taking clicks, but the
+     labels and hints stay at full contrast, because they are what tells you which variable to change. */
+  .is-locked {
+    @apply pointer-events-none;
+  }
+  .is-locked:is(input, select, textarea),
+  .is-locked :is(input, select, textarea, button) {
+    @apply opacity-50;
+  }
 
   /* ---------- badges / chips ---------- */
   .badge {
@@ -351,8 +367,9 @@
   }
 
   /* ---------- misc ---------- */
+  /* underlined, not colour alone: links inside muted text must stand out without it */
   .link {
-    @apply text-accent-light underline-offset-2 hover:underline;
+    @apply text-accent-light underline decoration-accent/40 underline-offset-2 hover:decoration-current;
   }
   .kbd {
     @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-white/15 bg-white/[0.04] px-1 font-sans text-[10.5px] font-medium text-slate-400;

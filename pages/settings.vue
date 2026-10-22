@@ -48,7 +48,7 @@
       <section v-show="inCategory('docker')" :id="'docker'" class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">Docker connection</h2>
         <p v-if="locked.docker" class="text-xs text-slate-500">Set by <code>DOCKER_HOST</code> — locked.</p>
-        <div class="space-y-3" :class="locked.docker ? 'pointer-events-none opacity-50' : ''">
+        <div class="space-y-3" :class="locked.docker ? 'is-locked' : ''">
           <label class="check">
             <input v-model="form.dockerMode" type="radio" value="local" /> Local socket / proxy
           </label>
@@ -67,7 +67,7 @@
                 <input
                   :id="id"
                   v-model="form.dockerSshFingerprint"
-                  class="input font-mono" :class="[locked.dockerSshFingerprint ? 'pointer-events-none opacity-50' : '']"
+                  class="input font-mono" :class="[locked.dockerSshFingerprint ? 'is-locked' : '']"
                   placeholder="SHA256:…"
                   spellcheck="false"
                 />
@@ -92,7 +92,7 @@
         <p class="text-xs text-slate-500">
           Watch more than one Docker host. Leave empty to use the single connection above.
         </p>
-        <div class="space-y-4" :class="locked.hosts ? 'pointer-events-none opacity-50' : ''">
+        <div class="space-y-4" :class="locked.hosts ? 'is-locked' : ''">
           <div
             v-for="(h, i) in form.hosts"
             :key="i"
@@ -160,7 +160,7 @@
       <section v-show="inCategory('proxy')" :id="'proxy'"  class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">Reverse proxy (domain mapping)</h2>
         <p v-if="locked.domainProvider" class="text-xs text-slate-500">Set by <code>DOMAIN_PROVIDER</code> — locked.</p>
-        <div class="space-y-3" :class="locked.domainProvider ? 'pointer-events-none opacity-50' : ''">
+        <div class="space-y-3" :class="locked.domainProvider ? 'is-locked' : ''">
           <Field v-slot="{ id }" label="Provider" hint="Auto-detect uses whichever config path below is set, and falls back to Traefik container labels.">
           <select :id="id" v-model="form.domainProvider" class="select">
             <option value="">Auto-detect</option>
@@ -250,9 +250,8 @@
             v-for="c in capabilityToggles"
             :key="c.key"
             class="check"
-            :class="locked[c.lock] ? 'pointer-events-none opacity-50' : ''"
           >
-            <input v-model="(form as any)[c.key]" type="checkbox" />
+            <input v-model="(form as any)[c.key]" type="checkbox" :disabled="!!locked[c.lock]" />
             <span>
               {{ c.label }}
               <span
@@ -263,7 +262,7 @@
                 :title="v.title"
               >{{ v.text }}</span>
               <span class="block text-[11px] text-slate-500">
-                {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code> — locked</template>
+                {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code>, locked</template>
               </span>
             </span>
           </label>
@@ -281,7 +280,7 @@
           so relative bind mounts keep pointing at the right host files.
           <template v-if="locked.composeRoots"> Set by <code>HOMEPORT_COMPOSE_ROOTS</code> — locked.</template>
         </p>
-        <div class="space-y-2" :class="locked.composeRoots ? 'pointer-events-none opacity-50' : ''">
+        <div class="space-y-2" :class="locked.composeRoots ? 'is-locked' : ''">
           <div v-for="(p, i) in form.composeRoots" :key="i" class="flex items-center gap-2">
             <input
               v-model="form.composeRoots[i]"
@@ -310,7 +309,7 @@
           homeport-native or Portainer <code>templates.json</code> URLs, fetched server-side.
           <template v-if="locked.catalogUrls"> Set by <code>HOMEPORT_CATALOG_URLS</code> — locked.</template>
         </p>
-        <div class="space-y-2" :class="locked.catalogUrls ? 'pointer-events-none opacity-50' : ''">
+        <div class="space-y-2" :class="locked.catalogUrls ? 'is-locked' : ''">
           <div v-for="(u, i) in form.catalogUrls" :key="i" class="flex items-center gap-2">
             <input
               v-model="form.catalogUrls[i]"
@@ -348,7 +347,7 @@
         <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code> — locked.</p>
         <label
           class="check"
-          :class="locked.pingEnabled ? 'pointer-events-none opacity-50' : ''"
+          :class="locked.pingEnabled ? 'is-locked' : ''"
         >
           <input v-model="form.pingEnabled" type="checkbox" />
           HTTP-ping mapped domains
@@ -362,7 +361,7 @@
         <p v-if="locked.systemdEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_SYSTEMD</code> — locked.</p>
         <label
           class="check"
-          :class="locked.systemdEnabled ? 'pointer-events-none opacity-50' : ''"
+          :class="locked.systemdEnabled ? 'is-locked' : ''"
         >
           <input v-model="form.systemdEnabled" type="checkbox" />
           Show systemd services
@@ -382,7 +381,7 @@
             v-model.number="form.collectorInterval"
             type="number"
             min="10"
-            class="input" :class="['mt-1', locked.collectorInterval ? 'pointer-events-none opacity-50' : '']"
+            class="input" :class="['mt-1', locked.collectorInterval ? 'is-locked' : '']"
           />
           <span class="text-[11px] text-slate-500">
             How often homeport snapshots the fleet in the background to feed history and alerts. Minimum 10.
@@ -391,7 +390,7 @@
         <p v-if="locked.historyEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_HISTORY</code> — locked.</p>
         <label
           class="check"
-          :class="locked.historyEnabled ? 'pointer-events-none opacity-50' : ''"
+          :class="locked.historyEnabled ? 'is-locked' : ''"
         >
           <input v-model="form.historyEnabled" type="checkbox" />
           Keep CPU/RAM history
@@ -405,7 +404,7 @@
         <p v-if="locked.alerts" class="text-xs text-slate-500">Set by <code>HOMEPORT_ALERTS</code> — locked.</p>
         <label
           class="check"
-          :class="locked.alerts ? 'pointer-events-none opacity-50' : ''"
+          :class="locked.alerts ? 'is-locked' : ''"
         >
           <input v-model="form.alertsEnabled" type="checkbox" />
           Notify on service state changes
@@ -652,7 +651,7 @@
         <p v-if="locked.remoteIcons" class="text-xs text-slate-500">Set by <code>HOMEPORT_REMOTE_ICONS</code> — locked.</p>
         <label
           class="check"
-          :class="locked.remoteIcons ? 'pointer-events-none opacity-50' : ''"
+          :class="locked.remoteIcons ? 'is-locked' : ''"
         >
           <input v-model="form.remoteIcons" type="checkbox" />
           Fetch app logos from the dashboard-icons CDN

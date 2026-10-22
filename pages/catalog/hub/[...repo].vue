@@ -30,8 +30,9 @@
 
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
-            <label class="field-label">Stack name</label>
+            <label class="field-label" for="install-stack-name">Stack name</label>
             <input
+              id="install-stack-name"
               v-model="stackName"
               class="input"
               :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
@@ -42,13 +43,14 @@
           </div>
 
           <div>
-            <label class="field-label">Image tag</label>
+            <label class="field-label" for="install-tag">Image tag</label>
             <input
+              id="install-tag"
               v-model="tag"
               placeholder="latest"
               class="input font-mono"
             />
-            <p class="mt-1 text-[11px] text-slate-600">Ports/volumes were read from “latest” — other tags may differ.</p>
+            <p class="mt-1 text-[11px] text-slate-600">Ports and volumes were read from “latest”; other tags may differ.</p>
           </div>
         </div>
 

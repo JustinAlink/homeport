@@ -399,7 +399,8 @@ async function setupEditor(content: string) {
         if (u.docChanged) dirty.value = view.state.doc.toString() !== savedContent
       }),
       EditorView.editable.of(caps.value.control),
-      EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' } }),
+      EditorView.contentAttributes.of({ 'aria-label': `${name} compose file` }),
+      EditorView.theme({ '&': { backgroundColor: 'transparent' }, '.cm-gutters': { backgroundColor: 'transparent' }, '.cm-gutterElement': { color: '#9aa3b2' } }),
     ],
   })
 }

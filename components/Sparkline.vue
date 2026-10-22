@@ -3,7 +3,7 @@
     :viewBox="`0 0 ${W} ${H}`"
     preserveAspectRatio="none"
     class="block h-full w-full overflow-visible"
-    role="img"
+    aria-hidden="true"
   >
     <polyline
       v-if="line"

@@ -9,12 +9,12 @@
     <!-- create -->
     <div class="flex flex-wrap items-end gap-2">
       <div>
-        <label class="field-label mb-0">Name</label>
-        <input v-model="name" :class="fieldCls" placeholder="e.g. junibot" @keyup.enter="create" />
+        <label :for="`${uid}-name`" class="field-label mb-0">Name</label>
+        <input :id="`${uid}-name`" v-model="name" :class="fieldCls" placeholder="e.g. junibot" @keyup.enter="create" />
       </div>
       <div>
-        <label class="field-label mb-0">Scope</label>
-        <select v-model="scope" :class="[fieldCls, 'max-w-[11rem]']">
+        <label :for="`${uid}-scope`" class="field-label mb-0">Scope</label>
+        <select :id="`${uid}-scope`" v-model="scope" :class="[fieldCls, 'max-w-[11rem]']">
           <option value="read">Read-only</option>
           <option value="full">Full access</option>
         </select>
@@ -67,6 +67,7 @@
 interface TokenMeta { id: string; name: string; scope: 'read' | 'full'; prefix: string; createdAt: number; lastUsedAt?: number }
 
 const fieldCls = 'mt-1 input'
+const uid = useId()
 const { confirm } = useConfirm()
 const toast = useToast()
 

@@ -8,6 +8,9 @@ import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
 import { guard } from './guard'
+import { createContainerLock, ContainerBusyError } from './container-lock-core'
+
+const containerLock = createContainerLock()
 import { log } from './log'
 
 // Image update detection + apply.
@@ -230,86 +233,103 @@ async function swapContainer(
   const plan = buildCreatePayload(inspect, image, opts.env ? { env: opts.env } : undefined)
   const backupName = `${plan.name}-old-${Date.now()}`
 
-  // 1. pull the fresh image (updates only — env edits keep the current image)
-  if (opts.pull) {
-    try {
-      const authconfig = authForImage(image, getConfig().registryCreds)
-      await new Promise<void>((resolve, reject) => {
-        docker.pull(image, {}, (err: any, stream: any) => {
-          if (err) return reject(err)
-          docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()))
-        }, authconfig)
-      })
-      step('pull', true, image)
-    } catch (e: any) {
-      // Same translation the check path uses — a private-image 401 or a
-      // socket-proxy 403 here should read clearly, not as raw daemon text.
-      step('pull', false, friendlyCheckError(e))
-    }
-  }
-
-  // 2. stop + rename the old container out of the way
-  try {
-    if (wasRunning) await container.stop()
-    await container.rename({ name: backupName })
-    step('stop + rename old', true, backupName)
-  } catch (e: any) {
-    step('stop + rename old', false, e?.message)
-  }
-
-  // 3. create + start the replacement (rollback = rename back + restart)
+  // one swap per container at a time (see container-lock-core): hold the live
+  // name and the backup name, so a parallel update/env change/recreate can't
+  // grab the renamed old container mid-swap
+  const currentName = String(inspect.Name || '').replace(/^\//, '')
+  const label = opts.pull ? 'an update' : opts.env ? 'an environment change' : 'a recreate'
+  const keys = [...new Set([plan.name, backupName, currentName])].map((n) => `${host.id}::${n}`)
   let newId = ''
   try {
-    const created = await docker.createContainer({ name: plan.name, ...plan.config } as any)
-    newId = created.id
-    for (const [net, epCfg] of Object.entries(plan.extraNetworks)) {
-      try {
-        await docker.getNetwork(net).connect({ Container: created.id, EndpointConfig: epCfg })
-      } catch (ne: any) {
-        steps.push({ step: `connect network ${net}`, ok: false, detail: `kept going — verify manually (${ne?.message || ne})` })
+    await containerLock.run(keys, label, async () => {
+      // 1. pull the fresh image (updates only — env edits keep the current image)
+      if (opts.pull) {
+        try {
+          const authconfig = authForImage(image, getConfig().registryCreds)
+          await new Promise<void>((resolve, reject) => {
+            docker.pull(image, {}, (err: any, stream: any) => {
+              if (err) return reject(err)
+              docker.modem.followProgress(stream, (e: any) => (e ? reject(e) : resolve()))
+            }, authconfig)
+          })
+          step('pull', true, image)
+        } catch (e: any) {
+          // Same translation the check path uses — a private-image 401 or a
+          // socket-proxy 403 here should read clearly, not as raw daemon text.
+          step('pull', false, friendlyCheckError(e))
+        }
       }
-    }
-    await created.start()
-    step('create + start new', true)
-  } catch (e: any) {
-    steps.push({ step: 'create + start new', ok: false, detail: e?.message })
-    // rollback
-    let rolledBack = false
-    try {
-      await docker.getContainer(backupName).rename({ name: plan.name })
-      if (wasRunning) await docker.getContainer(plan.name).start()
-      steps.push({ step: 'rollback (rename back + start)', ok: true })
-      rolledBack = true
-    } catch (re: any) {
-      steps.push({ step: 'rollback', ok: false, detail: `MANUAL FIX NEEDED: old container is "${backupName}" — ${re?.message}` })
-    }
-    // Surface the un-restored state in the message itself — not just buried in steps —
-    // so a toast/log makes clear the service is DOWN and renamed, not merely "failed".
-    throw fail(
-      rolledBack
-        ? `update failed: ${e?.message} (rolled back — the previous version is running again)`
-        : `update failed and ROLLBACK FAILED: "${plan.name}" is down; its old container is "${backupName}" and must be restored manually`,
-    )
-  }
 
-  // 4. success — remove the old container
-  try {
-    await docker.getContainer(backupName).remove({ force: true })
-    step('remove old', true)
-  } catch (e: any) {
-    steps.push({ step: 'remove old', ok: false, detail: `leftover container "${backupName}": ${e?.message}` })
-  }
+      // 2. stop + rename the old container out of the way
+      try {
+        if (wasRunning) await container.stop()
+        await container.rename({ name: backupName })
+        step('stop + rename old', true, backupName)
+      } catch (e: any) {
+        step('stop + rename old', false, e?.message)
+      }
 
-  // reflect an applied update in the cache right away (badges clear without
-  // waiting for the next 24h sweep) — env-only recreates change no image
-  if (opts.pull) {
-    const map = load()
-    const k = keyOf(host.id, image)
-    const entry = map[k]
-    if (entry?.remoteDigest) {
-      map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
-      persist()
+      // 3. create + start the replacement (rollback = rename back + restart)
+        try {
+        const created = await docker.createContainer({ name: plan.name, ...plan.config } as any)
+        newId = created.id
+        for (const [net, epCfg] of Object.entries(plan.extraNetworks)) {
+          try {
+            await docker.getNetwork(net).connect({ Container: created.id, EndpointConfig: epCfg })
+          } catch (ne: any) {
+            steps.push({ step: `connect network ${net}`, ok: false, detail: `kept going — verify manually (${ne?.message || ne})` })
+          }
+        }
+        await created.start()
+        step('create + start new', true)
+      } catch (e: any) {
+        steps.push({ step: 'create + start new', ok: false, detail: e?.message })
+        // rollback
+        let rolledBack = false
+        try {
+          await docker.getContainer(backupName).rename({ name: plan.name })
+          if (wasRunning) await docker.getContainer(plan.name).start()
+          steps.push({ step: 'rollback (rename back + start)', ok: true })
+          rolledBack = true
+        } catch (re: any) {
+          steps.push({ step: 'rollback', ok: false, detail: `MANUAL FIX NEEDED: old container is "${backupName}" — ${re?.message}` })
+        }
+        // Surface the un-restored state in the message itself — not just buried in steps —
+        // so a toast/log makes clear the service is DOWN and renamed, not merely "failed".
+        throw fail(
+          rolledBack
+            ? `update failed: ${e?.message} (rolled back — the previous version is running again)`
+            : `update failed and ROLLBACK FAILED: "${plan.name}" is down; its old container is "${backupName}" and must be restored manually`,
+        )
+      }
+
+      // 4. success — remove the old container
+      try {
+        await docker.getContainer(backupName).remove({ force: true })
+        step('remove old', true)
+      } catch (e: any) {
+        steps.push({ step: 'remove old', ok: false, detail: `leftover container "${backupName}": ${e?.message}` })
+      }
+
+      // reflect an applied update in the cache right away (badges clear without
+      // waiting for the next 24h sweep) — env-only recreates change no image
+      if (opts.pull) {
+        const map = load()
+        const k = keyOf(host.id, image)
+        const entry = map[k]
+        if (entry?.remoteDigest) {
+          map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
+          persist()
+        }
+      }
+    })
+  } catch (e: any) {
+    if (e instanceof ContainerBusyError) {
+      const busy = fail(e.message)
+      busy.statusCode = 409 // a conflict, not a failure: the other operation is fine
+      throw busy
     }
+    throw e
   }
 
   return { steps, newId }

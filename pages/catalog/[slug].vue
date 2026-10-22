@@ -42,8 +42,9 @@
 
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
-            <label class="field-label">Stack name</label>
+            <label class="field-label" for="install-stack-name">Stack name</label>
             <input
+              id="install-stack-name"
               v-model="stackName"
               class="input"
               :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
@@ -54,11 +55,12 @@
           </div>
 
           <div v-for="input in visibleInputs" :key="input.name">
-            <label class="field-label">
+            <label class="field-label" :for="`install-${input.name}`">
               {{ input.label }}<span v-if="input.required" class="text-red-400"> *</span>
             </label>
             <select
               v-if="input.select"
+              :id="`install-${input.name}`"
               v-model="values[input.name]"
               class="input"
             >
@@ -66,6 +68,7 @@
             </select>
             <input
               v-else
+              :id="`install-${input.name}`"
               v-model="values[input.name]"
               :type="/password|secret|token/i.test(input.name) ? 'password' : 'text'"
               :placeholder="input.default"

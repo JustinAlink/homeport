@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     return { ok: true, steps, newId }
   } catch (err: any) {
     throw createError({
-      statusCode: 502,
+      statusCode: err?.statusCode === 409 ? 409 : 502,
       statusMessage: err?.message || 'env change failed',
       data: { steps: err?.steps },
     })

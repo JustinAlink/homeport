@@ -37,7 +37,7 @@
               </template>
               <template v-else>
                 in the container · <span class="font-mono text-slate-400">{{ m.dest }}</span>
-                <span class="text-amber-300/70">· host path not visible to homeport</span>
+                <span class="text-amber-300">· host path not visible to homeport</span>
               </template>
             </template>
             <template v-else>

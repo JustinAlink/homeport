@@ -90,6 +90,7 @@
 
           <div v-if="service.domains.length || service.ports.length || service.networks?.length" class="card">
             <div class="card-header"><span class="card-title">Access</span></div>
+            <div v-if="service.domains.length" class="px-4 pt-3 empty:hidden sm:px-5"><ProxyReachWarning :service="service" compact /></div>
             <div class="row-list">
               <div v-for="d in service.domains" :key="d.domain" class="flex items-center gap-3 px-4 py-2.5 sm:px-5">
                 <Icon :name="d.ssl ? 'lock' : 'globe'" class="h-4 w-4 shrink-0" :class="d.ssl ? 'text-ok' : 'text-slate-500'" />
@@ -349,6 +350,7 @@
         <p class="text-[13px] text-slate-400">
           {{ matchedRoute ? 'This container already has a reverse-proxy route. Edit it below.' : 'Point a domain at this container through your reverse proxy.' }}
         </p>
+        <ProxyReachWarning :service="service" any-route />
         <DomainForm
           :key="domainFormKey"
           :initial="domainInitial"
@@ -673,7 +675,7 @@ const facts = computed(() => {
   const stat = stats.stats.value[s.id]
   return [
     { label: 'Status', value: s.statusText || s.state },
-    { label: 'Group', value: (s.host ? `${s.host} · ` : '') + s.group },
+    { label: s.project ? 'Stack' : 'Group', value: (s.host ? `${s.host} · ` : '') + (s.project ?? (s.group === 'Other' ? 'none' : s.group)) },
     { label: 'CPU', value: stat?.cpuPercent != null ? `${stat.cpuPercent}%` : '—' },
     { label: 'Memory', value: stat ? formatBytes(stat.memBytes) : '—' },
   ]

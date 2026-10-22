@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.30.0 (2026-10-22)
+
+Networks that make sense, and a sweep for bugs.
+
+- **Networks page, rebuilt around "who can reach whom".** Containers reach each
+  other by name only on a shared network, so shared networks (like the reverse
+  proxy's) come first, showing which stacks and containers each one connects.
+  Every stack's private network and Docker's built-ins are folded away below, and
+  subnets moved into the details.
+- **Network connections that stick.** Connecting or disconnecting a stack's
+  container also writes it into the compose file (keeping the service on its own
+  stack network and declaring the shared one `external`), so the stack's next
+  start no longer undoes it.
+- **"The proxy can't reach this container."** homeport finds your reverse-proxy
+  container and checks each domain routed to a container by name. If they share no
+  network (the classic 502), the dashboard, the container page and the domain form
+  say so, with one click to connect it to the proxy's network.
+- **Bug: two operations on one container could leave a leftover.** An update and
+  an environment change (or the nightly auto-update and a manual click) running
+  at once raced on the container swap and could leave an `<name>-old-…` container
+  behind. Swaps are now one at a time per container; the second gets a clear
+  "busy" answer (HTTP 409).
+- **Readability.** Secondary text, status colours, solid buttons and editor line
+  numbers now meet WCAG AA contrast in both themes, links are underlined (not told
+  apart by colour alone), and the code editors, network pickers, catalog install
+  fields, API token and user account forms have proper labels. Settings locked by
+  an environment variable keep their explanation readable instead of fading it
+  out with the control.
+- **Security updates.** Dependencies refreshed within their ranges: 35 audit
+  findings down to 13, none critical (the Vue server-renderer XSS fix among them).
+  What's left is dev-server and build tooling that doesn't ship in the image.
+- Container pages say "Stack" instead of "Group"; demo data gains a proxy network
+  with one app left off it, so the new warning has something to show.
+
 ## v2.29.0 (2026-10-22)
 
 Stacks and containers, made one model. A **stack** is a docker compose project;

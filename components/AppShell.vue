@@ -88,7 +88,7 @@
           @click="selfUpdate.run()"
         >
           <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/20"><Icon name="arrow-up" class="h-3.5 w-3.5" /></span>
-          <span class="min-w-0 flex-1 leading-tight">Update homeport<span class="block text-[11px] font-normal text-accent-light/70">new version ready</span></span>
+          <span class="min-w-0 flex-1 leading-tight">Update homeport<span class="block text-[11px] font-normal text-accent-light">new version ready</span></span>
           <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent-light" />
         </button>
         <div

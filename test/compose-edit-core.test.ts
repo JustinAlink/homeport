@@ -60,3 +60,43 @@ test('undefined fields are left alone; bad input is refused', () => {
   assert.throws(() => patchComposeService(BASE, 'jellyfin', { memory: 'lots' }), /not a memory size/)
   assert.throws(() => patchComposeService('services: [oops', 'jellyfin', { cpus: 1 }), /YAML errors/)
 })
+
+test('attaching a network keeps the service on its own stack network and declares the external one', () => {
+  const out = patchComposeService(BASE, 'jellyfin', { addNetwork: 'npm-network' })
+  const doc = parseDocument(out).toJS() as any
+  assert.deepEqual(doc.services.jellyfin.networks, ['default', 'npm-network'])
+  assert.deepEqual(doc.networks, { 'npm-network': { external: true } })
+  assert.equal(doc.services.sonarr.networks, undefined) // siblings untouched
+  assert.match(out, /# pinned on purpose/)
+  // idempotent
+  assert.equal(patchComposeService(out, 'jellyfin', { addNetwork: 'npm-network' }), out)
+})
+
+test('attaching uses an existing declaration and the map form when the file already has them', () => {
+  const file = `name: media
+services:
+  app:
+    image: x
+    networks:
+      backend: {}
+networks:
+  backend: {}
+  shared:
+    name: proxy_net
+    external: true
+`
+  const out = parseDocument(patchComposeService(file, 'app', { addNetwork: 'proxy_net' })).toJS() as any
+  assert.deepEqual(Object.keys(out.services.app.networks), ['backend', 'shared'])
+  assert.deepEqual(Object.keys(out.networks), ['backend', 'shared']) // no duplicate declaration
+  const own = parseDocument(patchComposeService(file, 'app', { addNetwork: 'media_backend' })).toJS() as any
+  assert.deepEqual(Object.keys(own.services.app.networks), ['backend']) // the stack's own network, already listed
+})
+
+test('detaching removes the service entry and an external declaration nobody uses any more', () => {
+  const attached = patchComposeService(BASE, 'jellyfin', { addNetwork: 'npm-network' })
+  const out = parseDocument(patchComposeService(attached, 'jellyfin', { removeNetwork: 'npm-network' })).toJS() as any
+  assert.deepEqual(out.services.jellyfin.networks, ['default'])
+  assert.equal(out.networks, undefined)
+  // a service on network_mode can't join networks
+  assert.throws(() => patchComposeService('services:\n  a:\n    image: x\n    network_mode: host\n', 'a', { addNetwork: 'n' }), /network_mode/)
+})

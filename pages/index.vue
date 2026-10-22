@@ -245,6 +245,7 @@ import type { StackInfo, GroupKind } from '~/composables/useStacks'
 
 const { data, error, loading, refresh, start, stop } = useServices()
 const stacksStore = useStacks() // declared early: watchers below run immediately
+const reachApi = useProxyReach()
 const stats = useStats()
 const fleet = stats.host
 const fleetHistory = stats.hostHistory
@@ -417,6 +418,12 @@ const attention = computed(() => [
     const i = issueOf(s)
     return i ? [{ key: s.id, name: s.displayName, to: `/services/${encodeURIComponent(s.id)}`, ...i }] : []
   }),
+  // domains the reverse proxy can't deliver: it shares no network with the container
+  ...visible.value.flatMap((s) =>
+    reachApi.domainReach(s).ok === false
+      ? [{ key: `reach:${s.id}`, name: s.displayName, to: `/services/${encodeURIComponent(s.id)}`, reason: "proxy can't reach it", tone: 'amber' as const }]
+      : [],
+  ),
   ...stacksStore.stacks.value
     .filter((st) => st.running > 0 && st.missing?.length)
     .map((st) => ({

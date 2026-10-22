@@ -36,6 +36,6 @@ export default defineEventHandler(async (event) => {
     const { steps, newId } = await recreateContainer(host, containerId)
     return { ok: true, steps, newId }
   } catch (err: any) {
-    throw createError({ statusCode: 502, statusMessage: err?.message || 'recreate failed', data: { steps: err?.steps } })
+    throw createError({ statusCode: err?.statusCode === 409 ? 409 : 502, statusMessage: err?.message || 'recreate failed', data: { steps: err?.steps } })
   }
 })

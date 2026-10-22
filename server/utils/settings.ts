@@ -50,6 +50,19 @@ export interface PersistedSettings {
   alertDebounceSamples?: number
   alertCooldownSec?: number
   alertChannels?: WebhookChannel[]
+  /** Email (SMTP) alert channel. */
+  smtpHost?: string
+  smtpPort?: number
+  smtpSecure?: boolean
+  smtpUser?: string
+  smtpPass?: string
+  smtpFrom?: string
+  smtpTo?: string
+  /** Proxy management (write side): credentials homeport uses to create/edit routes. */
+  npmApiUrl?: string
+  npmApiIdentity?: string
+  npmApiSecret?: string
+  caddyAdminUrl?: string
 }
 
 export interface SettingsHost {
@@ -63,14 +76,6 @@ export interface SettingsHost {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
-  /** Email (SMTP) alert channel. */
-  smtpHost?: string
-  smtpPort?: number
-  smtpSecure?: boolean
-  smtpUser?: string
-  smtpPass?: string
-  smtpFrom?: string
-  smtpTo?: string
   npmApiUrl?: string
   npmApiIdentity?: string
   npmApiSecret?: string

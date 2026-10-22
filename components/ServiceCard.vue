@@ -114,10 +114,11 @@
         target="_blank"
         rel="noopener noreferrer"
         class="chip chip-accent max-w-full"
-        :title="pingTitle(d.url) || d.url"
+        :title="unreachable && d.via === 'name' ? `${reachApi.proxy.value?.displayName} can't reach this container (no shared network)` : pingTitle(d.url) || d.url"
         @click.stop
       >
-        <span v-if="pings[d.url]" class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />
+        <Icon v-if="unreachable && d.via === 'name'" name="alert" class="h-3 w-3 text-amber-400" />
+        <span v-else-if="pings[d.url]" class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />
         <Icon v-else-if="d.ssl" name="lock" class="h-3 w-3 opacity-70" />
         <span class="truncate">{{ d.domain }}</span>
       </a>
@@ -212,6 +213,9 @@ const stat = computed(() => stats.value[props.service.id])
 const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
 
 const { pings } = usePings()
+// the reverse proxy shares no network with this container: its domains can't work
+const reachApi = useProxyReach()
+const unreachable = computed(() => reachApi.domainReach(props.service).ok === false)
 function pingClass(url: string) {
   const p = pings.value[url]
   if (!p) return ''

@@ -12,6 +12,8 @@ export interface ServiceDomain {
   domain: string
   url: string
   ssl: boolean
+  /** how the proxy reaches the container: by container name (needs a shared network) or a host IP + published port */
+  via?: 'name' | 'ip'
 }
 
 export interface Service {

@@ -1,8 +1,8 @@
 <template>
   <form class="space-y-3 card p-4 sm:p-5" @submit.prevent="submit">
     <div v-if="showPicker && pickables.length">
-      <label class="field-label">Point at a container</label>
-      <select v-model="picked" class="select" @change="applyPick">
+      <label class="field-label" :for="`${uid}-pick`">Point at a container</label>
+      <select :id="`${uid}-pick`" v-model="picked" class="select" @change="applyPick">
         <option value="">Choose a running container, or fill in the fields below</option>
         <option v-for="c in pickables" :key="c.name" :value="c.name">
           {{ c.label }} → {{ c.name }}{{ c.port != null ? ':' + c.port : ' (set the port)' }}
@@ -11,8 +11,9 @@
       <p class="field-hint">Fills the upstream host and port for you. You can still edit them.</p>
     </div>
     <div>
-      <label class="field-label">Domains</label>
+      <label class="field-label" :for="`${uid}-domains`">Domains</label>
       <input
+        :id="`${uid}-domains`"
         v-model="domainsText"
         class="input"
         placeholder="app.example.com, www.app.example.com"
@@ -20,14 +21,16 @@
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label class="field-label">Upstream host</label>
-        <input v-model="form.upstreamHost" class="input" placeholder="container-name or IP" />
+        <label class="field-label" :for="`${uid}-host`">Upstream host</label>
+        <input :id="`${uid}-host`" v-model="form.upstreamHost" class="input" placeholder="container-name or IP" spellcheck="false" />
       </div>
       <div>
-        <label class="field-label">Port</label>
-        <input v-model.number="form.upstreamPort" type="number" min="1" class="input" />
+        <label class="field-label" :for="`${uid}-port`">Port</label>
+        <input :id="`${uid}-port`" v-model.number="form.upstreamPort" type="number" min="1" class="input" />
       </div>
     </div>
+    <!-- the proxy forwards by container name only across a shared network -->
+    <ProxyReachWarning v-if="targetService" :service="targetService" any-route compact />
     <label class="check">
       <input v-model="form.ssl" type="checkbox" /> SSL / HTTPS
     </label>
@@ -57,6 +60,7 @@ const props = withDefaults(
   { submitLabel: 'Add domain', cancelable: false },
 )
 const emit = defineEmits<{ saved: [any]; cancel: [] }>()
+const uid = useId() // several forms can be on one page (edit rows)
 
 
 const form = reactive({
@@ -64,6 +68,15 @@ const form = reactive({
   upstreamPort: props.initial?.upstreamPort ?? 80,
   ssl: props.initial?.ssl ?? true,
 })
+const { data: svcData, refresh: refreshServices } = useServices()
+// the reachability check needs the container list; the Domains page doesn't load it itself
+onMounted(() => {
+  if (!svcData.value) refreshServices()
+})
+const targetService = computed(() =>
+  (svcData.value?.services ?? []).find((s) => s.kind === 'container' && s.name === String(form.upstreamHost || '').trim()) ?? null,
+)
+
 const domainsText = ref((props.initial?.domains ?? []).join(', '))
 const busy = ref(false)
 const msg = ref('')

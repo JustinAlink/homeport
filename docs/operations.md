@@ -37,19 +37,26 @@ homeport container **at the same path it has on the host** — e.g.
 
 ## Networks
 
-**/networks** lists every docker network on the host — subnets, driver, and which containers
-are attached (linked) — and removes unused ones with one click (built-ins and anything still
-referenced are refused). Each service page shows the networks its container joins. Deleting a
-stack always sweeps its leftover project networks: unused networks keep their address range
-claimed and are the classic cause of "Pool overlaps" on a later install.
+Containers reach each other by name only when they share a network. **/networks** is built
+around that: **shared networks** (the ones connecting stacks, such as the reverse proxy's) come
+first and show which stacks and containers each one connects; every stack's private default
+network and Docker's built-ins sit in collapsed sections below. Unused networks are marked and
+can be removed (built-ins and anything still referenced are refused); deleting a stack also
+sweeps its leftover networks, the classic cause of "Pool overlaps" on a later install.
 
-You can also **create networks** (name + optional subnet — validated against existing ranges
-up front, so no bare "Pool overlaps") and **attach/detach containers** per network — handy for
-letting two stacks talk to each other. Attach/detach is live but runtime-only for
-compose-managed containers: the compose file's `networks:` section wins on the next recreate,
-so declare the network there (`external: true`) to make it permanent. Subnets can't be edited
-in place (docker has no API for it) — change them in the owning compose file, or remove and
-recreate an unused network.
+**Connecting a container** to a network works live, and for a container in a stack homeport
+manages it is also written into the stack's compose file (the service keeps its `default`
+network, the shared one is declared `external: true`), so the stack's next start doesn't undo
+it. Disconnecting offers the same.
+
+**Proxy reachability.** homeport finds the reverse-proxy container (Nginx Proxy Manager,
+Traefik, Caddy) and checks that every container with a domain routed to it by name shares a
+network with it. If not, the domain can only answer with an error, so the dashboard, the
+container page and the domain form say so, with a one-click "Connect to <proxy network>".
+
+New networks take a name and an optional subnet (validated against existing ranges up front, so
+no bare "Pool overlaps"). Subnets can't be edited in place (docker has no API for it): change them
+in the owning compose file, or remove and recreate an unused network.
 
 ## Storage
 
