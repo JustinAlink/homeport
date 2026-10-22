@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.31.2 (2026-10-22)
+
+- **Bug: every domain looked down on servers that can't reach their own public
+  address.** From inside Docker, many servers can't connect to their own public IP
+  (no NAT loopback on a home router, or a firewall that drops a container's
+  traffic to the host), so the domain check marked every site "doesn't answer"
+  and filled Needs attention with false alarms. When the public route gets no
+  answer, the check now asks your reverse-proxy container directly (by container
+  name, with the domain as Host header and TLS name) and labels the result
+  "via proxy". A domain that fails both ways still shows as down.
+- **Editing a git-tracked file in a git-backed stack now warns first.** "Update
+  from git" resets tracked files to the repository, so the compose editor and the
+  stack's file editor say so for those files and ask once before saving.
+  Untracked files (a gitignored `.env`, a generated compose file) survive the
+  reset and get no warning.
+
 ## v2.31.1 (2026-10-22)
 
 - **Bug: changes saved into a git-backed stack's compose file didn't last.**
