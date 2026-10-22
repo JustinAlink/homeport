@@ -22,3 +22,12 @@ export function imageRepo(img: string): string {
   if (s.startsWith('library/')) s = s.slice('library/'.length)
   return s
 }
+
+/** The tag of an image reference (`latest` when none is written). */
+export function imageTag(img: string): string {
+  let s = (img || '').trim()
+  const at = s.indexOf('@')
+  if (at >= 0) s = s.slice(0, at)
+  const colon = s.lastIndexOf(':')
+  return colon > s.lastIndexOf('/') ? s.slice(colon + 1) || 'latest' : 'latest'
+}

@@ -9,8 +9,8 @@ import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
 import { guard } from './guard'
 import { createContainerLock, ContainerBusyError } from './container-lock-core'
-
-const containerLock = createContainerLock()
+import { findNewer, tagKindOf, withTag } from './versions-core'
+import { listTags } from './versions'
 import { log } from './log'
 
 // Image update detection + apply.
@@ -21,8 +21,11 @@ import { log } from './log'
 // Apply (gated separately): pull, then watchtower-style stop→rename→create→start
 // with a rename-back rollback. Compose-managed services will route through the
 // stack runner once stacks land.
+// Newer VERSIONS (10.9.6 → 10.10.3) are a separate question the digest can't
+// answer; versions.ts reads the registry's tag list for that.
 
 const BATCH_PER_SWEEP = 10
+const containerLock = createContainerLock()
 
 const file = () => join(process.env.HOMEPORT_DATA_DIR || '/data', 'updates.json')
 
@@ -73,7 +76,31 @@ export function getUpdateMap(): Record<string, UpdateEntry> {
   return load()
 }
 
-async function checkImage(host: HostConfig, image: string, now: number): Promise<UpdateEntry> {
+/**
+ * Newer-version info from the registry's tag list. Only tags that look like versions
+ * are looked up (latest has nothing to compare). A failed lookup keeps the previous
+ * answer for a week rather than flapping the "newer version" note on and off.
+ */
+async function versionInfo(image: string, tag: string, prev: UpdateEntry | undefined, now: number): Promise<Partial<UpdateEntry>> {
+  if (tagKindOf(tag) === 'floating') return { tagKind: 'floating' }
+  try {
+    const tags = await listTags(image, getConfig().registryCreds)
+    return { tagKind: tagKindOf(tag, tags), ...findNewer(tag, tags), versionsCheckedAt: now }
+  } catch {
+    const fresh = prev?.versionsCheckedAt && now - prev.versionsCheckedAt < 7 * 24 * 3600_000
+    return fresh
+      ? { tagKind: prev.tagKind, newer: prev.newer, newerSameMajor: prev.newerSameMajor, versionsCheckedAt: prev.versionsCheckedAt }
+      : { tagKind: tagKindOf(tag) }
+  }
+}
+
+async function checkImage(host: HostConfig, image: string, now: number, prev?: UpdateEntry): Promise<UpdateEntry> {
+  const entry = await checkDigest(host, image, now)
+  if (entry.status !== 'current' && entry.status !== 'update') return entry
+  return { ...entry, ...(await versionInfo(image, parseImageRef(image).tag, prev, now)) }
+}
+
+async function checkDigest(host: HostConfig, image: string, now: number): Promise<UpdateEntry> {
   const ref = parseImageRef(image)
   if (ref.digestPinned) return { status: 'pinned', checkedAt: now }
   if (isBareImageId(image)) return { status: 'local', checkedAt: now } // untagged image — no repo to query
@@ -142,7 +169,7 @@ export const runUpdateSweep = guard(async (force = false) => {
     const due = force ? images : pickDueChecks(images, cacheView, now, intervalMs, BATCH_PER_SWEEP)
     for (const image of due) {
       const key = keyOf(host.id, image)
-      const entry = await checkImage(host, image, now)
+      const entry = await checkImage(host, image, now, map[key])
       entry.notifiedDigest = map[key]?.notifiedDigest // survives re-checks
       map[key] = entry
       if (
@@ -173,6 +200,11 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
   return swapContainer(host, containerId, { pull: true })
 }
 
+/** Move a standalone container to another tag of its image (10.9.6 → 10.10.3), same swap and rollback. */
+export async function switchVersion(host: HostConfig, containerId: string, tag: string): Promise<{ steps: ApplyStep[]; newId: string }> {
+  return swapContainer(host, containerId, { pull: true, tag })
+}
+
 /** Recreate a container in place with a new environment (same image, no pull). */
 export async function applyEnvChange(host: HostConfig, containerId: string, env: string[]): Promise<{ steps: ApplyStep[]; newId: string }> {
   return swapContainer(host, containerId, { pull: false, env })
@@ -187,7 +219,7 @@ export async function recreateContainer(host: HostConfig, containerId: string): 
 async function swapContainer(
   host: HostConfig,
   containerId: string,
-  opts: { pull: boolean; env?: string[] },
+  opts: { pull: boolean; env?: string[]; tag?: string },
 ): Promise<{ steps: ApplyStep[]; newId: string }> {
   const docker = getDockerFor(host)
   const steps: ApplyStep[] = []
@@ -222,22 +254,35 @@ async function swapContainer(
   if (project && getConfig().allowStacks && listStackDirs().some((d) => d.name === project)) {
     const cname = String(inspect.Name || '').replace(/^\//, '')
     throw fail(
-      opts.pull
-        ? `${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`
-        : `${cname} is part of the "${project}" compose stack — edit the environment in its compose file (Stacks → ${project}).`,
+      opts.tag
+        ? `${cname} is part of the "${project}" compose stack: change its version in the compose file (Stacks → ${project}).`
+        : opts.pull
+          ? `${cname} is part of the "${project}" compose stack — update it from Stacks → ${project} → Pull & up.`
+          : `${cname} is part of the "${project}" compose stack — edit the environment in its compose file (Stacks → ${project}).`,
     )
   }
 
-  const image = inspect.Config?.Image
+  const image = opts.tag ? withTag(inspect.Config?.Image, opts.tag) : inspect.Config?.Image
   const wasRunning = !!inspect.State?.Running
-  const plan = buildCreatePayload(inspect, image, opts.env ? { env: opts.env } : undefined)
+  // When the image changes (a pull or a version switch), settings that only came
+  // from the old image must not be pinned onto the new one (stripImageDefaults).
+  // Fail-open: without the old image's config the copy is as before.
+  let oldImageConfig: Record<string, any> | undefined
+  if (opts.pull) {
+    try {
+      oldImageConfig = (await docker.getImage(inspect.Image).inspect())?.Config ?? undefined
+    } catch {
+      oldImageConfig = undefined
+    }
+  }
+  const plan = buildCreatePayload(inspect, image, { ...(opts.env ? { env: opts.env } : {}), ...(oldImageConfig ? { oldImageConfig } : {}) })
   const backupName = `${plan.name}-old-${Date.now()}`
 
   // one swap per container at a time (see container-lock-core): hold the live
   // name and the backup name, so a parallel update/env change/recreate can't
   // grab the renamed old container mid-swap
   const currentName = String(inspect.Name || '').replace(/^\//, '')
-  const label = opts.pull ? 'an update' : opts.env ? 'an environment change' : 'a recreate'
+  const label = opts.tag ? 'a version switch' : opts.pull ? 'an update' : opts.env ? 'an environment change' : 'a recreate'
   const keys = [...new Set([plan.name, backupName, currentName])].map((n) => `${host.id}::${n}`)
   let newId = ''
   try {
@@ -320,6 +365,15 @@ async function swapContainer(
         if (entry?.remoteDigest) {
           map[k] = { ...entry, status: 'current', localDigest: entry.remoteDigest, checkedAt: Date.now() }
           persist()
+        } else if (opts.tag) {
+          // a version switch lands on a tag that was never checked: check it now so the
+          // container page isn't left saying "not checked yet" until the next sweep
+          void checkImage(host, image, Date.now())
+            .then((e) => {
+              load()[k] = e
+              persist()
+            })
+            .catch(() => {})
         }
       }
     })

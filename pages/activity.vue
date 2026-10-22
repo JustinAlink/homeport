@@ -30,7 +30,7 @@
           :class="linkFor(r) ? 'transition-colors hover:bg-white/[0.025]' : ''"
         >
           <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/[0.04]"><Icon :name="r.icon" class="h-3.5 w-3.5" :class="r.cls" /></span>
-          <span class="min-w-0 flex-1 truncate text-slate-200" :class="linkFor(r) ? 'group-hover:text-accent-light' : ''" :title="r.text">{{ r.text }}</span>
+          <span class="line-clamp-2 min-w-0 flex-1 text-slate-200 sm:truncate" :class="linkFor(r) ? 'group-hover:text-accent-light' : ''" :title="r.text">{{ r.text }}</span>
           <span v-if="r.host" class="badge shrink-0">{{ r.host }}</span>
           <span class="w-16 shrink-0 text-right text-xs tabular-nums text-slate-500" :title="new Date(r.at).toLocaleString()">{{ ago(r.at) }}</span>
           <Icon v-if="linkFor(r)" name="chevron-right" class="hidden h-4 w-4 shrink-0 text-slate-600 group-hover:text-slate-300 sm:block" />

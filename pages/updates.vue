@@ -2,7 +2,7 @@
   <div class="page">
     <PageHeader title="Updates">
       <template #subtitle>
-        {{ updatable.length ? `${updatable.length} container${updatable.length > 1 ? 's have' : ' has'} a newer image available` : 'Image update status across the fleet' }}<template v-if="lastChecked"> · last checked {{ lastChecked }}</template>
+        {{ updatable.length ? `${updatable.length} container${updatable.length > 1 ? 's have' : ' has'} a newer image available` : 'Image update status across the fleet' }}<template v-if="newerList.length"> · {{ newerList.length }} newer version{{ newerList.length > 1 ? 's' : '' }} out</template><template v-if="lastChecked"> · last checked {{ lastChecked }}</template>
       </template>
       <template #actions>
         <button
@@ -32,8 +32,8 @@
     <template v-else>
       <!-- all clear -->
       <div v-if="!groups.length" class="card">
-        <EmptyState icon="check" title="Everything is up to date">
-          Containers are checked against their registries daily. “Check now” forces a sweep.
+        <EmptyState icon="check" title="Every image is up to date">
+          Containers are checked against their registries daily. “Check now” forces a sweep.<template v-if="newerList.length"> Newer versions of pinned images are listed below.</template>
         </EmptyState>
       </div>
 
@@ -82,6 +82,11 @@
               <NuxtLink :to="`/services/${encodeURIComponent(s.id)}?tab=update`" class="group min-w-0 flex-1">
                 <span class="block truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">{{ s.displayName }}</span>
                 <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
+                <span
+                  class="mt-0.5 block truncate text-[11.5px]"
+                  :class="kindOf(s).tone === 'caution' ? 'text-amber-300' : kindOf(s).tone === 'low' ? 'text-ok' : 'text-slate-400'"
+                  :title="kindOf(s).detail"
+                >{{ kindOf(s).title }}</span>
               </NuxtLink>
               <span
                 v-if="rowNote[s.id]"
@@ -115,6 +120,42 @@
           >{{ opLines.join('\n') }}</pre>
         </section>
       </div>
+
+      <!-- newer versions: tags that don't move on their own (10.9.6 → 10.10.3) -->
+      <section v-if="newerList.length" class="mt-6">
+        <div class="mb-2 flex items-baseline gap-2">
+          <h2 class="text-[14.5px] font-semibold text-slate-100">Newer versions</h2>
+          <span class="text-xs text-slate-500">{{ newerList.length }}</span>
+        </div>
+        <p class="mb-3 max-w-3xl text-xs leading-relaxed text-slate-500">
+          These containers are pinned to a version (or a version line like <code>16-alpine</code>), so a newer one never
+          arrives by itself: switching is your call. Patch and minor steps are usually safe, a
+          <span class="text-amber-300">major</span> one deserves a look at the changelog first.
+        </p>
+        <div class="card overflow-hidden">
+          <div class="row-list">
+            <div v-for="s in newerList" :key="s.id" class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 sm:flex-nowrap sm:px-5">
+              <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
+              <div class="min-w-0 flex-1">
+                <NuxtLink :to="`/services/${encodeURIComponent(s.id)}?tab=update`" class="group block min-w-0">
+                  <span class="block truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">
+                    {{ s.displayName }}<span v-if="s.project" class="font-normal text-slate-500"> · {{ s.project }}</span>
+                  </span>
+                  <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
+                </NuxtLink>
+                <a
+                  v-if="updates.changelogUrlFor(s)"
+                  :href="updates.changelogUrlFor(s)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="link inline-flex items-center gap-1 text-[11.5px]"
+                >Changelog <Icon name="external" class="h-3 w-3" /></a>
+              </div>
+              <VersionOffer :service="s" :entry="updates.entryFor(s)" compact class="w-full pl-10 sm:w-auto sm:shrink-0 sm:pl-0" />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- check errors -->
       <details v-if="checkErrors.length" class="card mt-6 px-4 py-3 text-xs">
@@ -175,6 +216,20 @@ const groups = computed<Group[]>(() => {
     })
     .sort((a, b) => Number(b.managed) - Number(a.managed) || a.label.localeCompare(b.label))
 })
+
+const kindOf = (s: Service) => explainUpdate(s.image, updates.entryFor(s)?.tagKind)
+
+// containers with a newer version tag: the safe steps first, majors last
+const BUMP_ORDER = { patch: 0, minor: 1, major: 2 } as const
+const newerList = computed(() =>
+  (svcData.value?.services ?? [])
+    .filter((s) => s.kind === 'container' && updates.entryFor(s)?.newer)
+    .sort(
+      (a, b) =>
+        BUMP_ORDER[updates.entryFor(a)!.newer!.bump] - BUMP_ORDER[updates.entryFor(b)!.newer!.bump] ||
+        a.displayName.localeCompare(b.displayName),
+    ),
+)
 
 const checkErrors = computed(() =>
   Object.entries(updates.entries.value)

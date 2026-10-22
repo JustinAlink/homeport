@@ -19,16 +19,18 @@
 
     <div v-else class="gap-8 lg:flex">
       <!-- category nav: a sticky list on desktop, a scrolling strip on small screens -->
-      <nav class="-mx-4 mb-5 overflow-x-auto px-4 lg:mx-0 lg:mb-0 lg:w-56 lg:shrink-0 lg:overflow-visible lg:px-0" aria-label="Settings sections">
-        <ul class="flex min-w-max gap-1 lg:sticky lg:top-8 lg:min-w-0 lg:flex-col">
+      <!-- a sidebar on wide screens; on smaller ones the sections wrap into pills, all visible at once -->
+      <nav class="mb-5 lg:mb-0 lg:w-56 lg:shrink-0" aria-label="Settings sections">
+        <ul class="flex flex-wrap gap-1.5 lg:sticky lg:top-8 lg:flex-col lg:gap-1">
           <li v-for="c in categories" :key="c.id">
             <button
               type="button"
-              class="flex h-9 w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-left text-[13.5px] transition-colors"
-              :class="category === c.id ? 'bg-white/[0.07] font-medium text-slate-100' : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'"
+              class="flex h-8 w-full items-center gap-2.5 whitespace-nowrap rounded-lg border px-2.5 text-left text-[13px] transition-colors lg:h-9 lg:border-0 lg:px-3 lg:text-[13.5px]"
+              :class="category === c.id ? 'border-transparent bg-white/[0.07] font-medium text-slate-100' : 'border-white/[0.08] text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'"
+              :aria-current="category === c.id ? 'page' : undefined"
               @click="category = c.id"
             >
-              <Icon :name="c.icon" class="h-4 w-4 shrink-0" :class="category === c.id ? 'text-accent-light' : 'text-slate-500'" />
+              <Icon :name="c.icon" class="hidden h-4 w-4 shrink-0 lg:block" :class="category === c.id ? 'text-accent-light' : 'text-slate-500'" />
               {{ c.label }}
             </button>
           </li>

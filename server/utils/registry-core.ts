@@ -179,6 +179,13 @@ export interface UpdateEntry {
   error?: string
   /** Last remoteDigest an "update available" notification went out for. */
   notifiedDigest?: string
+  /** How the tag moves (versions-core.ts): a fixed release, a release line, or latest-style. */
+  tagKind?: 'exact' | 'line' | 'floating'
+  /** Newest tag of the same shape, from the registry's tag list (the digest check can't see it). */
+  newer?: { tag: string; bump: 'major' | 'minor' | 'patch' }
+  /** When `newer` is a major jump: the newest release on the current major. */
+  newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch' }
+  versionsCheckedAt?: number
 }
 
 /**

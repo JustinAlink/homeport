@@ -1,5 +1,47 @@
 # Changelog
 
+## v2.31.0 (2026-10-22)
+
+Updates you can read, and a round of polish.
+
+- **What kind of update is this?** The update tab and the Updates page now say it in
+  plain words instead of showing two `sha256:` codes: the same pinned release
+  rebuilt (usually security fixes, low risk), a newer release on a line tag like
+  `5-alpine`, or `latest`, which can be anything. The digests moved into a fold.
+- **Newer versions of pinned images.** An image pinned to `10.9.6` never heard
+  about `10.10.3`, because the update check only sees rebuilds of the same tag.
+  homeport now reads the registry's tag list (Docker Hub, GHCR, lscr.io, quay.io
+  and others, anonymously or with your stored login) and lists newer versions on
+  the Updates page, labelled patch, minor or major, safest first. A major jump
+  also offers the newest release on your current major. Calendar versions (like
+  Home Assistant's `2024.10.1`) are not treated as majors.
+- **Switch versions in one click.** A stack's service gets the new tag written
+  into its compose file (comments kept; tags set through a variable are left to
+  you) and the stack is brought up; a standalone container is pulled and
+  recreated with rollback. Major versions ask you to read the changelog and back
+  up first.
+- **Bug: updated containers kept the old image's settings.** Recreating a
+  standalone container copied its whole config, including environment values that
+  came from the old image (`PATH`, `NGINX_VERSION`, `PG_MAJOR`), so they overrode
+  the new image's. Values that still match the old image's defaults are now
+  dropped; your own settings are kept.
+- **Domains page shows health.** Each route shows its HTTP status and response
+  time, links its container (or says none matches), and shows the "proxy can't
+  reach it" warning with its one-click fix.
+- **Needs attention** now includes a running app whose domain answers an error or
+  nothing at all, and the Issues filter lists exactly what that strip counts (it
+  missed the "proxy can't reach it" items).
+- **Bug: a git-backed stack hid its image updates.** The "Update stack" button
+  was hidden on git stacks, but updating from git doesn't pull images. It now
+  shows as "Update images (N)".
+- **Phones:** tab strips show an edge hint when there are more tabs (with the
+  update dot if a hidden tab has one) and keep the open tab in view; Settings
+  sections wrap into pills instead of a strip that hid most of them; the
+  dashboard filters fit the width; activity rows wrap instead of cutting off; a
+  domain's status sits under it.
+- Activity and the catalog detail pages share the left edge of every other page,
+  so the header no longer jumps when switching.
+
 ## v2.30.0 (2026-10-22)
 
 Networks that make sense, and a sweep for bugs.

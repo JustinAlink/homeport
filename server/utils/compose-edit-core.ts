@@ -1,4 +1,5 @@
 import { parseDocument, isMap, isSeq, Scalar, YAMLMap, YAMLSeq, type Document } from 'yaml'
+import { withTag } from './versions-core.ts'
 
 // Writes a container's restart policy and CPU/memory limits back into its
 // compose file. `docker update` changes them live, but a managed stack's next
@@ -22,6 +23,22 @@ export interface ServiceSettingsPatch {
   addNetwork?: string
   /** docker network to detach the service from */
   removeNetwork?: string
+  /** move the service's image to another tag (10.9.6 → 10.10.3), registry and repo unchanged */
+  tag?: string
+}
+
+const TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/
+
+function setImageTag(svc: YAMLMap, service: string, tag: string) {
+  if (!TAG_RE.test(tag)) throw new Error(`"${tag}" is not a valid image tag`)
+  const node = svc.get('image', true)
+  const image = node instanceof Scalar ? node.value : node
+  if (typeof image !== 'string' || !image) throw new Error(`service "${service}" has no image to change (it is built from source)`)
+  // `image: app:${APP_VERSION}`: the version lives in .env, and overwriting the
+  // reference here would silently stop that variable from mattering
+  if (image.includes('$')) throw new Error(`the image of "${service}" comes from a variable (${image}); change the version where that variable is set, usually the stack's .env`)
+  if (node instanceof Scalar) node.value = withTag(image, tag)
+  else svc.set('image', withTag(image, tag))
 }
 
 const SIZE_RE = /^\d+(\.\d+)?[bkmg]?$/i
@@ -50,6 +67,7 @@ export function patchComposeService(content: string, service: string, patch: Ser
     svc.set('restart', value)
   }
 
+  if (patch.tag !== undefined) setImageTag(svc, service, patch.tag)
   if (patch.addNetwork) addNetwork(doc, svc, service, patch.addNetwork)
   if (patch.removeNetwork) removeNetwork(doc, svc, patch.removeNetwork)
 

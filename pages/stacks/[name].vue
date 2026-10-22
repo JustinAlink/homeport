@@ -48,14 +48,15 @@
           </template>
         </template>
         <template v-else-if="caps.control">
-          <!-- whole-stack image update: pull newer images + recreate; git stacks update via git -->
+          <!-- whole-stack image update: pull newer images + recreate. A git stack needs
+               it too: "Update from git" changes the compose file, it pulls no images. -->
           <button
-            v-if="caps.updates && updatable.length && !gitInfo"
+            v-if="updatable.length"
             :disabled="opRunning"
             class="btn btn-primary"
-            :title="`${updatable.length} service${updatable.length > 1 ? 's have' : ' has'} a newer image: pull and recreate the stack`"
+            :title="`${updatable.map((s) => s.displayName).join(', ')} ${updatable.length > 1 ? 'have' : 'has'} a newer image: pull and recreate (docker compose pull, then up -d)`"
             @click="runAction('pull')"
-          ><Icon name="arrow-up" /> Update stack ({{ updatable.length }})</button>
+          ><Icon name="arrow-up" /> {{ gitInfo ? 'Update images' : 'Update stack' }} ({{ updatable.length }})</button>
           <button
             v-if="gitInfo"
             :disabled="opRunning"
@@ -467,7 +468,7 @@ const actions = [
 
 // "Update stack (N)" already is pull & up, so don't offer the same thing twice
 const shownActions = computed(() =>
-  caps.value.updates && updatable.value.length && !gitInfo.value ? actions.filter((a) => a.op !== 'pull') : actions,
+  updatable.value.length ? actions.filter((a) => a.op !== 'pull') : actions,
 )
 
 // unsaved compose edits: guard in-app navigation and tab close

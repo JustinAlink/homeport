@@ -2,8 +2,9 @@ import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from
 import { getConfig } from './config'
 import { getHosts } from './hosts'
 import { startOp } from './ops'
-import { safeNetworkName, parseCidr, findSubnetConflicts } from './networks-core'
+import { safeNetworkName, parseCidr, findSubnetConflicts, type NetworkInfo } from './networks-core'
 import { safeRelPath, type FileEntry } from './files-core'
+import { tagKindOf, withTag } from './versions-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -164,20 +165,43 @@ export function demoHistory(id: string, fromMs: number, toMs: number, res: numbe
 // Demo update statuses — jellyfin + vaultwarden start with updates available;
 // "applying" flips them to current so the whole flow is clickable without Docker.
 const demoUpdateState: Record<string, 'update' | 'current'> = {}
+// What the registry's tag list would say about each demo image (versions-core).
+const DEMO_VERSIONS: Record<string, { tagKind?: 'exact' | 'line' | 'floating'; newer?: { tag: string; bump: 'major' | 'minor' | 'patch' }; newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch' } }> = {
+  'jellyfin/jellyfin:10.9.6': { tagKind: 'exact', newer: { tag: '10.10.3', bump: 'minor' } },
+  'lscr.io/linuxserver/sonarr:4.0.9': { tagKind: 'exact', newer: { tag: '4.0.11', bump: 'patch' } },
+  'lscr.io/linuxserver/radarr:5.11.0': { tagKind: 'exact' },
+  'ghost:5-alpine': { tagKind: 'line', newer: { tag: '6-alpine', bump: 'major' } },
+  'postgres:16-alpine': { tagKind: 'line', newer: { tag: '18-alpine', bump: 'major' } },
+  'traefik:v3.1': { tagKind: 'line', newer: { tag: 'v3.5', bump: 'minor' } },
+  'portainer/portainer-ce:2.21.0': { tagKind: 'exact', newer: { tag: '2.21.4', bump: 'patch' } },
+  'vaultwarden/server:1.32.0': { tagKind: 'exact', newer: { tag: '1.32.5', bump: 'patch' } },
+  'qmcgaw/gluetun:v3.39.0': { tagKind: 'exact', newer: { tag: 'v3.40.0', bump: 'minor' } },
+}
+
 export function demoUpdates(): Record<string, any> {
   const out: Record<string, any> = {}
   seeds.forEach((s, i) => {
     const key = `default|${s.image}`
     const seeded = i === 0 || i === 8 || UNMANAGED_GROUPS.has(s.group) ? 'update' : 'current'
     const status = demoUpdateState[key] ?? seeded
+    const tag = s.image.includes(':') ? s.image.slice(s.image.lastIndexOf(':') + 1) : 'latest'
     out[key] = {
       status,
       localDigest: `sha256:${'ab'.repeat(8)}${i}`,
       remoteDigest: status === 'update' ? `sha256:${'cd'.repeat(8)}${i}` : `sha256:${'ab'.repeat(8)}${i}`,
       checkedAt: Date.now() - 3600_000,
+      ...(DEMO_VERSIONS[s.image] ?? { tagKind: tagKindOf(tag) }),
     }
   })
   return out
+}
+
+/** A demo version switch: the container now runs the new tag (and is current). */
+export function demoSwitchTag(name: string, tag: string) {
+  const seed = seeds.find((s) => s.name === name)
+  if (!seed) return
+  seed.image = withTag(seed.image, tag)
+  demoUpdateState[`default|${seed.image}`] = 'current'
 }
 export function demoApplyUpdate(image: string) {
   demoUpdateState[`default|${image}`] = 'current'
@@ -618,10 +642,10 @@ export function demoStackAction(name: string, op: string): string {
 
 // In-memory docker network list so the networks page + conflict card round-trip in demo.
 const demoRemovedNetworks = new Set<string>()
-const demoExtraNetworks: ReturnType<typeof demoNetworks> = []
+const demoExtraNetworks: NetworkInfo[] = []
 // network name → service id → attached ('on') / detached ('off') override
 const demoNetOverrides = new Map<string, Map<string, 'on' | 'off'>>()
-export function demoNetworks() {
+export function demoNetworks(): NetworkInfo[] {
   const groups = [...new Set(seeds.map((s) => s.group))].filter((g) => g && g !== 'systemd')
   const projectNets = groups.map((g, gi) => {
     const attached = seeds
@@ -649,7 +673,7 @@ export function demoNetworks() {
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => !s.group)
     .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
-  const nets = [
+  const nets: NetworkInfo[] = [
     { id: 'demo-net-bridge', name: 'bridge', driver: 'bridge', builtin: true, subnets: ['172.17.0.0/16'], containers: bridgeAttached.length, attached: bridgeAttached as { id: string; name: string }[], project: null as string | null },
     { id: 'demo-net-proxy', name: 'proxy', driver: 'bridge', builtin: false, subnets: ['192.168.0.0/20'], containers: proxyAttached.length, attached: proxyAttached, project: null },
     // an unused leftover — the removable kind that causes "Pool overlaps" on reinstalls

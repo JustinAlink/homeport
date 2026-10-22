@@ -100,3 +100,21 @@ test('detaching removes the service entry and an external declaration nobody use
   // a service on network_mode can't join networks
   assert.throws(() => patchComposeService('services:\n  a:\n    image: x\n    network_mode: host\n', 'a', { addNetwork: 'n' }), /network_mode/)
 })
+
+test('tag: moves the image to another version, keeping quotes, registry and comments', () => {
+  const src = `services:
+  app:
+    # pinned on purpose
+    image: "registry:5000/team/app:1.2.3" # keep me
+    restart: unless-stopped
+`
+  const out = patchComposeService(src, 'app', { tag: '1.3.0' })
+  assert.match(out, /image: "registry:5000\/team\/app:1\.3\.0" # keep me/)
+  assert.match(out, /# pinned on purpose/)
+})
+
+test('tag: refuses variables, build-only services and bad tags', () => {
+  assert.throws(() => patchComposeService('services:\n  app:\n    image: app:${APP_VERSION}\n', 'app', { tag: '2.0' }), /variable/)
+  assert.throws(() => patchComposeService('services:\n  app:\n    build: .\n', 'app', { tag: '2.0' }), /no image/)
+  assert.throws(() => patchComposeService('services:\n  app:\n    image: app:1.0\n', 'app', { tag: '2.0; rm -rf' }), /not a valid image tag/)
+})

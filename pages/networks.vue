@@ -131,12 +131,12 @@
 
         <!-- STACK-PRIVATE -->
         <details class="group mb-4" :open="openStackNets">
-          <summary class="mb-2.5 flex cursor-pointer list-none items-baseline gap-2" @click.prevent="openStackNets = !openStackNets">
+          <summary class="mb-2.5 flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 gap-y-0.5" @click.prevent="openStackNets = !openStackNets">
             <Icon name="chevron-down" class="h-3.5 w-3.5 self-center text-slate-500 transition-transform" :class="openStackNets ? '' : '-rotate-90'" />
-            <h2 class="section-title">Stack networks</h2>
+            <h2 class="section-title whitespace-nowrap">Stack networks</h2>
             <span class="text-xs text-slate-500">{{ stackNets.length }}</span>
             <span v-if="stackNets.some((n) => !n.containers)" class="badge badge-warn">{{ stackNets.filter((n) => !n.containers).length }} unused</span>
-            <span class="text-xs text-slate-500">· each stack's private network, created by its compose file</span>
+            <span class="w-full pl-[22px] text-xs text-slate-500 sm:w-auto sm:pl-0"><span class="hidden sm:inline">· </span>each stack's private network, created by its compose file</span>
           </summary>
           <div class="card row-list overflow-hidden">
             <div v-for="n in stackNets" :key="n.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
@@ -155,10 +155,10 @@
 
         <!-- BUILT-IN -->
         <details class="mb-4" :open="openBuiltin">
-          <summary class="mb-2.5 flex cursor-pointer list-none items-baseline gap-2" @click.prevent="openBuiltin = !openBuiltin">
+          <summary class="mb-2.5 flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 gap-y-0.5" @click.prevent="openBuiltin = !openBuiltin">
             <Icon name="chevron-down" class="h-3.5 w-3.5 self-center text-slate-500 transition-transform" :class="openBuiltin ? '' : '-rotate-90'" />
-            <h2 class="section-title">Docker built-in</h2>
-            <span class="text-xs text-slate-500">· always there, can't be removed</span>
+            <h2 class="section-title whitespace-nowrap">Docker built-in</h2>
+            <span class="w-full pl-[22px] text-xs text-slate-500 sm:w-auto sm:pl-0"><span class="hidden sm:inline">· </span>always there, can't be removed</span>
           </summary>
           <div class="card row-list overflow-hidden">
             <div v-for="n in builtin" :key="n.id" class="flex flex-wrap items-start gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">

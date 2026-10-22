@@ -94,10 +94,13 @@
             <div class="row-list">
               <div v-for="d in service.domains" :key="d.domain" class="flex items-center gap-3 px-4 py-2.5 sm:px-5">
                 <Icon :name="d.ssl ? 'lock' : 'globe'" class="h-4 w-4 shrink-0" :class="d.ssl ? 'text-ok' : 'text-slate-500'" />
-                <a :href="d.url" target="_blank" rel="noopener noreferrer" class="min-w-0 truncate text-[13.5px] text-slate-100 hover:text-accent-light">{{ d.domain }}</a>
-                <span v-if="pings.pings.value[d.url]" class="flex items-center gap-1.5 text-[11.5px] text-slate-500">
-                  <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
-                </span>
+                <!-- domain and its status stack on a phone, sit side by side when there's room -->
+                <div class="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <a :href="d.url" target="_blank" rel="noopener noreferrer" class="min-w-0 truncate text-[13.5px] text-slate-100 hover:text-accent-light">{{ d.domain }}</a>
+                  <span v-if="pings.pings.value[d.url]" class="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-slate-500">
+                    <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
+                  </span>
+                </div>
                 <CopyButton :text="d.url" label="URL" class="ml-auto" />
                 <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
               </div>
@@ -369,17 +372,33 @@
           </div>
           <div class="p-4 sm:p-5">
             <p class="break-all font-mono text-[13px] text-slate-200">{{ service.image }}</p>
+            <div v-if="updateExplain" class="mt-3 flex gap-2.5 text-[13px] leading-relaxed">
+              <Icon
+                :name="updateExplain.tone === 'caution' ? 'alert' : 'info'"
+                class="mt-0.5 h-4 w-4 shrink-0"
+                :class="updateExplain.tone === 'caution' ? 'text-amber-400' : updateExplain.tone === 'low' ? 'text-ok' : 'text-sky-400'"
+              />
+              <div>
+                <p class="font-medium text-slate-100">{{ updateExplain.title }}</p>
+                <p class="text-slate-400">{{ updateExplain.detail }}</p>
+              </div>
+            </div>
             <dl v-if="updateEntry" class="mt-3 space-y-1.5 text-xs">
-              <div v-if="updateEntry.localDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Running</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.localDigest }}</dd></div>
-              <div v-if="updateEntry.remoteDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Latest</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.remoteDigest }}</dd></div>
               <div class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Checked</dt><dd class="text-slate-400">{{ new Date(updateEntry.checkedAt).toLocaleString() }}</dd></div>
               <div v-if="changelogUrl" class="flex gap-3">
                 <dt class="w-20 shrink-0 text-slate-500">Changelog</dt>
                 <dd class="min-w-0 truncate"><a :href="changelogUrl" target="_blank" rel="noopener noreferrer" class="link">{{ changelogUrl }}</a></dd>
               </div>
-              <div v-if="updateEntry.error" class="text-amber-300/90">{{ updateEntry.error }}</div>
+              <div v-if="updateEntry.error" class="text-amber-300">{{ updateEntry.error }}</div>
             </dl>
-            <p v-else class="mt-2 text-xs text-slate-500">
+            <details v-if="updateEntry?.localDigest || updateEntry?.remoteDigest" class="mt-3 text-xs">
+              <summary class="cursor-pointer text-slate-500 hover:text-slate-300">Image digests</summary>
+              <dl class="mt-2 space-y-1.5">
+                <div v-if="updateEntry.localDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Running</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.localDigest }}</dd></div>
+                <div v-if="updateEntry.remoteDigest" class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">Registry</dt><dd class="min-w-0 truncate font-mono text-slate-400">{{ updateEntry.remoteDigest }}</dd></div>
+              </dl>
+            </details>
+            <p v-if="!updateEntry" class="mt-2 text-xs text-slate-500">
               {{ updatesEnabled ? 'Not checked yet.' : 'Update checks are off. Turn them on in Settings → Capabilities.' }}
             </p>
           </div>
@@ -407,6 +426,7 @@
           </p>
         </div>
         <OpSteps :steps="applySteps" title="Update steps" :redirecting="redirecting" :new-page="newPage" />
+        <VersionOffer :service="service" :entry="updateEntry" @switched="onVersionSwitched" />
       </section>
     </template>
   </div>
@@ -877,6 +897,24 @@ async function checkNow() {
 }
 
 const applySteps = ref<{ step: string; ok: boolean; detail?: string }[]>([])
+// What the pending update actually is (a rebuild, a step within a line, or unknown)
+const updateExplain = computed(() =>
+  service.value && updateEntry.value?.status === 'update' ? explainUpdate(service.value.image, updateEntry.value.tagKind) : null,
+)
+
+// A version switch recreates the container under a new id: follow it there.
+async function onVersionSwitched(r: { ok: boolean; newId?: string }) {
+  if (!r.ok) return
+  const sep = id.indexOf('::')
+  const hostPrefix = sep >= 0 ? id.slice(0, sep) : 'default'
+  if (r.newId) return navigateTo(`/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}?tab=update`, { replace: true })
+  // through a stack: compose keeps the container name, so find it by that
+  await refresh()
+  const name = lastSeen.value?.name
+  const moved = data.value?.services.find((x) => x.name === name && x.id !== id)
+  if (moved) navigateTo(`/services/${encodeURIComponent(moved.id)}?tab=update`, { replace: true })
+}
+
 async function apply() {
   if (!(await confirm({ message: `Update “${service.value?.displayName}” to the latest image? The container will be recreated.`, confirmLabel: 'Update' }))) return
   applying.value = true

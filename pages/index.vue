@@ -135,7 +135,8 @@
         />
         <span v-if="!q" class="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">/</span>
       </div>
-      <div class="segmented max-w-full overflow-x-auto">
+      <!-- on a phone the chips share the full width evenly instead of running off the edge -->
+      <div class="segmented max-w-full overflow-x-auto max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1 max-sm:[&>button]:justify-center max-sm:[&>button]:px-1.5">
         <button
           v-for="f in filters"
           :key="f.key"
@@ -411,6 +412,19 @@ const hasUpdate = (s: Service) => updates.entryFor(s)?.status === 'update'
 const visible = computed<Service[]>(() =>
   (data.value?.services || []).filter((s) => !s.hidden && (!hostFilter.value || s.host === hostFilter.value)),
 )
+// A running container whose domain answers 5xx or nothing: the app is up, yet
+// nobody can use it. Skipped when a state problem or the reach check explains it.
+const domainIssueOf = (s: Service): { reason: string; tone: 'amber' } | null => {
+  if (s.state !== 'running' || issueOf(s) || reachApi.domainReach(s).ok === false) return null
+  for (const d of s.domains) {
+    const p = pings.pings.value[d.url]
+    if (p && (p.status === 0 || p.status >= 500)) return { reason: p.status === 0 ? `${d.domain} doesn't answer` : `${d.domain} answers ${p.status}`, tone: 'amber' }
+  }
+  return null
+}
+// containers the attention strip lists, so the Issues filter shows exactly those
+const inAttention = (s: Service) => !!issueOf(s) || reachApi.domainReach(s).ok === false || !!domainIssueOf(s)
+
 // Containers in trouble, plus stacks that are partly up because a service in
 // their compose file never got a container (a failed start, not a deliberate down).
 const attention = computed(() => [
@@ -424,6 +438,10 @@ const attention = computed(() => [
       ? [{ key: `reach:${s.id}`, name: s.displayName, to: `/services/${encodeURIComponent(s.id)}`, reason: "proxy can't reach it", tone: 'amber' as const }]
       : [],
   ),
+  ...visible.value.flatMap((s) => {
+    const i = domainIssueOf(s)
+    return i ? [{ key: `domain:${s.id}`, name: s.displayName, to: `/services/${encodeURIComponent(s.id)}`, ...i }] : []
+  }),
   ...stacksStore.stacks.value
     .filter((st) => st.running > 0 && st.missing?.length)
     .map((st) => ({
@@ -464,7 +482,7 @@ const filtered = computed<Service[]>(() => {
   return visible.value.filter((s) => {
     if (filter.value === 'running' && !isRunning(s)) return false
     if (filter.value === 'stopped' && !isStopped(s)) return false
-    if (filter.value === 'issues' && !issueOf(s)) return false
+    if (filter.value === 'issues' && !inAttention(s)) return false
     if (filter.value === 'updates' && !hasUpdate(s)) return false
     if (!term) return true
     return [s.displayName, s.name, s.image, s.group, s.host, ...s.domains.map((d) => d.domain)]

@@ -27,20 +27,34 @@
           :key="r.id"
           class="px-4 py-3 sm:px-5"
         >
-          <div v-if="editId !== r.id" class="flex flex-wrap items-center gap-3">
-            <Icon :name="r.ssl ? 'lock' : 'globe'" class="h-4 w-4 shrink-0" :class="r.ssl ? 'text-ok' : 'text-slate-500'" />
+          <div v-if="editId !== r.id" class="flex flex-wrap items-start gap-3">
+            <Icon :name="r.ssl ? 'lock' : 'globe'" class="mt-0.5 h-4 w-4 shrink-0" :class="r.ssl ? 'text-ok' : 'text-slate-500'" />
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <a
-                  v-for="d in r.domains"
-                  :key="d"
-                  :href="`${r.ssl ? 'https' : 'http'}://${d}`"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-[13.5px] font-medium text-slate-100 hover:text-accent-light"
-                >{{ d }}</a>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span v-for="d in r.domains" :key="d" class="inline-flex min-w-0 items-center gap-2">
+                  <a
+                    :href="urlOf(r, d)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="truncate text-[13.5px] font-medium text-slate-100 hover:text-accent-light"
+                  >{{ d }}</a>
+                  <span v-if="pingOf(r, d)" class="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px]" :class="pingBad(pingOf(r, d)!) ? 'text-amber-300' : 'text-slate-500'">
+                    <span class="dot h-1.5 w-1.5" :class="pingDot(pingOf(r, d)!)" />{{ pingText(pingOf(r, d)!) }}
+                  </span>
+                </span>
               </div>
-              <p class="mt-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-slate-500"><Icon name="arrow-right" class="h-3 w-3" />{{ r.upstreamHost }}:{{ r.upstreamPort }}</p>
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11.5px] text-slate-500">
+                <Icon name="arrow-right" class="h-3 w-3" />{{ r.upstreamHost }}:{{ r.upstreamPort }}
+                <template v-if="svcData">
+                  <NuxtLink
+                    v-if="svcFor(r)"
+                    :to="`/services/${encodeURIComponent(svcFor(r)!.id)}?tab=domains`"
+                    class="font-sans text-slate-400 hover:text-accent-light"
+                  >· {{ svcFor(r)!.displayName }}<span v-if="svcFor(r)!.state !== 'running'" class="text-amber-300"> ({{ svcFor(r)!.state }})</span></NuxtLink>
+                  <span v-else class="font-sans text-amber-300" title="No container matches this upstream: a stopped or removed app, or a typo in the route">· no matching container</span>
+                </template>
+              </p>
+              <ProxyReachWarning v-if="svcFor(r)" :service="svcFor(r)" compact class="mt-2" />
             </div>
             <span v-if="!r.managed" class="badge" title="Not created by homeport, so it's shown read-only">read-only</span>
             <div v-else class="flex items-center gap-1.5">
@@ -64,6 +78,8 @@
 </template>
 
 <script setup lang="ts">
+import type { PingResult, Service } from '~/types/service'
+
 interface AdminRoute {
   id: string
   domains: string[]
@@ -75,6 +91,19 @@ interface AdminRoute {
 
 const { confirm } = useConfirm()
 const toast = useToast()
+const { data: svcData, start: svcStart, stop: svcStop } = useServices()
+const pingsApi = usePings()
+
+// The container a route serves: the one whose domain list (matched by upstream
+// on the server) includes this route's domains.
+const svcFor = (r: AdminRoute): Service | undefined =>
+  svcData.value?.services.find((s) => s.domains.some((d) => r.domains.includes(d.domain)))
+const urlOf = (r: AdminRoute, d: string) => `${r.ssl ? 'https' : 'http'}://${d}`
+const pingOf = (r: AdminRoute, d: string): PingResult | undefined => pingsApi.pings.value[urlOf(r, d)]
+// 4xx is the app answering (a login wall is fine); 5xx or silence means it isn't
+const pingBad = (p: PingResult) => p.status === 0 || p.status >= 500
+const pingDot = (p: PingResult) => (p.status === 0 ? 'bg-red-400' : p.status >= 500 ? 'bg-amber-400' : 'bg-ok')
+const pingText = (p: PingResult) => (p.status === 0 ? 'no answer' : `HTTP ${p.status} · ${p.ms} ms`)
 const { caps: hpCaps, load: loadHpCaps } = useCapabilities()
 const routes = ref<AdminRoute[]>([])
 const provider = ref('')
@@ -119,6 +148,12 @@ onMounted(() => {
   if (useRoute().query.add) adding.value = true // "Add a domain" from the command palette
   load()
   loadHpCaps()
+  svcStart()
+  pingsApi.start()
+})
+onBeforeUnmount(() => {
+  svcStop()
+  pingsApi.stop()
 })
 useHead({ title: 'Domains · homeport' })
 </script>

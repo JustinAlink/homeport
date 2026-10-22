@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.30.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.31.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -390,7 +390,17 @@ count) groups them by compose project:
 - **Managed stacks** (in homeport's stacks dir) update with **Pull & up** — the compose way.
 - **Unmanaged projects & standalone containers** update via pull + recreate-in-place
   (watchtower-style, config preserved, with rollback). The page follows the container to
-  its new id afterwards.
+  its new id afterwards. Settings that only came from the old image (its `ENV`, `CMD`,
+  labels) are not carried over, so the new image's own defaults apply.
+- **What kind of update it is**, in plain words: a pinned release like `1.32.0` that was
+  rebuilt (usually base-image security fixes, low risk), a newer release on a line tag like
+  `5-alpine`, or `latest`, which can be anything including a new major version.
+- **Newer versions** of pinned images (`10.9.6` while `10.10.3` is out) are listed in their own
+  section, labelled patch, minor or major, safest first. The digest check can't see these, so
+  homeport reads the registry's tag list (anonymously, or with the stored login) from the
+  homeport container itself. **Switching** is one click: a managed stack's service gets the new
+  tag written into its compose file and is brought up; a standalone container is pulled and
+  recreated with rollback. A major version asks you to read the changelog and back up first.
 - **Scheduled automatic updates** (opt-in, off by default): pick a daily hour and opt
   targets in with the "auto" toggles on the Updates page, the target list in settings, or
   a `hub.autoupdate=true` label. Managed stacks pull & up, the rest recreate; homeport

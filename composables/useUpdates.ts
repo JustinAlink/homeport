@@ -1,4 +1,5 @@
 import type { Service } from '~/types/service'
+import type { Bump, TagKind } from '~/utils/updateText'
 
 export interface UpdateEntry {
   status: 'current' | 'update' | 'local' | 'pinned' | 'error'
@@ -6,6 +7,10 @@ export interface UpdateEntry {
   remoteDigest?: string
   checkedAt: number
   error?: string
+  /** see server/utils/versions-core.ts */
+  tagKind?: TagKind
+  newer?: { tag: string; bump: Bump }
+  newerSameMajor?: { tag: string; bump: Bump }
 }
 
 // Duplicated from server/utils/registry-core.ts (no shared/ dir in this app — server
