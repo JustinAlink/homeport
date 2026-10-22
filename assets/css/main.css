@@ -288,6 +288,10 @@
   .input-sm {
     @apply h-8 text-xs;
   }
+  /* the field a form error is about (set aria-invalid, so screen readers get it too) */
+  .input[aria-invalid='true'] {
+    @apply border-red-500/50 hover:border-red-500/60 focus:border-red-500/60 focus:ring-red-500/20;
+  }
   .field-label {
     @apply mb-1.5 block text-xs font-medium text-slate-300;
   }

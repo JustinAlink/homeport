@@ -3,7 +3,7 @@
 // (needs `npm run build` first, and a Playwright Chromium:
 // `npx playwright install chromium`). CI runs this on every push.
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
@@ -116,9 +116,94 @@ try {
   rmSync(dataDir, { recursive: true, force: true })
 }
 
+// --- First-run setup gate ---------------------------------------------------
+// A fresh install (no password yet) must not be claimable without the setup
+// code from its own log, and "skip" must not turn the login off. Booted with an
+// auth.json from a pre-v2.32.0 "skip" (must no longer open anything) and at log
+// level error (the code must print anyway).
+const SETUP_PORT = PORT + 1
+const SETUP_BASE = `http://127.0.0.1:${SETUP_PORT}`
+const setupDir = mkdtempSync(join(tmpdir(), 'hp-setup-'))
+writeFileSync(join(setupDir, 'auth.json'), JSON.stringify({ authSkipped: true }))
+let setupLog = ''
+const setupServer = spawn('node', ['.output/server/index.mjs'], {
+  env: {
+    ...process.env,
+    PORT: String(SETUP_PORT),
+    HOMEPORT_DEMO: 'true',
+    HOMEPORT_DATA_DIR: setupDir,
+    HOMEPORT_ADMIN_PASSWORD: '',
+    HOMEPORT_ALLOW_OPEN: '',
+    HOMEPORT_LOG_LEVEL: 'error',
+  },
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+setupServer.stdout.on('data', (d) => (setupLog += d))
+setupServer.stderr.on('data', (d) => (setupLog += d))
+
+const expect = (ok, what) => (ok ? console.log(`ok setup: ${what}`) : problems.push(`setup: ${what}`))
+const setupPost = async (body) => {
+  const r = await fetch(`${SETUP_BASE}/api/setup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  return r.status
+}
+const setupState = () => fetch(`${SETUP_BASE}/api/setup`).then((r) => r.json())
+
+let setupBrowser
+try {
+  for (let i = 0; i < 60; i++) {
+    try {
+      if ((await fetch(`${SETUP_BASE}/login`)).ok) break
+    } catch {}
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  const pw = 'setup-smoke-password'
+  let st = await setupState()
+  expect(st.needsSetup === true && st.open === false, 'a pre-v2.32.0 "skip" no longer opens the instance')
+  expect((await fetch(`${SETUP_BASE}/api/services`)).status === 401, 'the API stays locked until setup is done')
+  expect((await setupPost({ password: pw })) === 400, 'a password without the code is refused')
+  expect((await setupPost({ skip: true })) === 403, '"skip" is refused')
+  expect((await setupPost({ code: 'ZZZZ-ZZZZ-ZZZZ', password: pw })) === 403, 'a wrong code is refused')
+  st = await setupState()
+  expect(st.needsSetup === true && st.open === false, 'still in setup after all of that')
+
+  const code = setupLog.match(/setup code: ([0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4})/)?.[1]
+  expect(!!code, 'the code is in the log, even at HOMEPORT_LOG_LEVEL=error')
+  if (!code) throw new Error('no setup code in the server log')
+
+  // the real form: link prefill (install.sh's /login#code=…), a wrong code, then the right one
+  setupBrowser = await chromium.launch()
+  const page = await setupBrowser.newPage()
+  page.on('pageerror', (e) => problems.push(`setup pageerror: ${e.message}`))
+  await page.goto(`${SETUP_BASE}/login#code=${code}`)
+  const field = page.locator('#setup-code')
+  await field.waitFor()
+  await page.waitForFunction(() => document.querySelector('#setup-code')?.value)
+  expect((await field.inputValue()) === code && !page.url().includes('#'), 'the link fills in the code and drops it from the address bar')
+  await field.fill('zzzz-zzzz-zzzz')
+  await page.fill('#new-pw', pw)
+  await page.fill('#confirm-pw', pw)
+  await page.click('button[type=submit]')
+  await page.locator('[role=alert]').waitFor()
+  expect(/doesn't match/.test(await page.locator('[role=alert]').innerText()) && (await field.getAttribute('aria-invalid')) === 'true', 'the form says the code is wrong and marks the field')
+  await field.fill(code.toLowerCase().replace(/-/g, ' '))
+  await page.click('button[type=submit]')
+  await page.waitForURL(`${SETUP_BASE}/welcome`)
+  expect(true, 'the right code (typed loosely) creates the password and continues to /welcome')
+
+  expect((await setupPost({ code, password: 'another-long-password' })) === 403, 'setup is closed once a password exists')
+  expect((await setupState()).needsSetup === false, 'the login page now shows sign-in')
+  expect(!('authSkipped' in JSON.parse(readFileSync(join(setupDir, 'auth.json'), 'utf8'))), 'the stale skip flag is gone from auth.json')
+} catch (e) {
+  problems.push(`setup fatal: ${e?.message || e}`)
+} finally {
+  await setupBrowser?.close()
+  setupServer.kill()
+  rmSync(setupDir, { recursive: true, force: true })
+}
+
 if (problems.length) {
   console.error(`\nSMOKE FAILED (${problems.length}):`)
   for (const p of problems) console.error('  - ' + p)
   process.exit(1)
 }
-console.log('\nsmoke: all pages clean')
+console.log('\nsmoke: all pages clean, setup gate holds')

@@ -49,6 +49,12 @@ fetch() { # url dest
   else die "need curl or wget to download files"; fi
 }
 
+http_get() { # url → body on stdout
+  if command -v curl >/dev/null 2>&1; then curl -fsS "$1" 2>/dev/null
+  elif command -v wget >/dev/null 2>&1; then wget -qO- "$1" 2>/dev/null
+  else return 1; fi
+}
+
 gen_secret() {
   if command -v openssl >/dev/null 2>&1; then openssl rand -hex 32
   else od -An -tx1 -N32 /dev/urandom | tr -d ' \n'; fi
@@ -192,6 +198,16 @@ main() {
   # 6. Where to go next ------------------------------------------------------
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   [ -n "${ip:-}" ] || ip="localhost"
+
+  # First-run setup asks for a one-time code that homeport printed to its log.
+  # Ask the instance whether setup is still pending first: an older log line
+  # can hold a code from a setup that has since been finished.
+  needs_setup=0
+  code=""
+  if [ "$ready" -eq 1 ] && http_get "http://127.0.0.1:$PORT/api/setup" | grep -q '"needsSetup":true'; then
+    needs_setup=1
+    code="$( (cd "$DIR" && $DK compose logs homeport 2>&1) | sed -n 's/.*setup code: \([0-9A-Z]\{4\}-[0-9A-Z]\{4\}-[0-9A-Z]\{4\}\).*/\1/p' | tail -n1)"
+  fi
   say ""
   if [ "$ready" -eq 1 ]; then
     say "${G}${B}✅ homeport is up!${Z}"
@@ -200,7 +216,17 @@ main() {
     say "   Watch it come up:  cd $DIR  &&  docker compose logs -f"
   fi
   say ""
-  say "   Open  ${B}http://$ip:$PORT${Z}  and create your admin password."
+  if [ -n "$code" ]; then
+    # The code rides in the #fragment: the browser never sends it to the server or a proxy log.
+    say "   Open  ${B}http://$ip:$PORT/login#code=$code${Z}"
+    say "   and create your admin password. Setup code: ${B}$code${Z} (a restart makes a new one)."
+  elif [ "$needs_setup" -eq 1 ] || [ "$ready" -ne 1 ]; then
+    say "   Open  ${B}http://$ip:$PORT${Z}  and create your admin password."
+    say "   It asks for a setup code from homeport's log:"
+    say "     cd $DIR  &&  docker compose logs homeport | grep 'setup code'"
+  else
+    say "   Open  ${B}http://$ip:$PORT${Z}  and sign in."
+  fi
   say ""
   say "   Next steps:"
   say "   • Put it behind a reverse proxy with a real domain + HTTPS (don't expose $PORT to the internet)."

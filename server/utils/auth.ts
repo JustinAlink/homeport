@@ -8,9 +8,9 @@ import { warnOnce } from './log'
 // Admin auth resolution, in priority order:
 //   1. HOMEPORT_ADMIN_PASSWORD env  → headless / locked (env always wins)
 //   2. a persisted password hash    → set via the in-app first-run setup
-//   3. nothing                      → first-run setup (if the data dir is writable),
-//                                      or "open" (no auth) if the user skipped it
-//                                      or the volume is read-only.
+//   3. nothing                      → first-run setup (needs the one-time code from
+//                                      the log), or "open" (no auth) only when
+//                                      HOMEPORT_ALLOW_OPEN is set.
 //
 // The session-signing secret is HOMEPORT_SESSION_SECRET, else a random one
 // generated once and persisted here (so a bare `docker run` is still secure).
@@ -18,7 +18,9 @@ import { warnOnce } from './log'
 interface AuthFile {
   passwordHash?: string
   sessionSecret?: string
-  authSkipped?: boolean // user chose to run without a login
+  // Written by "skip" in first-run setup before v2.32.0. No longer honored:
+  // open mode is HOMEPORT_ALLOW_OPEN only (see authMode). Read for one warning.
+  authSkipped?: boolean
   sessionGeneration?: number // bumped to revoke all outstanding sessions
 }
 
@@ -70,7 +72,6 @@ export function restoreAuthFile(data: AuthFile): void {
   const next: AuthFile = {}
   if (typeof data.passwordHash === 'string') next.passwordHash = data.passwordHash
   if (typeof data.sessionSecret === 'string') next.sessionSecret = data.sessionSecret
-  if (typeof data.authSkipped === 'boolean') next.authSkipped = data.authSkipped
   if (typeof data.sessionGeneration === 'number') next.sessionGeneration = data.sessionGeneration
   const dir = process.env.HOMEPORT_DATA_DIR || '/data'
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
@@ -98,12 +99,12 @@ export function setPassword(plain: string): void {
   // Bump the session generation so any cookie issued under the old password stops
   // validating — a password change is the natural "I might be compromised" response.
   const gen = (read().sessionGeneration || 0) + 1
-  write({ passwordHash: hashPassword(plain), authSkipped: false, sessionGeneration: gen })
+  write({ passwordHash: hashPassword(plain), authSkipped: undefined, sessionGeneration: gen })
 }
 
-/** Record that the user chose to run without a login. */
-export function skipAuth(): void {
-  if (settingsWritable()) write({ authSkipped: true })
+/** Did an older version record "skip" here? (It no longer opens anything.) */
+export function skippedBeforeV232(): boolean {
+  return read().authSkipped === true
 }
 
 /** Current session generation — mixed into every token so it can be revoked. */
@@ -127,18 +128,18 @@ export type AuthMode = 'enforced' | 'setup' | 'open'
 
 /**
  * - enforced: a password is configured → a valid session is required.
- * - open:     no password AND the operator explicitly opted out of auth
- *             (chose "skip" in first-run setup, or set HOMEPORT_ALLOW_OPEN).
- * - setup:    no password and no explicit opt-out → force first-run setup.
+ * - open:     no password AND the operator set HOMEPORT_ALLOW_OPEN.
+ * - setup:    no password and no opt-out → force first-run setup.
  *
- * Fail-closed: a read-only data volume (can't persist a password) no longer
- * silently drops to open mode — it stays in `setup`, which keeps the API 401'd
- * until the operator sets HOMEPORT_ADMIN_PASSWORD, fixes the volume, or opts in
- * with HOMEPORT_ALLOW_OPEN=true.
+ * Fail-closed: the env var is the ONLY way to run without a login. Nothing a
+ * visitor can do (the old setup "skip", a read-only volume) gets there, so the
+ * API stays 401'd until a password exists or the operator opts out where the
+ * deploy is configured. A persisted authSkipped from an older version is
+ * deliberately ignored for the same reason; the startup banner explains it.
  */
 export function authMode(): AuthMode {
   if (hasPassword()) return 'enforced'
-  if (read().authSkipped || envAllowOpen()) return 'open'
+  if (envAllowOpen()) return 'open'
   return 'setup'
 }
 

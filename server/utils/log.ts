@@ -26,6 +26,12 @@ export const log = {
   error: (tag: string, message: string, err?: unknown) => emit('error', tag, message, err),
   /** The configured threshold — for a one-time boot line. */
   level: threshold,
+  /**
+   * A line the operator must see whatever HOMEPORT_LOG_LEVEL says: printed as
+   * WARN, even at `silent`. Only for something that blocks them otherwise (the
+   * first-run setup code, whose one delivery channel is this log).
+   */
+  announce: (tag: string, message: string) => console.warn(formatLine(new Date().toISOString(), 'warn', tag, message)),
 }
 
 /**

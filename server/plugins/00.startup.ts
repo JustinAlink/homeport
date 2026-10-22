@@ -1,6 +1,7 @@
 import { version } from '../../package.json'
 import { getConfig } from '../utils/config'
-import { authMode } from '../utils/auth'
+import { authMode, skippedBeforeV232 } from '../utils/auth'
+import { setupCode } from '../utils/setup'
 import { settingsWritable } from '../utils/settings'
 import { getHosts } from '../utils/hosts'
 import { log } from '../utils/log'
@@ -14,6 +15,7 @@ export default defineNitroPlugin(() => {
 
   if (cfg.demo) {
     log.info('startup', `homeport ${version} starting in DEMO mode (synthetic fleet, no Docker)`)
+    if (safe(authMode, 'unknown') === 'setup') setupCode()
     return
   }
 
@@ -35,7 +37,7 @@ export default defineNitroPlugin(() => {
   if (cfg.alertsEnabled) caps.push('alerts')
 
   log.info('startup', `homeport ${version} starting — log level ${log.level}`)
-  log.info('startup', `auth: ${mode}${mode === 'open' ? ' (NO LOGIN — set HOMEPORT_ADMIN_PASSWORD or run first-run setup)' : ''}`)
+  log.info('startup', `auth: ${mode}${mode === 'open' ? ' (NO LOGIN: HOMEPORT_ALLOW_OPEN is set)' : ''}`)
   log.info('startup', `data dir: ${dataDir} (${writable ? 'writable' : 'READ-ONLY — settings/history/sessions will not persist'})`)
   log.info('startup', `docker: ${hosts}`)
   log.info('startup', `collector: every ${cfg.collectorInterval}s · history ${cfg.historyEnabled ? 'on' : 'off'}`)
@@ -43,6 +45,15 @@ export default defineNitroPlugin(() => {
 
   if (mode === 'open') {
     log.warn('startup', 'running WITHOUT a login (open mode) — anyone who can reach this URL has full access. Set HOMEPORT_ADMIN_PASSWORD to require a password.')
+  }
+
+  if (mode === 'setup') {
+    // An install that chose "skip" before v2.32.0 lands here after upgrading:
+    // say why, so the setup screen isn't a mystery.
+    if (safe(skippedBeforeV232, false)) {
+      log.warn('startup', 'first-run setup was skipped in an older version; that no longer turns the login off. Create a password with the setup code below, or set HOMEPORT_ALLOW_OPEN=true to keep running without a login.')
+    }
+    setupCode() // logs the code, whatever the log level
   }
 
   // A short env-set admin password can't be caught by the in-app length check.

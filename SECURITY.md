@@ -18,6 +18,20 @@ extra socket-proxy permissions each one needs. The whole UI/API sits behind an
 admin login (scrypt-hashed, HMAC-signed session cookie) and is expected to be
 deployed behind HTTPS.
 
+First-run setup (no admin password yet) is the one moment the login doesn't
+exist, so it has its own gate. `POST /api/setup` only creates the password with
+a one-time setup code that homeport prints to its own log at startup: 12
+Crockford base32 characters (60 bits), held in memory only, replaced on every
+restart, compared in constant time, with wrong codes rate-limited per client and
+logged. Reading `docker logs` already needs Docker access on the host, which is
+the same trust homeport runs with, so a fresh install reachable from the internet
+can't be claimed by whoever finds it first. Running without a login ("open
+mode") is only possible with `HOMEPORT_ALLOW_OPEN=true` in the environment; the
+browser can't turn it on, and a "skip" saved by versions before v2.32.0 is
+ignored. One consequence to know about: if you ship container logs to a third
+party, the code goes with them, and is usable by anyone who can also reach the
+instance until setup is finished.
+
 Optional forward-auth (`HOMEPORT_TRUSTED_HEADER`) trusts an upstream proxy to
 authenticate the user. It is off unless set, and — by design — assumes homeport
 is reachable only through that proxy; a directly-reachable instance with it
@@ -48,7 +62,8 @@ not the actual boundary. Failed viewer logins share the global brute-force
 ceiling with the admin password but get their own per-IP lockout bucket, so
 neither credential can lock the other out from the same client.
 
-Reports that are especially valuable: auth bypasses, capability-gate bypasses,
+Reports that are especially valuable: auth bypasses (including a way to finish
+first-run setup without the code), capability-gate bypasses,
 secret leakage (tokens are stored 0600 server-side and scrubbed from streamed
 output), and anything that lets a non-admin or a viewer account reach beyond
 its intended scope.

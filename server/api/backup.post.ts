@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     format?: string
     version?: number
     settings?: PersistedSettings
-    auth?: { passwordHash?: string; sessionSecret?: string; authSkipped?: boolean }
+    auth?: { passwordHash?: string; sessionSecret?: string; sessionGeneration?: number }
     gitTokens?: Record<string, string>
   }>(event)
 

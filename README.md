@@ -125,7 +125,7 @@ socket proxy), generates a session secret, and starts it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JustinAlink/homeport/main/install.sh | sh
-# → open http://<your-server>:3004 and create your admin password
+# → prints a setup link with a one-time code: open it and create your admin password
 ```
 
 Rather read the script before running it (a good habit for any `curl | sh`)?
@@ -143,7 +143,8 @@ docker run -d --name homeport -p 3004:3000 \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v homeport-data:/data \
   ghcr.io/justinalink/homeport:latest
-# open http://<host>:3004 → create your admin password on first run
+docker logs homeport 2>&1 | grep "setup code"   # the one-time setup code
+# open http://<host>:3004, enter the code, create your admin password
 ```
 
 > **For a quick local look only.** A `:ro` socket mount isn't a real security boundary — the
@@ -152,7 +153,10 @@ docker run -d --name homeport -p 3004:3000 \
 > locked-down `docker-socket-proxy` that only exposes the calls it needs.
 
 No env vars required: on first visit homeport walks you through **setting an admin
-password** (and generates a session secret for you). Prefer headless? Set
+password** (and generates a session secret for you). To prove it's you and not whoever
+finds a fresh install first, setup asks for a **one-time setup code** that homeport prints
+to its own log at startup (`docker logs homeport`). Only someone with Docker access on the
+server can read it; every restart makes a new one. Prefer headless? Set
 `HOMEPORT_ADMIN_PASSWORD` instead and skip the setup screen.
 
 <details>
@@ -164,6 +168,7 @@ curl -O https://raw.githubusercontent.com/JustinAlink/homeport/main/docker-compo
 curl -o .env https://raw.githubusercontent.com/JustinAlink/homeport/main/.env.example
 # (optional) edit .env — it runs fine on defaults; the session secret is auto-generated
 docker compose up -d
+docker compose logs homeport | grep "setup code"   # enter it on the setup page
 ```
 
 The compose file pulls the official image and runs homeport against a
@@ -213,7 +218,8 @@ All via environment variables (set on the container at runtime):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `HOMEPORT_ADMIN_PASSWORD` | _(first-run setup)_ | Admin login password. Leave unset to create it in the browser on first run (stored hashed); set it for headless/locked deploys. |
+| `HOMEPORT_ADMIN_PASSWORD` | _(first-run setup)_ | Admin login password. Leave unset to create it in the browser on first run (stored hashed; needs the one-time setup code from the log); set it for headless/locked deploys. |
+| `HOMEPORT_ALLOW_OPEN` | `false` | `true` runs with **no login at all** while no password is set. Only for a trusted private network: anyone who reaches the URL gets every capability you enabled. The only way to turn the login off. |
 | `HOMEPORT_SESSION_SECRET` | _(auto-generated)_ | Secret used to sign the session cookie. Generated and persisted under the data dir if unset; set it to keep sessions stable across re-creates without a volume. |
 | `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), `ssh://user@host` for a remote host, or empty for `DOCKER_SOCKET`. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
@@ -433,6 +439,12 @@ count) groups them by compose project:
 - **Settings → Capabilities → “Probe proxy permissions”** checks what the socket proxy
   actually allows, per capability — so a toggle that would 403 at the proxy shows red
   before you ever click its button.
+- **First-run setup can't be claimed by a stranger.** Until a password exists, the setup
+  screen needs a one-time code that homeport prints only to its own log, so creating the
+  admin account takes the same Docker access homeport itself has. The code lives in memory
+  (a restart makes a new one), wrong codes are rate-limited and logged, and running without
+  a login is only possible with `HOMEPORT_ALLOW_OPEN=true` in the environment, never from
+  the browser.
 - Failed logins are **rate-limited** per client (escalating lockouts + a flat delay).
 - The reverse-proxy config is mounted **read-only**.
 - The whole UI/API is behind a login (it reveals your infra) — set a real password and put
