@@ -123,6 +123,10 @@
           <span v-if="fileDirty" class="badge badge-warn">unsaved</span>
           <button class="btn btn-ghost btn-icon btn-sm ml-auto" aria-label="Close" @click="closeEditor"><Icon name="x" /></button>
         </div>
+        <p v-if="!readOnly && gitTracked.isTracked(editing)" class="callout callout-warn mx-4 my-2.5 text-xs">
+          <Icon name="git-branch" />
+          <span>{{ gitTracked.note(editing!) }}</span>
+        </p>
         <div ref="editorEl" class="min-h-[16rem] flex-1 overflow-auto bg-[#0d1117] text-[13px]" />
         <div class="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
           <button
@@ -140,7 +144,8 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean }>()
+const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean; git?: { tracked?: string[]; branch?: string } | null }>()
+const gitTracked = useGitTracked(() => props.git)
 
 interface Entry {
   name: string
@@ -282,6 +287,7 @@ async function closeEditor() {
 
 async function saveFile() {
   if (editing.value === null) return
+  if (!(await gitTracked.confirmSave(editing.value))) return
   fileSaving.value = true
   fileMsg.value = ''
   try {

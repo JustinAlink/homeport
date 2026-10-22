@@ -74,6 +74,8 @@ export interface GitStackMeta {
   committedAt: string // ISO-ish from git
   behind: boolean | null // null = remote not checked / unreachable
   remoteCommit?: string
+  /** Files git tracks: an update from git (reset --hard) overwrites these, untracked ones survive. */
+  tracked?: string[]
 }
 
 /** Parse `git log -1 --format=%h%x1f%s%x1f%cI` output. */

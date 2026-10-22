@@ -456,6 +456,7 @@ export function demoGitMeta(name: string) {
     committedAt: '2026-07-01T12:00:00+02:00',
     behind: true,
     remoteCommit: 'e4f5a6b',
+    tracked: ['compose.yaml', 'config/settings.yml'],
   }
 }
 

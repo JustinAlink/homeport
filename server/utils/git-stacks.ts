@@ -187,12 +187,15 @@ export async function gitStackMeta(name: string): Promise<GitStackMeta | null> {
   const head = await runGit(['log', '-1', '--format=%h%x1f%s%x1f%cI'], { cwd, ...noAuth })
   const parsed = parseHeadLog(head.out)
   if (remote.code !== 0 || !parsed) return null
+  // which files the next update from git would overwrite (the editors warn before editing those)
+  const files = await runGit(['ls-files'], { cwd, ...noAuth })
 
   return {
     repo: remote.out.trim(),
     branch: branch.out.trim() || 'HEAD',
     ...parsed,
     behind: null,
+    ...(files.code === 0 ? { tracked: files.out.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 5000) } : {}),
   }
 }
 

@@ -230,6 +230,11 @@
 
     <!-- compose editor -->
     <section v-if="!notManaged" class="mb-6">
+      <!-- a tracked file in a git stack: the next update from git resets it -->
+      <p v-if="caps.control && gitTracked.isTracked(file || 'compose.yaml')" class="callout callout-warn mb-3 text-xs">
+        <Icon name="git-branch" />
+        <span>{{ gitTracked.note(file || 'compose.yaml') }}</span>
+      </p>
       <div class="card overflow-hidden">
         <div class="card-header">
           <Icon name="file-text" class="h-4 w-4 text-slate-500" />
@@ -265,7 +270,7 @@
     </section>
 
     <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" class="mb-6" />
+    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" :git="gitInfo" class="mb-6" />
 
     <!-- where the stack's data actually lives: named volumes + host binds that
          sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
@@ -437,6 +442,7 @@ async function load() {
 }
 
 async function save() {
+  if (!(await gitTracked.confirmSave(file.value || 'compose.yaml'))) return
   saving.value = true
   saveMsg.value = ''
   try {
@@ -677,8 +683,10 @@ interface GitInfo {
   subject: string
   behind: boolean | null
   remoteCommit?: string
+  tracked?: string[]
 }
 const gitInfo = ref<GitInfo | null>(null)
+const gitTracked = useGitTracked(() => gitInfo.value)
 const gitChecking = ref(false)
 
 async function loadGit(force = false) {
