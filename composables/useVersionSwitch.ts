@@ -34,13 +34,14 @@ export function useVersionSwitch() {
 
   function mode(s: Service): SwitchMode | null {
     if (s.kind !== 'container') return null
-    if (stackAware.stackOf(s) && s.composeService) return caps.value.stacks ? 'stack' : null
+    if (stackAware.stackOf(s) && s.composeService) return caps.value.stacks && !stacksStore.isGit(s.project) ? 'stack' : null
     if (!s.project) return caps.value.updates ? 'container' : null
     return null
   }
 
   /** Why a container can't switch here, for the hint shown instead of the button. */
   function blockedReason(s: Service): string {
+    if (stacksStore.isGit(s.project)) return `“${s.project}” is deployed from git: change the tag in the repository, then update the stack from git. A change made here would be reset by that update.`
     if (s.project && !stackAware.stackOf(s)) return `Change the tag in the compose file of “${s.project}”: homeport can't see that file, and a change made only here would be undone by its next start.`
     if (s.project) return 'Changing a stack’s compose file is off (Settings → Capabilities).'
     return 'Applying updates is off (Settings → Capabilities).'
@@ -87,5 +88,12 @@ export function useVersionSwitch() {
     }
   }
 
-  return { mode, blockedReason, switchTo, busy, ensureReady }
+  /** The same, in a few words for a list row. */
+  function blockedShort(s: Service): string {
+    if (stacksStore.isGit(s.project)) return 'change it in git'
+    if (s.project && !stackAware.stackOf(s)) return 'change it in its compose file'
+    return 'switching is off'
+  }
+
+  return { mode, blockedReason, blockedShort, switchTo, busy, ensureReady }
 }

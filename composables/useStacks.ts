@@ -36,6 +36,8 @@ export function useStacks() {
   const byName = (name: string | null | undefined) => (name ? stacks.value.find((s) => s.name === name) ?? null : null)
   /** True when homeport has the compose file for this project (it can run compose on it). */
   const isManaged = (project: string | null | undefined) => !!byName(project)
+  /** Deployed from git: its folder is reset to the repository on update, so homeport must not edit its files. */
+  const isGit = (project: string | null | undefined) => !!byName(project)?.git
 
-  return { stacks, loaded, refresh, byName, isManaged }
+  return { stacks, loaded, refresh, byName, isManaged, isGit }
 }

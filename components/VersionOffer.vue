@@ -17,6 +17,7 @@
         {{ busyTag === entry.newer.tag ? 'Switching…' : `Switch to ${entry.newer.tag}` }}
       </button>
     </template>
+    <span v-else class="text-[11.5px] text-slate-500" :title="versions.blockedReason(service)">{{ versions.blockedShort(service) }}</span>
   </div>
 
   <!-- full: a card on the container's Update tab -->

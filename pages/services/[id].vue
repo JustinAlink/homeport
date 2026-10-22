@@ -156,7 +156,7 @@
             <p v-if="!caps.control" class="field-hint">Changing it needs the start/stop capability.</p>
             <p v-else-if="restart.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
-              <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick.</span>
+              <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git, so in its repository)</template>.</span>
             </p>
           </div>
 
@@ -205,7 +205,7 @@
             <p v-if="!caps.control" class="field-hint">Changing them needs the start/stop capability.</p>
             <p v-else-if="resources.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
-              <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated.</span>
+              <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git: change it in its repository)</template>.</span>
             </p>
             <p v-if="caps.control && service.state === 'restarting'" class="mt-2 flex gap-1.5 text-xs leading-relaxed text-amber-300/90">
               <Icon name="alert" class="mt-px h-3.5 w-3.5 shrink-0" />
@@ -578,8 +578,15 @@ async function loadRestartPolicy() {
 // A managed stack's next `compose up` recreates the container from its file,
 // reverting live `docker update` changes, so offer to write them there too.
 const writeCompose = ref(true)
+const stacksStore = useStacks()
 const canWriteCompose = computed(
-  () => !!composeProject.value && stackManaged.value && !!service.value?.composeService && caps.value.stacks,
+  () =>
+    !!composeProject.value &&
+    stackManaged.value &&
+    !!service.value?.composeService &&
+    caps.value.stacks &&
+    // a git stack's compose file is reset by the next update from git
+    !stacksStore.isGit(composeProject.value),
 )
 /** Returns a note for the result line, or throws with the reason the file wasn't updated. */
 async function saveToCompose(patch: Record<string, unknown>): Promise<string> {
@@ -850,8 +857,7 @@ async function checkStackManaged() {
     return
   }
   // shared stacks store: the stack-aware stop/delete dialogs read it too
-  const store = useStacks()
-  await store.refresh()
+  await stacksStore.refresh()
   stackManaged.value = !!stackAware.stackOf(service.value) // false if stacks unavailable: direct update is the only path
   stackChecked.value = true
 }

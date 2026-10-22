@@ -8,10 +8,13 @@ export function useNetworkOps() {
   const toast = useToast()
   const services = useServices()
   const stackAware = useStackAwareActions()
+  const stacksStore = useStacks()
+  // a git stack's compose file is reset by the next update from git: nothing to save into
+  const canSave = (s: Service) => !!stackAware.stackOf(s) && !!s.composeService && !stacksStore.isGit(s.project)
 
   async function persist(service: Service, patch: { addNetwork?: string; removeNetwork?: string }): Promise<string> {
     const stack = stackAware.stackOf(service)
-    if (!stack || !service.composeService) return ''
+    if (!stack || !canSave(service)) return ''
     try {
       const r = await $fetch<{ changed: boolean; file: string }>(`/api/stacks/${encodeURIComponent(stack)}/service-settings`, {
         method: 'POST',
@@ -50,5 +53,5 @@ export function useNetworkOps() {
     }
   }
 
-  return { connect, disconnect, canSave: (s: Service) => !!stackAware.stackOf(s) && !!s.composeService }
+  return { connect, disconnect, canSave }
 }

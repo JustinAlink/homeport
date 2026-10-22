@@ -443,6 +443,8 @@ export function demoContainerWrite(_id: string, _root: string, rel: string, cont
 // One demo stack presents as git-backed so the from-git flow is demoable.
 const DEMO_GIT_STACK = 'media'
 
+export const demoIsGitStack = (name: string) => name === DEMO_GIT_STACK || demoGitStacks.has(name)
+
 export function demoGitMeta(name: string) {
   if (name !== DEMO_GIT_STACK && !demoGitStacks.has(name)) return { git: false }
   return {
@@ -663,11 +665,12 @@ export function demoNetworks(): NetworkInfo[] {
       project: g,
     }
   })
-  // the shared network the reverse proxy (traefik) uses to reach apps by name; radarr
-  // is left off on purpose so the "proxy can't reach it" warning has a demo case
+  // the shared network the reverse proxy (traefik) uses to reach apps by name; umami
+  // is left off on purpose so the "proxy can't reach it" warning has a demo case (in a
+  // stack that isn't git-backed, so saving the fix to the compose file is demoable)
   const proxyAttached = seeds
     .map((s, i) => ({ s, i }))
-    .filter(({ s }) => (s.domains?.length || s.name === 'traefik') && s.name !== 'radarr')
+    .filter(({ s }) => (s.domains?.length || s.name === 'traefik') && s.name !== 'umami')
     .map(({ s, i }) => ({ id: `demo-${i}`, name: s.name }))
   const bridgeAttached = seeds
     .map((s, i) => ({ s, i }))

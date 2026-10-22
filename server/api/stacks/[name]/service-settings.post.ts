@@ -1,7 +1,8 @@
 import { getConfig } from '../../../utils/config'
 import { readStack, saveStackValidated } from '../../../utils/stacks'
 import { patchComposeService, type ServiceSettingsPatch } from '../../../utils/compose-edit-core'
-import { demoStackRead, demoStackSave, demoSwitchTag } from '../../../utils/demo'
+import { isGitStack } from '../../../utils/git-stacks'
+import { demoStackRead, demoStackSave, demoSwitchTag, demoIsGitStack } from '../../../utils/demo'
 
 // Write one service's restart policy, CPU / memory limits, network membership
 // or image version into the stack's compose file, so a change made live (docker
@@ -24,6 +25,15 @@ export default defineEventHandler(async (event) => {
 
   if (!cfg.demo && !cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
+  }
+
+  // A git-backed stack's folder is hard-reset to the repository on every update
+  // from git, so an edit here would be silently undone: refuse (fail closed).
+  if (cfg.demo ? demoIsGitStack(name) : isGitStack(name)) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `"${name}" is deployed from git: its compose file is replaced on every update from git, so make this change in the repository instead.`,
+    })
   }
 
   const current = cfg.demo ? demoStackRead(name) : await readStack(name)

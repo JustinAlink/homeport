@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.31.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.31.1-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -401,6 +401,8 @@ count) groups them by compose project:
   homeport container itself. **Switching** is one click: a managed stack's service gets the new
   tag written into its compose file and is brought up; a standalone container is pulled and
   recreated with rollback. A major version asks you to read the changelog and back up first.
+  A git-backed stack is changed in its repository instead: homeport never edits files that
+  the next update from git would reset.
 - **Scheduled automatic updates** (opt-in, off by default): pick a daily hour and opt
   targets in with the "auto" toggles on the Updates page, the target list in settings, or
   a `hub.autoupdate=true` label. Managed stacks pull & up, the rest recreate; homeport

@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.31.1 (2026-10-22)
+
+- **Bug: changes saved into a git-backed stack's compose file didn't last.**
+  "Update from git" resets the stack folder to the repository, so a version
+  switch, a network connection or a restart/limit saved into its compose file
+  was silently undone by the next update. homeport now refuses to write a git
+  stack's files (HTTP 409 with the reason) and says to make the change in the
+  repository instead; the switch and "also save" options are hidden there.
+- Demo: the "proxy can't reach it" example moved from radarr to umami, a stack
+  that isn't git-backed, so saving the fix stays demoable.
+
 ## v2.31.0 (2026-10-22)
 
 Updates you can read, and a round of polish.
