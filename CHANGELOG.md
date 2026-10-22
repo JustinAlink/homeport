@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.32.1 (2026-10-22)
+
+- **NPM accounts with two-factor authentication get a clear answer.** NPM's API
+  cannot complete a login for an account with 2FA (it asks for a code instead of
+  handing out a token), and homeport reported that as "NPM login failed (200)".
+  It now says what happened and what to do: give homeport its own NPM user
+  without 2FA (Proxy Hosts: Manage, Certificates: View), so your own account
+  keeps it. A wrong password now says so too.
+
 ## v2.32.0 (2026-10-22)
 
 Security: a fresh install can no longer be claimed by a stranger.

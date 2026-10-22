@@ -8,6 +8,7 @@ import {
   npmBaseUrl,
   credsSettingsPatch,
   DEFAULT_NPM_IDENTITY,
+  npmLoginError,
 } from '../server/utils/proxy-admin/npm-bootstrap-core.ts'
 
 test('passwordFromBytes: strong, deterministic, policy-safe', () => {
@@ -54,4 +55,12 @@ test('credsSettingsPatch: wires provider + proxy-admin on', () => {
   assert.equal(p.npmApiSecret, 'secret')
   assert.equal(p.domainProvider, 'npm')
   assert.equal(p.allowProxyAdmin, true)
+})
+
+test('npmLoginError: an account with 2FA gets told why, and what to do instead', () => {
+  const twoFa = npmLoginError({ ok: true, status: 200, data: { requires_2fa: true, challenge_token: 'x' } })
+  assert.match(twoFa, /two-factor/)
+  assert.match(twoFa, /its own NPM user/)
+  assert.match(npmLoginError({ ok: false, status: 401 }), /rejected the email or password/)
+  assert.match(npmLoginError({ ok: false, status: 0, error: 'ECONNREFUSED' }), /ECONNREFUSED/)
 })

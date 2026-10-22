@@ -2,6 +2,7 @@ import { httpJson } from '../http'
 import { log } from '../log'
 import type { ProxyAdmin, AdminRoute, NewRoute } from './types'
 import { buildProxyHostPayload, npmRouteFrom, pickCertificate, type NpmProxyHost } from './npm-admin-core'
+import { npmLoginError } from './npm-bootstrap-core'
 
 // Nginx Proxy Manager REST API. Auth: POST /api/tokens {identity,secret} → JWT,
 // cached and refreshed on 401. CRUD on /api/nginx/proxy-hosts.
@@ -24,7 +25,7 @@ export function createNpmAdmin(cfg: NpmAdminConfig): ProxyAdmin {
       method: 'POST',
       body: JSON.stringify({ identity: cfg.identity, secret: cfg.secret }),
     })
-    if (!r.ok || !r.data?.token) throw new Error(`NPM login failed (${r.error || r.status})`)
+    if (!r.ok || !r.data?.token) throw new Error(npmLoginError(r))
     tokenCache.set(cacheKey, { token: r.data.token, at: Date.now() })
     return r.data.token
   }

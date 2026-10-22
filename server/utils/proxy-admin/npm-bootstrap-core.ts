@@ -26,6 +26,20 @@ export function parseToken(data: unknown): string | null {
   return typeof t === 'string' && t.length > 0 ? t : null
 }
 
+/**
+ * Why a `POST /api/tokens` login gave no token, in words a person can act on.
+ * NPM 2.13+ answers an account with two-factor authentication with HTTP 200 and
+ * `{ requires_2fa, challenge_token }` instead of a token; homeport can't type the
+ * code, so that case gets its own explanation (and the fix: a service user).
+ */
+export function npmLoginError(r: { ok: boolean; status: number; error?: string | null; data?: unknown }): string {
+  if ((r.data as { requires_2fa?: unknown })?.requires_2fa) {
+    return 'This NPM account has two-factor authentication, which a login through NPM\'s API cannot complete. Give homeport its own NPM user without it: in NPM, Users → Add User, permissions Proxy Hosts: Manage (and Certificates: View), then enter that user here. Your own account keeps 2FA.'
+  }
+  if (r.status === 401) return 'NPM rejected the email or password (401).'
+  return `NPM login failed (${r.error || r.status})`
+}
+
 /** Body for `PUT /api/users/{id}/auth` — rotate the password. */
 export function passwordChangeBody(current: string, next: string): string {
   return JSON.stringify({ type: 'password', current, secret: next })

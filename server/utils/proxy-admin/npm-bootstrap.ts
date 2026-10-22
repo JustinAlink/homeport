@@ -9,6 +9,7 @@ import {
   passwordChangeBody,
   tokenBody,
   npmBaseUrl,
+  npmLoginError,
   type BootstrapResult,
 } from './npm-bootstrap-core'
 
@@ -32,7 +33,7 @@ export async function connectNpm(url: string, identity: string, secret: string):
   const base = npmBaseUrl(url)
   const r = await login(base, identity, secret)
   if (r.ok && parseToken(r.data)) return { ok: true, identity, secret, rotated: false }
-  return { ok: false, error: `NPM login failed (${r.error || r.status})` }
+  return { ok: false, error: npmLoginError(r) }
 }
 
 /** Auto-bootstrap a fresh NPM (default admin@example.com / changeme). */
