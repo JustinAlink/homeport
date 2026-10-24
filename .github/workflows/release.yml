@@ -68,7 +68,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4 # for the CHANGELOG
+      - uses: actions/checkout@v4 # for the CHANGELOG, and every tag
+        with:
+          fetch-depth: 0
+
+      # Only the highest version may move :latest and the "Latest" release.
+      # Tags pushed out of order (or a re-run of an old release) would otherwise
+      # point :latest back at an older image: v2.31.2 was tagged after the
+      # v2.32.0 security fix, and only an unrelated build failure kept :latest
+      # on the fix.
+      - name: Decide whether this is the newest version
+        id: newest
+        run: |
+          tags=$(git tag -l 'v*')
+          # No tag list means no way to tell; stop rather than guess either way.
+          if ! grep -qxF "$GITHUB_REF_NAME" <<< "$tags"; then
+            echo "::error::$GITHUB_REF_NAME is missing from the fetched tags"
+            exit 1
+          fi
+          highest=$(sort -V <<< "$tags" | tail -n 1)
+          latest=false
+          if [ "$highest" = "$GITHUB_REF_NAME" ]; then latest=true; fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "$GITHUB_REF_NAME (highest tag: $highest) gets latest=$latest"
 
       - uses: actions/download-artifact@v4
         with:
@@ -85,10 +107,14 @@ jobs:
 
       - name: Merge the per-arch digests into one manifest
         working-directory: /tmp/digests
+        env:
+          LATEST: ${{ steps.newest.outputs.latest }}
         run: |
-          docker buildx imagetools create \
-            -t "$IMAGE:$GITHUB_REF_NAME" -t "$IMAGE:latest" \
-            $(printf "$IMAGE@sha256:%s " *)
+          tags=(-t "$IMAGE:$GITHUB_REF_NAME")
+          if [ "$LATEST" = true ]; then tags+=(-t "$IMAGE:latest"); fi
+          sources=()
+          for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
           docker buildx imagetools inspect "$IMAGE:$GITHUB_REF_NAME"
 
       - name: Extract this version's changelog section
@@ -101,7 +127,18 @@ jobs:
             fs.writeFileSync("release-notes.md", body + "\n")
           '
 
+      # Re-running the job updates an existing release instead of failing on it.
+      # An edit only ever promotes: an older release being re-run leaves the
+      # "Latest" badge where it is.
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          LATEST: ${{ steps.newest.outputs.latest }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            promote=()
+            if [ "$LATEST" = true ]; then promote=(--latest); fi
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md "${promote[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --latest="$LATEST"
+          fi
