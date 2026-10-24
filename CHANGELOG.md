@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.33.1 (2026-10-24)
+
+- **The `managed-by` marker also works in an override file.** homeport read it
+  only from the stack's main compose file, but some main files belong to their
+  own updater (mailcow's `update.sh` rewrites `docker-compose.yml`), so the marker
+  can only live in the override file compose loads next to it. homeport now reads
+  `compose.override.yaml` / `docker-compose.override.yml` (and their `.yml` /
+  `.yaml` twins) too; the main file's marker wins when both have one.
+
 ## v2.33.0 (2026-10-24)
 
 Lessons from running homeport on a real server.

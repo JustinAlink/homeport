@@ -4,6 +4,8 @@ import { parseYAML } from 'confbox/yaml'
 
 /** Compose file pick order inside a stack directory (Dockge/compose convention). */
 export const COMPOSE_FILENAMES = ['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml']
+/** Override files `docker compose` loads on its own next to the main file. */
+export const COMPOSE_OVERRIDE_FILENAMES = ['compose.override.yaml', 'compose.override.yml', 'docker-compose.override.yml', 'docker-compose.override.yaml']
 
 export function findComposeFile(filenames: string[]): string | null {
   for (const want of COMPOSE_FILENAMES) {
@@ -73,6 +75,20 @@ export function managedByOf(content: string): string | null {
   const by = doc?.['x-homeport']?.['managed-by']
   if (typeof by !== 'string' || !by.trim()) return null
   return by.trim().slice(0, 120)
+}
+
+/**
+ * The owner named by the main compose file or, failing that, by an override file
+ * compose loads next to it. The override matters when the main file belongs to
+ * someone else's updater (mailcow's `update.sh` rewrites docker-compose.yml, so the
+ * marker can only live in docker-compose.override.yml). Missing files are null.
+ */
+export function managedByOfFiles(main: string | null, overrides: (string | null)[]): string | null {
+  for (const content of [main, ...overrides]) {
+    const by = content == null ? null : managedByOf(content)
+    if (by) return by
+  }
+  return null
 }
 
 export interface StackStatus {

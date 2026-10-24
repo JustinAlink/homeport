@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.33.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.33.1-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -368,7 +368,9 @@ x-homeport:
 
 homeport then never writes that file itself (version switches, network and restart/limit
 saves point you to the owner instead), shows a "managed by" badge, and asks before you save a
-hand edit. Git-backed stacks get the same protection for every file git tracks.
+hand edit. The key may also sit in an override file compose loads next to the main one
+(`docker-compose.override.yml`, `compose.override.yaml`), for main files that another
+updater rewrites. Git-backed stacks get the same protection for every file git tracks.
 
 Limitations (documented, by design): stacks operate on the host `DOCKER_HOST` points at —
 local socket or `tcp://`; `ssh://` hosts aren't supported for stacks (run homeport on that

@@ -6,6 +6,7 @@ import {
   stackStatuses,
   declaredServices,
   managedByOf,
+  managedByOfFiles,
   composeArgs,
   externalProjectFromLabels,
   projectNameFromDir,
@@ -143,4 +144,12 @@ test('managedByOf: a compose file can name the system that owns it', () => {
   assert.equal(managedByOf('x-homeport:\n  managed-by: ""\n'), null)
   assert.equal(managedByOf('x-homeport: [1, 2]\n'), null)
   assert.equal(managedByOf(': not yaml : ['), null)
+})
+
+test('managedByOfFiles: the marker may live in an override compose loads (mailcow-style)', () => {
+  const marker = 'x-homeport:\n  managed-by: ansible\n'
+  assert.equal(managedByOfFiles('services: {}\n', [null, marker, null]), 'ansible')
+  assert.equal(managedByOfFiles(marker.replace('ansible', 'main file'), [marker]), 'main file') // main file wins
+  assert.equal(managedByOfFiles('services: {}\n', [null, null]), null)
+  assert.equal(managedByOfFiles(null, []), null)
 })

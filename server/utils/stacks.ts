@@ -13,6 +13,8 @@ import {
   externalProjectFromLabels,
   projectNameFromDir,
   composeProjectNameFromContent,
+  managedByOfFiles,
+  COMPOSE_OVERRIDE_FILENAMES,
   type StackOp,
   type StackSource,
   type ExternalProject,
@@ -223,6 +225,18 @@ export class ComposeValidationError extends Error {
     super(`compose validation failed:\n${output}`)
     this.output = output
   }
+}
+
+/** x-homeport.managed-by for a stack: its main compose file, then the override files compose loads. */
+export function stackManagedBy(dir: string, mainContent: string | null): string | null {
+  const read = (f: string) => {
+    try {
+      return readFileSync(join(dir, f), 'utf8')
+    } catch {
+      return null // absent or unreadable: no marker there
+    }
+  }
+  return managedByOfFiles(mainContent, COMPOSE_OVERRIDE_FILENAMES.map(read))
 }
 
 export async function readStack(name: string): Promise<StackFile | null> {

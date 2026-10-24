@@ -1,10 +1,10 @@
 import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { listContainersFor } from '../utils/docker'
-import { listAllStacks, externalProjects } from '../utils/stacks'
+import { listAllStacks, externalProjects, stackManagedBy } from '../utils/stacks'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { stackStatuses, declaredServices, managedByOf, type DeclaredService } from '../utils/stacks-core'
+import { stackStatuses, declaredServices, type DeclaredService } from '../utils/stacks-core'
 import { isGitStack } from '../utils/git-stacks'
 import { demoStackList } from '../utils/demo'
 
@@ -39,7 +39,7 @@ export default defineEventHandler(async () => {
     try {
       const content = readFileSync(join(a.dir, a.file), 'utf8')
       declared[a.name] = declaredServices(content)
-      managedBy[a.name] = managedByOf(content)
+      managedBy[a.name] = stackManagedBy(a.dir, content)
     } catch {
       declared[a.name] = null
       managedBy[a.name] = null
