@@ -1,7 +1,7 @@
 // Pure, dependency-free alerting core: transition detection + a debounce/cooldown
 // reducer + template rendering. No fs/Docker imports, so it's unit-testable in isolation.
 
-export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update' | 'updated'
+export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update' | 'updated' | 'domain-down' | 'domain-recovered'
 
 export interface ServiceState {
   id: string
@@ -126,6 +126,26 @@ export function reduceAlertState(
 
   return { state: next, emit: null }
 }
+
+/**
+ * The domains worth watching: those of running containers that aren't excluded
+ * (a stopped container already alerts on its own, its domain failing too would
+ * just repeat that). One entry per URL.
+ */
+export function domainTargets(
+  services: { id: string; displayName: string; host?: string; state: string; noalert?: boolean; domains: { domain: string; url: string }[] }[],
+): { url: string; domain: string; service: string; host?: string }[] {
+  const out = new Map<string, { url: string; domain: string; service: string; host?: string }>()
+  for (const s of services) {
+    if (s.noalert || s.state !== 'running') continue
+    for (const d of s.domains) if (!out.has(d.url)) out.set(d.url, { url: d.url, domain: d.domain, service: s.displayName, host: s.host })
+  }
+  return [...out.values()]
+}
+
+/** A domain is down when it answers 5xx or nothing; a 4xx is the app answering (a login wall is fine). */
+export const domainDown = (p: { status: number }) => p.status === 0 || p.status >= 500
+export const domainLabel = (p: { status: number }) => (p.status === 0 ? 'no answer' : `HTTP ${p.status}`)
 
 /** Render a webhook body template. Placeholders: {{name}} {{kind}} {{host}} {{from}} {{to}} {{id}}. */
 export function renderTemplate(tpl: string, vars: Record<string, string>): string {

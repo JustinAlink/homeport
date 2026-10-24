@@ -53,6 +53,28 @@ export function declaredServices(content: string): DeclaredService[] | null {
   }))
 }
 
+/**
+ * Who owns this compose file, when it isn't homeport. A top-level extension field
+ * (compose ignores every `x-` key) declares it:
+ *
+ *   x-homeport:
+ *     managed-by: juniperserver playbook
+ *
+ * homeport then never writes the file itself (its next run would overwrite the
+ * change, like an update from git does) and warns before a hand edit.
+ */
+export function managedByOf(content: string): string | null {
+  let doc: any
+  try {
+    doc = parseYAML(content)
+  } catch {
+    return null
+  }
+  const by = doc?.['x-homeport']?.['managed-by']
+  if (typeof by !== 'string' || !by.trim()) return null
+  return by.trim().slice(0, 120)
+}
+
 export interface StackStatus {
   name: string
   state: StackState

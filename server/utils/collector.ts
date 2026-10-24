@@ -2,7 +2,7 @@ import type { Service, StatsMap, HostStats } from '~/types/service'
 import { buildServices } from './compose'
 import { collectStats } from './stats'
 import { recordHistory } from './history'
-import { evaluateAlerts } from './alerts'
+import { evaluateAlerts, evaluateDomainAlerts } from './alerts'
 import { runUpdateSweep } from './updates'
 import { maybeAutoUpdate } from './auto-update'
 import { guard } from './guard'
@@ -64,6 +64,7 @@ const tick = guard(async () => {
   // history volume must not stop the others (they used to share one try).
   await stage('history', () => recordHistory(snap))
   await stage('alerts', () => evaluateAlerts(snap))
+  await stage('domain-alerts', () => evaluateDomainAlerts(snap))
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled
   await stage('update-sweep', () => runUpdateSweep(false))
   // once per day in its configured hour + no-op unless autoUpdateEnabled

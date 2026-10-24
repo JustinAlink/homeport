@@ -5,6 +5,7 @@ import {
   safeStackName,
   stackStatuses,
   declaredServices,
+  managedByOf,
   composeArgs,
   externalProjectFromLabels,
   projectNameFromDir,
@@ -134,4 +135,12 @@ test('stackStatuses: counts from the compose file, so down stacks and missing se
   assert.deepEqual(stacks.find((s) => s.name === 'down'), {
     name: 'down', state: 'stopped', running: 0, total: 1, missing: [{ name: 'db', image: 'postgres:16' }],
   })
+})
+
+test('managedByOf: a compose file can name the system that owns it', () => {
+  assert.equal(managedByOf('x-homeport:\n  managed-by: juniperserver playbook\nservices:\n  app:\n    image: nginx\n'), 'juniperserver playbook')
+  assert.equal(managedByOf('services:\n  app:\n    image: nginx\n'), null)
+  assert.equal(managedByOf('x-homeport:\n  managed-by: ""\n'), null)
+  assert.equal(managedByOf('x-homeport: [1, 2]\n'), null)
+  assert.equal(managedByOf(': not yaml : ['), null)
 })

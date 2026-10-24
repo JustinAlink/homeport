@@ -17,10 +17,21 @@ export interface NewRoute {
   ssl: boolean
 }
 
+/** What the account homeport signs in to the proxy with may do, and what that means for the user. */
+export interface ProxyAccess {
+  identity: string
+  admin: boolean
+  /** may add, edit and delete routes */
+  canManage: boolean
+  issues: { level: 'warn' | 'info'; text: string }[]
+}
+
 export interface ProxyAdmin {
   name: string
   capabilities: { create: boolean; update: boolean; delete: boolean }
   test(): Promise<{ ok: boolean; message: string }>
+  /** Optional: proxies with per-user permissions (NPM) report what homeport's login may do. */
+  access?(): Promise<ProxyAccess>
   listRoutes(): Promise<AdminRoute[]>
   createRoute(r: NewRoute): Promise<AdminRoute>
   updateRoute(id: string, r: NewRoute): Promise<AdminRoute>

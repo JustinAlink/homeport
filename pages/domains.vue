@@ -12,6 +12,11 @@
 
     <DomainForm v-if="adding" class="mb-5 max-w-2xl" @saved="onSaved" @cancel="adding = false" />
 
+    <!-- what homeport's own proxy login may do, when that limits this page -->
+    <p v-for="(i, n) in access?.issues ?? []" :key="n" class="callout mb-4 text-xs" :class="i.level === 'warn' ? 'callout-warn' : 'callout-info'">
+      <Icon :name="i.level === 'warn' ? 'alert' : 'info'" />
+      <span>{{ i.text }}<template v-if="access?.identity"> (signed in as <span class="font-mono">{{ access.identity }}</span>)</template></span>
+    </p>
     <div v-if="error" class="callout callout-warn">{{ error }}</div>
     <div v-else-if="!loaded" class="card h-64" />
 
@@ -113,6 +118,8 @@ const { caps: hpCaps, load: loadHpCaps } = useCapabilities()
 const routes = ref<AdminRoute[]>([])
 const provider = ref('')
 const caps = ref({ create: false, update: false, delete: false })
+interface ProxyAccess { identity: string; admin: boolean; canManage: boolean; issues: { level: 'warn' | 'info'; text: string }[] }
+const access = ref<ProxyAccess | null>(null)
 const loaded = ref(false)
 const error = ref('')
 const adding = ref(false)
@@ -120,9 +127,10 @@ const editId = ref('')
 
 async function load() {
   try {
-    const r = await $fetch<{ provider: string; capabilities: any; routes: AdminRoute[] }>('/api/proxy/routes')
+    const r = await $fetch<{ provider: string; capabilities: any; access?: ProxyAccess | null; routes: AdminRoute[] }>('/api/proxy/routes')
     provider.value = r.provider
     caps.value = r.capabilities
+    access.value = r.access ?? null
     routes.value = r.routes
     error.value = ''
   } catch (e: any) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildProxyHostPayload, npmRouteFrom, pickCertificate } from '../server/utils/proxy-admin/npm-admin-core.ts'
+import { buildProxyHostPayload, npmRouteFrom, pickCertificate, npmAccessFrom } from '../server/utils/proxy-admin/npm-admin-core.ts'
 import { buildCaddyRoute, caddyRoutesFromConfig, findHttpsServer, HP_PREFIX } from '../server/utils/proxy-admin/caddy-admin-core.ts'
 import { upsertRoute, removeRoute, listRoutes } from '../server/utils/proxy-admin/traefik-admin-core.ts'
 
@@ -99,4 +99,27 @@ test('traefik: listRoutes flags managed, remove refuses non-homeport', () => {
   assert.throws(() => removeRoute(doc, 'userblog'), /non-homeport/)
   const removed = removeRoute(doc, 'homeport-app')
   assert.equal(removed.http.routers['homeport-app'], undefined)
+})
+
+test('npmAccessFrom: a default NPM user is told it sees only its own hosts (snake_case API)', () => {
+  const a = npmAccessFrom({ email: 'homeport@example.com', roles: [], permissions: { visibility: 'user', proxy_hosts: 'manage', certificates: 'manage' } })
+  assert.equal(a.canManage, true)
+  assert.equal(a.admin, false)
+  assert.equal(a.issues.length, 1)
+  assert.match(a.issues[0].text, /only sees proxy hosts it created/)
+})
+
+test('npmAccessFrom: view-only proxy hosts turn management off (camelCase accepted too)', () => {
+  const a = npmAccessFrom({ email: 'x', roles: [], permissions: { visibility: 'all', proxyHosts: 'view' } })
+  assert.equal(a.canManage, false)
+  assert.deepEqual(a.issues.map((i) => i.level), ['warn'])
+  assert.match(a.issues[0].text, /not change them/)
+  assert.equal(npmAccessFrom({ roles: [], permissions: { visibility: 'all', proxy_hosts: 'hidden' } }).canManage, false)
+})
+
+test('npmAccessFrom: the intended setup has no issues; an admin gets only a least-privilege hint', () => {
+  assert.deepEqual(npmAccessFrom({ roles: [], permissions: { visibility: 'all', proxy_hosts: 'manage', certificates: 'view' } }).issues, [])
+  const admin = npmAccessFrom({ roles: ['admin'], permissions: { visibility: 'user', proxy_hosts: 'view' } })
+  assert.equal(admin.canManage, true)
+  assert.deepEqual(admin.issues.map((i) => i.level), ['info'])
 })

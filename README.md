@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.32.1-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.33.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -332,6 +332,16 @@ first port) and a `/domains` page to manage everything. Routes homeport didn't c
 shown read-only. Credentials live in `settings.json` on the data volume — set its file
 permissions accordingly.
 
+**Nginx Proxy Manager: give homeport its own NPM user.** NPM's API can't sign in to an account
+with two-factor authentication, and a dedicated user limits what a leaked homeport login could
+do. NPM never emails its users, so any unique address works as the login name (for example
+`homeport@your.domain`). Set its permissions in NPM under Users, the user's ⋮ menu,
+**Permissions** (the "Edit" form doesn't store them): Item visibility **All items**, Proxy
+Hosts **Manage**, Certificates **View** (Access Lists stays at View, NPM requires it), the rest
+Hidden. homeport reads what its user may do and says so on the Domains page and in the
+connection test: an NPM user that only sees its own items, or can't change proxy hosts, is
+called out instead of showing an empty or read-only list without explanation.
+
 ## Compose stacks
 
 Enable `HOMEPORT_ALLOW_STACKS=true`, grant the proxy permissions from the security table,
@@ -346,6 +356,19 @@ project name:
 - The dashboard's image-update detection pairs naturally with `pull` here.
 
 ![compose stack editor](docs/stacks.png)
+
+**Stacks another tool owns.** If a compose file is written by something else (an Ansible
+playbook, a CI deploy), homeport's own edits to it would be overwritten by that tool's next
+run. Say so in the file; compose ignores `x-` keys:
+
+```yaml
+x-homeport:
+  managed-by: my ansible playbook
+```
+
+homeport then never writes that file itself (version switches, network and restart/limit
+saves point you to the owner instead), shows a "managed by" badge, and asks before you save a
+hand edit. Git-backed stacks get the same protection for every file git tracks.
 
 Limitations (documented, by design): stacks operate on the host `DOCKER_HOST` points at —
 local socket or `tcp://`; `ssh://` hosts aren't supported for stacks (run homeport on that
@@ -377,6 +400,10 @@ the page.
   (or the settings toggle). An **email (SMTP) channel** can be configured alongside webhooks
   (implicit TLS or STARTTLS, optional auth — settings-only, no env needed), and an optional
   toggle also notifies when the daily update check finds a **newer image** (once per digest).
+- **Domain alerts** (on by default when alerts are on): a running container's domain that
+  answers 5xx or nothing for the debounce count notifies, with "answers again" when it
+  recovers. Checked the same way as the status dots, through the reverse proxy when the
+  server can't reach its own public address from inside Docker.
 
 > Single container, single process: one collector runs per deployment. All of this degrades
 > gracefully to in-memory if `HOMEPORT_DATA_DIR` isn't writable.

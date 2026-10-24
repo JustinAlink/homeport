@@ -94,6 +94,8 @@ export interface HomeportConfig {
   alertsEnabled: boolean
   /** Also notify when the update sweep finds a newer image. */
   alertUpdates: boolean
+  /** alert when a running container's domain answers 5xx or nothing */
+  alertDomains: boolean
   /** Email (SMTP) alert channel — active when host/from/to are set. */
   smtpHost: string
   smtpPort: number
@@ -287,6 +289,7 @@ export function getConfig(): HomeportConfig {
         ? process.env.HOMEPORT_ALERTS === 'true'
         : s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
+    alertDomains: s.alertDomains ?? true,
     smtpHost: s.smtpHost ?? '',
     smtpPort: s.smtpPort ?? 587,
     smtpSecure: s.smtpSecure ?? false,
@@ -388,6 +391,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     historyEnabled: s.historyEnabled ?? true,
     alertsEnabled: s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
+    alertDomains: s.alertDomains ?? true,
     autoUpdateEnabled: s.autoUpdateEnabled ?? false,
     autoUpdateHour: s.autoUpdateHour ?? 4,
     autoUpdateTargets: s.autoUpdateTargets ?? [],

@@ -9,8 +9,9 @@ export function useNetworkOps() {
   const services = useServices()
   const stackAware = useStackAwareActions()
   const stacksStore = useStacks()
-  // a git stack's compose file is reset by the next update from git: nothing to save into
-  const canSave = (s: Service) => !!stackAware.stackOf(s) && !!s.composeService && !stacksStore.isGit(s.project)
+  // a git stack's compose file is reset by the next update from git, and a file another
+  // system manages (x-homeport.managed-by) by its next run: nothing to save into
+  const canSave = (s: Service) => !!stackAware.stackOf(s) && !!s.composeService && !stacksStore.isLocked(s.project)
 
   async function persist(service: Service, patch: { addNetwork?: string; removeNetwork?: string }): Promise<string> {
     const stack = stackAware.stackOf(service)

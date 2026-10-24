@@ -144,8 +144,8 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean; git?: { tracked?: string[]; branch?: string } | null }>()
-const gitTracked = useGitTracked(() => props.git)
+const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean; git?: { tracked?: string[]; branch?: string } | null; managedBy?: string | null }>()
+const gitTracked = useExternalSource(() => ({ git: props.git, managedBy: props.managedBy }))
 
 interface Entry {
   name: string

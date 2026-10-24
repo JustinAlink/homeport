@@ -6,6 +6,8 @@ import {
   badKind,
   renderTemplate,
   emptyAlertState,
+  domainTargets,
+  domainDown,
   type ServiceState,
   type AlertRuleConfig,
 } from '../server/utils/alerts-core.ts'
@@ -146,4 +148,29 @@ test('eventText: update kind reads as an update, not a failure', () => {
   assert.match(text, /jellyfin/)
   assert.match(text, /image update available/)
   assert.match(text, /on vps/)
+})
+
+test('domain alerts watch running, non-excluded containers, one entry per URL', () => {
+  const svc = (id: string, state: string, urls: string[], noalert = false) => ({ id, displayName: id, state, noalert, domains: urls.map((u) => ({ domain: u, url: `https://${u}` })) })
+  const t = domainTargets([
+    svc('web', 'running', ['a.example', 'b.example']),
+    svc('stopped', 'exited', ['c.example']), // its own "down" alert covers it
+    svc('quiet', 'running', ['d.example'], true),
+    svc('web2', 'running', ['a.example']), // same URL twice: watched once
+  ])
+  assert.deepEqual(t.map((x) => x.domain), ['a.example', 'b.example'])
+  assert.equal(t[0].service, 'web')
+})
+
+test('a domain is down on 5xx or no answer, not on 4xx (a login wall is the app answering)', () => {
+  assert.equal(domainDown({ status: 0 }), true)
+  assert.equal(domainDown({ status: 502 }), true)
+  assert.equal(domainDown({ status: 401 }), false)
+  assert.equal(domainDown({ status: 404 }), false)
+  assert.equal(domainDown({ status: 200 }), false)
+})
+
+test('domain alert texts say which site and what it answers', () => {
+  assert.match(eventText({ id: 'domain:x', name: 'blog.example.com', kind: 'domain-down', from: 'ghost', to: 'HTTP 502', at: 0 }), /blog\.example\.com is not answering properly \(HTTP 502\), served by ghost/)
+  assert.match(eventText({ id: 'domain:x', name: 'blog.example.com', kind: 'domain-recovered', from: 'HTTP 502', to: 'HTTP 200', at: 0 }), /blog\.example\.com answers again \(HTTP 200\)/)
 })

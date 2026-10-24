@@ -1,5 +1,35 @@
 # Changelog
 
+## v2.33.0 (2026-10-24)
+
+Lessons from running homeport on a real server.
+
+- **homeport says what its NPM user may do.** An NPM user starts with NPM's
+  defaults ("own items only"), so homeport signed in fine and silently listed none
+  of the existing proxy hosts. It now reads the user's permissions and says so on
+  the Domains page and in the connection test: sees only its own hosts, can see
+  but not change proxy hosts, or is an administrator (a dedicated user is safer).
+  Edit buttons it couldn't use are hidden, and a refusal from NPM (403) explains
+  itself.
+- **Stacks another tool owns.** A compose file can name its owner with
+  `x-homeport: managed-by: ...` (compose ignores `x-` keys). homeport then never
+  writes it (version switch, network and restart/limit saves point to the owner),
+  shows a "managed by" badge, and asks before a hand edit, like a git-backed stack.
+- **Domain alerts.** With alerts on, a running container's domain that answers 5xx
+  or nothing for the debounce count notifies through your channels ("answers
+  again" on recovery), and shows in Activity. On by default; a switch under
+  Monitoring & alerts turns it off.
+- **A readable usage chart on big servers.** The dashboard chart fits its scale
+  to the data on round steps (5, 10, 25 ... 100%) with labelled values, instead
+  of flat lines at the bottom of a 0 to 100% scale.
+- **Two-factor nudge.** The admin who signs in with a password and has two-factor
+  off sees a short note on the dashboard with a link to turn it on ("Not now"
+  hides it for 30 days).
+- **More reliable releases.** The image installs exactly the tested lockfile
+  (`npm ci`) and retries once on esbuild's "text file busy" flake, which failed
+  the v2.31.2 build. CI installs Chromium without system packages unless a
+  launch needs them; those once took 12 minutes from a slow apt mirror.
+
 ## v2.32.1 (2026-10-22)
 
 - **NPM accounts with two-factor authentication get a clear answer.** NPM's API

@@ -9,6 +9,7 @@
       <template #badges>
         <span v-if="file" class="badge font-mono">{{ file }}</span>
         <span v-if="gitInfo" class="badge badge-info"><Icon name="git-branch" class="h-3 w-3" />git</span>
+        <span v-if="stackOwner" class="badge badge-warn" :title="`The compose file says it is managed by ${stackOwner} (x-homeport: managed-by), so homeport doesn't write it`">managed by {{ stackOwner }}</span>
         <span
           v-if="source !== 'stacks' && !notManaged && !isNew"
           class="badge"
@@ -270,7 +271,7 @@
     </section>
 
     <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" :git="gitInfo" class="mb-6" />
+    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" :git="gitInfo" :managed-by="stackOwner" class="mb-6" />
 
     <!-- where the stack's data actually lives: named volumes + host binds that
          sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
@@ -686,7 +687,8 @@ interface GitInfo {
   tracked?: string[]
 }
 const gitInfo = ref<GitInfo | null>(null)
-const gitTracked = useGitTracked(() => gitInfo.value)
+const stackOwner = computed(() => stacksStore.managedBy(name))
+const gitTracked = useExternalSource(() => ({ git: gitInfo.value, managedBy: stackOwner.value }))
 const gitChecking = ref(false)
 
 async function loadGit(force = false) {

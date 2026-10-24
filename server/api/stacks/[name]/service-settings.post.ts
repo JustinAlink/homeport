@@ -1,6 +1,7 @@
 import { getConfig } from '../../../utils/config'
 import { readStack, saveStackValidated } from '../../../utils/stacks'
 import { patchComposeService, type ServiceSettingsPatch } from '../../../utils/compose-edit-core'
+import { managedByOf } from '../../../utils/stacks-core'
 import { isGitStack } from '../../../utils/git-stacks'
 import { demoStackRead, demoStackSave, demoSwitchTag, demoIsGitStack } from '../../../utils/demo'
 
@@ -38,6 +39,15 @@ export default defineEventHandler(async (event) => {
 
   const current = cfg.demo ? demoStackRead(name) : await readStack(name)
   if (!current) throw createError({ statusCode: 404, statusMessage: `stack "${name}" not found` })
+
+  // owned by another system (x-homeport.managed-by): its next run would overwrite this
+  const owner = managedByOf(current.content)
+  if (owner) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `"${name}"'s compose file is managed by ${owner}: its next run would overwrite this change, so make it there instead.`,
+    })
+  }
 
   let next: string
   try {

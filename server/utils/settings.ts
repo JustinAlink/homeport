@@ -42,6 +42,7 @@ export interface PersistedSettings {
   /** Per-service alerting. */
   alertsEnabled?: boolean
   alertUpdates?: boolean
+  alertDomains?: boolean
   /** Scheduled automatic updates. */
   autoUpdateEnabled?: boolean
   autoUpdateHour?: number

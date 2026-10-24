@@ -90,6 +90,10 @@ function eventRowBase(e: AlertRow): Row {
       return { at: e.at, icon: 'alert', cls: 'text-amber-300', text: `${e.name} became unhealthy`, host: e.host, group: 'status' }
     case 'recovered':
       return { at: e.at, icon: 'check', cls: 'text-ok', text: `${e.name} recovered (${e.from} → ${e.to})`, host: e.host, group: 'status' }
+    case 'domain-down':
+      return { at: e.at, icon: 'globe', cls: 'text-red-400', text: `${e.name} stopped answering (${e.to}), served by ${e.from}`, host: e.host, group: 'status' }
+    case 'domain-recovered':
+      return { at: e.at, icon: 'globe', cls: 'text-ok', text: `${e.name} answers again (${e.to})`, host: e.host, group: 'status' }
     case 'update':
       return { at: e.at, icon: 'arrow-up', cls: 'text-sky-300', text: `update available for ${e.name} (${e.from})`, host: e.host, group: 'updates' }
     case 'updated':

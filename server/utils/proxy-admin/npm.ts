@@ -1,7 +1,7 @@
 import { httpJson } from '../http'
 import { log } from '../log'
-import type { ProxyAdmin, AdminRoute, NewRoute } from './types'
-import { buildProxyHostPayload, npmRouteFrom, pickCertificate, type NpmProxyHost } from './npm-admin-core'
+import type { ProxyAdmin, AdminRoute, NewRoute, ProxyAccess } from './types'
+import { buildProxyHostPayload, npmRouteFrom, pickCertificate, npmAccessFrom, type NpmProxyHost } from './npm-admin-core'
 import { npmLoginError } from './npm-bootstrap-core'
 
 // Nginx Proxy Manager REST API. Auth: POST /api/tokens {identity,secret} → JWT,
@@ -43,6 +43,9 @@ export function createNpmAdmin(cfg: NpmAdminConfig): ProxyAdmin {
       tokenCache.delete(cacheKey)
       return api<T>(path, opts, false)
     }
+    if (r.status === 403) {
+      throw new Error(`NPM refused this (403): the NPM user homeport signs in with isn't allowed to. Check its permissions in NPM: Users, the user's ⋮ menu, Permissions.`)
+    }
     if (!r.ok) throw new Error(`NPM ${opts.method || 'GET'} ${path} failed (${r.error || r.status})`)
     return r.data as T
   }
@@ -68,11 +71,21 @@ export function createNpmAdmin(cfg: NpmAdminConfig): ProxyAdmin {
 
     async test() {
       try {
-        await api('/api/nginx/proxy-hosts')
-        return { ok: true, message: 'Connected to Nginx Proxy Manager.' }
+        const hosts = await api<NpmProxyHost[]>('/api/nginx/proxy-hosts')
+        const access = npmAccessFrom(await api('/api/users/me?expand=permissions'))
+        const seen = `sees ${hosts?.length ?? 0} proxy host${hosts?.length === 1 ? '' : 's'}`
+        const warn = access.issues.filter((i) => i.level === 'warn').map((i) => i.text)
+        return {
+          ok: warn.length === 0,
+          message: `Connected to Nginx Proxy Manager as ${access.identity || 'its user'}, ${seen}.${warn.length ? ` ${warn.join(' ')}` : ''}`,
+        }
       } catch (e: any) {
         return { ok: false, message: e?.message || 'connection failed' }
       }
+    },
+
+    async access(): Promise<ProxyAccess> {
+      return npmAccessFrom(await api('/api/users/me?expand=permissions'))
     },
 
     async listRoutes(): Promise<AdminRoute[]> {

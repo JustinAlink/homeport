@@ -8,9 +8,9 @@
 
     <div class="relative" @mousemove="onMove" @mouseleave="hi = null">
       <svg :width="w" :height="H">
-        <template v-if="sharedMax">
-          <line v-for="p in [0, 25, 50, 75, 100]" :key="p" x1="0" :x2="w" :y1=" y(sharedMax, p)" :y2="y(sharedMax, p)" stroke="currentColor" class="text-white/[0.06]" stroke-width="1" :stroke-dasharray="p === 0 ? '' : '2 4'" />
-          <text v-for="p in [50, 100]" :key="'t' + p" x="2" :y="y(sharedMax, p) + 11" fill="currentColor" class="text-slate-600" font-size="10">{{ p }}%</text>
+        <template v-if="scaleMax">
+          <line v-for="p in [0, 25, 50, 75, 100]" :key="p" x1="0" :x2="w" :y1="y(scaleMax, (p / 100) * scaleMax)" :y2="y(scaleMax, (p / 100) * scaleMax)" stroke="currentColor" class="text-white/[0.06]" stroke-width="1" :stroke-dasharray="p === 0 ? '' : '2 4'" />
+          <text v-for="p in [50, 100]" :key="'t' + p" x="2" :y="y(scaleMax, (p / 100) * scaleMax) + 11" fill="currentColor" class="text-slate-600" font-size="10">{{ Math.round((p / 100) * scaleMax * 10) / 10 }}%</text>
         </template>
         <defs>
           <linearGradient v-for="(s, i) in series" :id="`lg-${uid}-${i}`" :key="'g' + s.label" x1="0" y1="0" x2="0" y2="1">
@@ -48,8 +48,8 @@ interface Series {
   unit?: string
 }
 const props = withDefaults(
-  defineProps<{ series: Series[]; sharedMax?: number; height?: number; intervalSec?: number; bare?: boolean }>(),
-  { height: 140, intervalSec: 7, bare: false },
+  defineProps<{ series: Series[]; sharedMax?: number; height?: number; intervalSec?: number; bare?: boolean; fit?: boolean }>(),
+  { height: 140, intervalSec: 7, bare: false, fit: false },
 )
 
 const H = computed(() => props.height)
@@ -67,8 +67,13 @@ onMounted(() => {
 onBeforeUnmount(() => ro?.disconnect())
 
 const n = computed(() => Math.max(1, ...props.series.map((s) => s.data.length)))
+// shared scale: fixed at sharedMax, or with `fit` fitted to the data (round steps,
+// never above sharedMax) so a quiet big host doesn't draw flat lines at the bottom
+const scaleMax = computed(() =>
+  props.sharedMax == null ? null : props.fit ? niceScaleMax(Math.max(0, ...props.series.flatMap((s) => s.data)), props.sharedMax) : props.sharedMax,
+)
 // per-series scale gets 25% headroom so a steady line sits below the top edge
-const maxOf = (s: Series) => props.sharedMax ?? Math.max(1, ...s.data) * 1.25
+const maxOf = (s: Series) => scaleMax.value ?? Math.max(1, ...s.data) * 1.25
 const y = (max: number, v: number) => H.value - (Math.min(max, Math.max(0, v)) / max) * H.value
 const xAt = (i: number) => (n.value < 2 ? 0 : (i / (n.value - 1)) * w.value)
 const uid = useId() // stable across SSR + hydration, unique per graph

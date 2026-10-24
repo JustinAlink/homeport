@@ -420,6 +420,14 @@
           </div>
 
           <label class="check">
+            <input v-model="form.alertDomains" type="checkbox" />
+            <span>
+              Notify when a domain stops answering
+              <span class="block text-[11px] text-slate-500">a running container's domain that answers 5xx or nothing for as many checks as set below; containers that are down already alert on their own</span>
+            </span>
+          </label>
+
+          <label class="check">
             <input v-model="form.alertUpdates" type="checkbox" />
             <span>
               Notify when image updates are found
@@ -925,6 +933,7 @@ const form = reactive({
   historyEnabled: true,
   alertsEnabled: false,
   alertUpdates: false,
+  alertDomains: true,
   smtpHost: '',
   smtpPort: 587,
   smtpSecure: false,

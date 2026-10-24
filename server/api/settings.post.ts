@@ -166,6 +166,7 @@ export default defineEventHandler(async (event) => {
 
   if (body.alertsEnabled !== undefined) patch.alertsEnabled = !!body.alertsEnabled
   if (body.alertUpdates !== undefined) patch.alertUpdates = !!body.alertUpdates
+  if (body.alertDomains !== undefined) patch.alertDomains = !!body.alertDomains
   for (const k of ['smtpHost', 'smtpUser', 'smtpFrom', 'smtpTo'] as const) {
     if (body[k] !== undefined) patch[k] = String(body[k] ?? '').trim()
   }

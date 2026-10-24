@@ -95,9 +95,11 @@
         </div>
       </div>
       <div v-if="showGraph" class="px-2 pb-3 sm:px-3">
-        <LineGraph :series="fleetSeries" :shared-max="100" :interval-sec="graphIntervalSec" :height="150" bare />
+        <LineGraph :series="fleetSeries" :shared-max="100" fit :interval-sec="graphIntervalSec" :height="150" bare />
       </div>
     </section>
+
+    <TwoFactorNudge />
 
     <!-- needs attention -->
     <section v-if="attention.length" class="card mb-6 border-amber-500/20">

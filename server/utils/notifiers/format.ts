@@ -4,7 +4,7 @@ import type { AlertEvent, WebhookChannel } from './types'
 // unit-testable in isolation. {{placeholder}} substitution mirrors alerts-core's
 // renderTemplate (kept local to avoid a runtime cross-import).
 
-const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵' }
+const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵', 'domain-down': '🔴', 'domain-recovered': '🟢' }
 
 const render = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
@@ -12,6 +12,8 @@ const render = (tpl: string, vars: Record<string, string>) =>
 /** Human-readable one-liner for an alert. */
 export function eventText(e: AlertEvent): string {
   const where = e.host ? ` on ${e.host}` : ''
+  if (e.kind === 'domain-down') return `🔴 ${e.name} is not answering properly (${e.to}), served by ${e.from}${where}`
+  if (e.kind === 'domain-recovered') return `🟢 ${e.name} answers again (${e.to})${where}`
   if (e.kind === 'recovered') return `🟢 ${e.name} recovered (${e.from} → ${e.to})${where}`
   if (e.kind === 'update') return `🔵 ${e.name}: image update available (${e.from})${where}`
   if (e.kind === 'updated')
@@ -35,7 +37,7 @@ export function buildBody(ch: WebhookChannel, e: AlertEvent): { body: string; he
       // 100+ services (Gotify/Pushover/Telegram/Matrix/…). `url` is the /notify
       // endpoint (a config key in the path = stateful; otherwise pass service `urls`).
       const type =
-        e.kind === 'recovered' ? 'success'
+        e.kind === 'recovered' || e.kind === 'domain-recovered' ? 'success'
           : e.kind === 'update' ? 'info'
             : e.kind === 'updated' ? (e.to ? 'failure' : 'success')
               : e.kind === 'unhealthy' ? 'warning'

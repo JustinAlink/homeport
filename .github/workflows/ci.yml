@@ -20,8 +20,13 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # Chromium alone downloads in seconds; `--with-deps` also apt-installs system
+      # libraries, which once took 12 minutes from a slow mirror. The runner image
+      # already has them (it ships Chrome), so only fall back to apt if a launch fails.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright install chromium
+          node -e "require('playwright').chromium.launch().then((b) => b.close())" || npx playwright install-deps chromium
       - name: Smoke test (demo build, every page)
         run: npm run smoke
 

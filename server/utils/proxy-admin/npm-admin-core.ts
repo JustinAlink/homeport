@@ -1,4 +1,4 @@
-import type { AdminRoute, NewRoute } from './types'
+import type { AdminRoute, NewRoute, ProxyAccess } from './types'
 
 // Pure builders/mappers for the Nginx Proxy Manager REST API. No I/O.
 
@@ -64,4 +64,39 @@ export function pickCertificate(
     if (domains.every((d) => covers(c.domain_names || [], d))) return c.id
   }
   return 0
+}
+
+/**
+ * NPM users have per-type permissions, and a new user gets NPM's defaults:
+ * "own items only" visibility, so it sees none of the hosts other accounts made.
+ * homeport logged in fine with such a user and silently listed nothing (seen live
+ * 2026-10-24). This reads `GET /api/users/me?expand=permissions` (snake_case from
+ * the API, camelCase in NPM's own frontend: both accepted) and says what is missing.
+ */
+export function npmAccessFrom(me: any): ProxyAccess {
+  const perms = me?.permissions ?? {}
+  const pick = (snake: string, camel: string) => String(perms[snake] ?? perms[camel] ?? '')
+  const admin = Array.isArray(me?.roles) && me.roles.includes('admin')
+  const visibility = pick('visibility', 'visibility')
+  const proxyHosts = pick('proxy_hosts', 'proxyHosts')
+  const issues: ProxyAccess['issues'] = []
+  if (admin) {
+    issues.push({
+      level: 'info',
+      text: 'homeport signs in to NPM with an administrator account. A dedicated NPM user with only Proxy Hosts: Manage (and Item visibility: All items) limits what a leaked homeport login could do.',
+    })
+  } else {
+    if (visibility === 'user') {
+      issues.push({
+        level: 'warn',
+        text: "This NPM user only sees proxy hosts it created itself, so hosts made in NPM or by another account are missing here. In NPM: Users, the user's ⋮ menu, Permissions, Item visibility: All items.",
+      })
+    }
+    if (proxyHosts === 'view') {
+      issues.push({ level: 'warn', text: 'This NPM user can see proxy hosts but not change them, so adding, editing and removing domains is off. Give it Proxy Hosts: Manage.' })
+    } else if (proxyHosts === 'hidden') {
+      issues.push({ level: 'warn', text: "This NPM user can't see proxy hosts at all. Give it Proxy Hosts: Manage." })
+    }
+  }
+  return { identity: String(me?.email ?? ''), admin, canManage: admin || proxyHosts === 'manage', issues }
 }

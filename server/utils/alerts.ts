@@ -11,7 +11,13 @@ import {
   detectTransitions,
   reduceAlertState,
   badKind,
+  domainTargets,
+  domainDown,
+  domainLabel,
 } from './alerts-core'
+import { pingAll } from './ping'
+import { findProxyName } from './ping-core'
+import { getHosts } from './hosts'
 import { getNotifiers, type AlertEvent } from './notifiers'
 
 // Effectful alerting layer: turns successive collector snapshots into debounced
@@ -160,9 +166,9 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
     }
   }
 
-  // prune state for vanished services
+  // prune state for vanished services (domain states are evaluateDomainAlerts' own)
   const ids = new Set(next.map((s) => s.id))
-  for (const id of Object.keys(state)) if (!ids.has(id)) delete state[id]
+  for (const id of Object.keys(state)) if (!id.startsWith('domain:') && !ids.has(id)) delete state[id]
 
   prevStates = new Map(next.map((s) => [s.id, s]))
   stateCache = state
@@ -189,4 +195,44 @@ function labelOf(s: ServiceState): string {
   if (s.state !== 'running' && s.state !== 'restarting') return s.state
   if (s.health === 'unhealthy') return 'unhealthy'
   return s.health || s.state
+}
+
+/**
+ * Domains that stop answering (5xx or nothing) while their container runs: the
+ * app is up but nobody can use it. Same debounce, cooldown and "recovered" rules
+ * as container alerts, state kept under `domain:<url>`. Checked through the same
+ * route as the UI's status dots (public address, then the proxy container).
+ */
+export async function evaluateDomainAlerts(snap: Snapshot): Promise<void> {
+  const cfg = getConfig()
+  if (!cfg.alertsEnabled || !cfg.alertDomains || !cfg.pingEnabled) return
+  const targets = domainTargets(snap.services)
+  const state = loadState()
+  const results = targets.length
+    ? await pingAll(targets.map((t) => t.url), snap.at, findProxyName(snap.services, getHosts()[0]?.name))
+    : {}
+  const rule = {
+    debounceSamples: cfg.alertDebounceSamples,
+    cooldownSec: cfg.alertCooldownSec,
+    transitions: { down: true, unhealthy: false, recovered: cfg.alertTransitions.recovered },
+  }
+  const events: AlertEvent[] = []
+  for (const t of targets) {
+    const r = results[t.url]
+    if (!r) continue
+    const key = `domain:${t.url}`
+    const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), domainDown(r) ? 'down' : null, rule, snap.at)
+    state[key] = nextState
+    if (emit === 'down') events.push({ id: key, name: t.domain, host: t.host, kind: 'domain-down', from: t.service, to: domainLabel(r), at: snap.at })
+    if (emit === 'recovered') events.push({ id: key, name: t.domain, host: t.host, kind: 'domain-recovered', from: t.service, to: domainLabel(r), at: snap.at })
+  }
+  // forget domains that are gone (route removed, container stopped)
+  const live = new Set(targets.map((t) => `domain:${t.url}`))
+  for (const id of Object.keys(state)) if (id.startsWith('domain:') && !live.has(id)) delete state[id]
+  stateCache = state
+  if (!events.length) return persist()
+  for (const e of events) {
+    const sent = await dispatch(e)
+    for (const r of sent.filter((x) => !x.ok)) logger.warn('alerts', `notifier "${r.name}" failed to deliver "${e.kind}" alert for ${e.name}`, r.error)
+  }
 }

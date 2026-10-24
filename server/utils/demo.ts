@@ -5,6 +5,7 @@ import { startOp } from './ops'
 import { safeNetworkName, parseCidr, findSubnetConflicts, type NetworkInfo } from './networks-core'
 import { safeRelPath, type FileEntry } from './files-core'
 import { tagKindOf, withTag } from './versions-core'
+import { managedByOf } from './stacks-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -331,7 +332,9 @@ function synthCompose(group: string): string {
       `    restart: unless-stopped`,
       ...(s.ports?.length ? [`    ports:`, ...s.ports.map((p) => `      - "${p}:${p}"`)] : []),
     ].join('\n')
-  return `services:\n${members.map(svc).join('\n')}\n`
+  // the adopted demo stack is owned by another tool, so the "managed by" guard is demoable
+  const owner = group === DEMO_EXTERNAL_STACK ? `x-homeport:\n  managed-by: ansible playbook\n\n` : ''
+  return `${owner}services:\n${members.map(svc).join('\n')}\n`
 }
 
 // One demo stack presents as an external project managed in place (compose root).
@@ -355,6 +358,7 @@ export function demoStackList() {
       source: external ? 'adopted' : 'stacks',
       dir: external ? `/home/demo/docker/${g}` : undefined,
       git: g === 'media' || demoGitStacks.has(g),
+      managedBy: managedByOf(demoStackContent.get(g) ?? synthCompose(g)) ?? undefined,
     }
   })
   return {

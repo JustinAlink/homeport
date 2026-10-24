@@ -4,7 +4,7 @@ import { listContainersFor } from '../utils/docker'
 import { listAllStacks, externalProjects } from '../utils/stacks'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { stackStatuses, declaredServices, type DeclaredService } from '../utils/stacks-core'
+import { stackStatuses, declaredServices, managedByOf, type DeclaredService } from '../utils/stacks-core'
 import { isGitStack } from '../utils/git-stacks'
 import { demoStackList } from '../utils/demo'
 
@@ -34,11 +34,15 @@ export default defineEventHandler(async () => {
   const external = externalProjects(containers)
   // count from each compose file, so stopped (`down`) and never-started services show up too
   const declared: Record<string, DeclaredService[] | null> = {}
+  const managedBy: Record<string, string | null> = {}
   for (const a of all) {
     try {
-      declared[a.name] = declaredServices(readFileSync(join(a.dir, a.file), 'utf8'))
+      const content = readFileSync(join(a.dir, a.file), 'utf8')
+      declared[a.name] = declaredServices(content)
+      managedBy[a.name] = managedByOf(content)
     } catch {
       declared[a.name] = null
+      managedBy[a.name] = null
     }
   }
   const { stacks, unmanaged } = stackStatuses(all.map((a) => a.name), containers, declared)
@@ -52,6 +56,7 @@ export default defineEventHandler(async () => {
         source: ref.source,
         dir: ref.source === 'stacks' ? undefined : ref.dir,
         git: ref.source === 'stacks' && isGitStack(s.name),
+        managedBy: managedBy[s.name] ?? undefined,
       }
     }),
     unmanaged: unmanaged.map((u) => ({

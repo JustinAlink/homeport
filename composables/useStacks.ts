@@ -10,6 +10,8 @@ export interface StackInfo {
   missing?: { name: string; image?: string }[]
   file?: string
   git?: boolean
+  /** x-homeport.managed-by in the compose file: another system owns it */
+  managedBy?: string
   source?: 'stacks' | 'root' | 'adopted'
   dir?: string
 }
@@ -38,6 +40,10 @@ export function useStacks() {
   const isManaged = (project: string | null | undefined) => !!byName(project)
   /** Deployed from git: its folder is reset to the repository on update, so homeport must not edit its files. */
   const isGit = (project: string | null | undefined) => !!byName(project)?.git
+  /** Another system (named in the compose file) owns it; homeport must not write its files either. */
+  const managedBy = (project: string | null | undefined) => byName(project)?.managedBy ?? null
+  /** homeport must not write this stack's files itself: git resets them, or another system owns them. */
+  const isLocked = (project: string | null | undefined) => isGit(project) || !!managedBy(project)
 
-  return { stacks, loaded, refresh, byName, isManaged, isGit }
+  return { stacks, loaded, refresh, byName, isManaged, isGit, managedBy, isLocked }
 }
