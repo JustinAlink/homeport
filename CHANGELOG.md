@@ -1,5 +1,31 @@
 # Changelog
 
+## v2.35.0 (2026-10-24)
+
+Under the hood: Nuxt 4, and checks that keep homeport from quietly breaking.
+
+- **Nuxt 4 (4.6.2) with vue-router 5.** Fixes the three Nuxt advisories that
+  were only patched in Nuxt 4 (route rules skipped for case-variant paths,
+  unsanitised server-island head input, `javascript:` URLs with a control
+  character); none was reachable in homeport, which uses neither route rules nor
+  islands. A stale direct `vue-router@4` dependency had been bundled instead of
+  the router Nuxt 4 is built for; it's gone. The folder layout stays as it was
+  (Nuxt 4 detects it). Remaining `npm audit` entries are build or dev-server
+  tooling (node-forge is in none of the shipped files) and dockerode's `uuid`,
+  whose bug needs an argument dockerode never passes.
+- **Fewer requests per page.** The app manifest fetch (`builds/meta/*.json`) is
+  off: homeport has no route rules or prerendering for it to serve, and an
+  aborted fetch logged a console error now and then.
+- **Browser suites in CI.** The suites that covered the recent releases now live
+  in `test/e2e` (`npm run e2e`) and run on every push in their own job, with an
+  accessibility gate (axe-core, WCAG A/AA).
+- **Type check in CI.** `npm run typecheck` (pinned vue-tsc and TypeScript) over
+  Nuxt 4's app, server, shared and node projects, at zero errors. Fixing the
+  last ones: dockerode's types lag behind it (timeouts on ping/version/info and
+  image inspect, a volume's `CreatedAt`), declared once instead of cast per call;
+  tar-stream's own event types; and a field missing from the newer-version type.
+  Nuxt 4's stricter index checks (`noUncheckedIndexedAccess`) stay off for now.
+
 ## v2.34.0 (2026-10-24)
 
 - **Pinned images get version checks too.** An image pinned by tag and digest

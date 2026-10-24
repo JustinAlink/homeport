@@ -12,6 +12,8 @@ export type TagKind = 'exact' | 'line' | 'floating'
 export interface NewerVersion {
   tag: string
   bump: Bump
+  /** for tag+digest pins: what the tag points at now (filled in by updates.ts) */
+  digest?: string
 }
 
 export interface TagShape {

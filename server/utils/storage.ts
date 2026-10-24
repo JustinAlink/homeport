@@ -45,7 +45,7 @@ export async function listVolumesFor(host: HostConfig): Promise<VolumeInfo[]> {
     .map((v) => ({
       name: v.Name,
       driver: v.Driver || '',
-      createdAt: v.CreatedAt ? Date.parse(v.CreatedAt as unknown as string) || 0 : 0,
+      createdAt: v.CreatedAt ? Date.parse(v.CreatedAt) || 0 : 0,
       project: (v.Labels || {})['com.docker.compose.project'] || null,
       attached: refs.get(v.Name) || [],
     }))

@@ -47,7 +47,7 @@ export function getLatestSnapshot(): Snapshot | null {
 }
 
 /** Run one collector stage in isolation — a failure is logged, not fatal to the tick. */
-async function stage(name: string, fn: () => Promise<unknown>): Promise<void> {
+async function stage(name: string, fn: () => unknown): Promise<void> {
   try {
     await fn()
   } catch (e) {

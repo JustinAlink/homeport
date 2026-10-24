@@ -75,7 +75,7 @@ test('caddy: https server detection, route build, listing + managed flag', () =>
 // ---- Traefik file ----
 
 test('traefik: upsert adds homeport keys without touching user routers', () => {
-  const doc = {
+  const doc: any = {
     http: {
       routers: { userblog: { rule: 'Host(`blog.com`)', service: 'blog-svc' } },
       services: { 'blog-svc': { loadBalancer: { servers: [{ url: 'http://ghost:2368' }] } } },

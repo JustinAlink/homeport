@@ -27,6 +27,7 @@ feature has a demo path, and PRs for new features should include one.
 
 ```bash
 npm test                    # node --test over test/*.test.ts
+npm run typecheck           # vue-tsc over the app, server, shared and node projects
 npm run build               # production build must stay clean
 npm run smoke               # boots the demo build and visits every page
                             # (once: npx playwright install chromium)

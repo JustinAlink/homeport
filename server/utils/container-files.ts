@@ -43,7 +43,7 @@ function scanTarHeaders(stream: NodeJS.ReadableStream): Promise<HeaderScan> {
       done = true
       resolve({ entries, truncated })
     }
-    extract.on('entry', (header: any, content: NodeJS.ReadableStream & { destroy: () => void }, next: () => void) => {
+    extract.on('entry', (header, content, next) => {
       if (done) {
         content.resume()
         return next()
@@ -99,7 +99,7 @@ export async function readContainerFile(id: string, path: string): Promise<Conta
   return new Promise((resolve, reject) => {
     const extract = tarStream.extract()
     let settled = false
-    extract.on('entry', (header: any, content: NodeJS.ReadableStream, next: () => void) => {
+    extract.on('entry', (header, content, next) => {
       if (settled) {
         content.resume()
         return next()
@@ -112,9 +112,10 @@ export async function readContainerFile(id: string, path: string): Promise<Conta
       }
       const chunks: Buffer[] = []
       let size = 0
-      content.on('data', (c: Buffer) => {
-        if (size < MAX_EDIT_BYTES) chunks.push(c)
-        size += c.length
+      content.on('data', (c) => {
+        const chunk = c as Buffer
+        if (size < MAX_EDIT_BYTES) chunks.push(chunk)
+        size += chunk.length
       })
       content.on('end', () => {
         settled = true
@@ -137,10 +138,12 @@ function packOneFile(name: string, content: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const pack = tarStream.pack()
     const chunks: Buffer[] = []
-    pack.on('data', (c: Buffer) => chunks.push(c))
+    pack.on('data', (c) => {
+      chunks.push(c as Buffer)
+    })
     pack.on('end', () => resolve(Buffer.concat(chunks)))
     pack.on('error', reject)
-    pack.entry({ name, size: content.length, mode: 0o644, mtime: new Date() }, content, (err: Error | null) => {
+    pack.entry({ name, size: content.length, mode: 0o644, mtime: new Date() }, content, (err?: Error | null) => {
       if (err) return reject(err)
       pack.finalize()
     })

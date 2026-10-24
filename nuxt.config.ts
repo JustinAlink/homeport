@@ -9,6 +9,7 @@ export default defineNuxtConfig({
   // Server backend (reads the Docker socket) — NOT static.
   nitro: {
     preset: 'node-server',
+    typescript: { tsConfig: { compilerOptions: { noUncheckedIndexedAccess: false } } },
     experimental: {
       websocket: true, // web terminal (crossws ships with nitro)
     },
@@ -52,5 +53,27 @@ export default defineNuxtConfig({
 
   tailwindcss: {
     cssPath: '~/assets/css/main.css',
+  },
+
+  // Nuxt 4 turns on noUncheckedIndexedAccess (every list[0] becomes "possibly
+  // undefined": 175 places here). homeport was written under Nuxt 3's rules;
+  // adopting the stricter mode is its own hardening job, not part of the upgrade.
+  typescript: {
+    tsConfig: { compilerOptions: { noUncheckedIndexedAccess: false } },
+    sharedTsConfig: { compilerOptions: { noUncheckedIndexedAccess: false } },
+    nodeTsConfig: { compilerOptions: { noUncheckedIndexedAccess: false } },
+  },
+
+  // The app manifest only serves client-side route rules and prerender checks,
+  // and homeport has neither. Its fetch (builds/meta/<id>.json on every load)
+  // is aborted when a page is left quickly, which logged NUXT_E5002 now and then.
+  experimental: {
+    appManifest: false,
+  },
+
+  // @nuxtjs/tailwindcss adds `tailwindcss/nesting`, which Nuxt 4's PostCSS loader
+  // can't load (a build warning). main.css uses no nested rules, so it's off.
+  postcss: {
+    plugins: { 'tailwindcss/nesting': false },
   },
 })

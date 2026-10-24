@@ -39,7 +39,6 @@ async function connect() {
   status.value = 'connecting'
   // lazy-load xterm so it never lands in the main bundle
   const [{ Terminal }, { FitAddon }] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')])
-  // @ts-expect-error css module
   await import('@xterm/xterm/css/xterm.css')
 
   term?.dispose()

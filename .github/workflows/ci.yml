@@ -19,6 +19,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # vue-tsc and typescript are pinned devDependencies, so a release of either
+      # can't turn this red without a code change
+      - run: npm run typecheck
       - run: npm run build
       # Chromium alone downloads in seconds; `--with-deps` also apt-installs system
       # libraries, which once took 12 minutes from a slow mirror. The runner image

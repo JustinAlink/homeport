@@ -18,6 +18,14 @@ const clients = new Map<string, Docker>()
 const ONESHOT_TIMEOUT = Number(process.env.HOMEPORT_DOCKER_TIMEOUT_MS) || 15000
 export const oneShot = () => ({ abortSignal: AbortSignal.timeout(ONESHOT_TIMEOUT) })
 
+// ping/version/info take the same { abortSignal } options at runtime, but
+// @types/dockerode declares them without options (and its `export =` class can't
+// be augmented), so these few calls go through one typed helper each.
+type WithTimeout<T> = (options: ReturnType<typeof oneShot>) => Promise<T>
+export const pingOnce = (d: Docker): Promise<unknown> => (d.ping as unknown as WithTimeout<unknown>).call(d, oneShot())
+export const versionOnce = (d: Docker): Promise<Docker.DockerVersion> => (d.version as unknown as WithTimeout<Docker.DockerVersion>).call(d, oneShot())
+export const infoOnce = (d: Docker): Promise<any> => (d.info as unknown as WithTimeout<any>).call(d, oneShot())
+
 /** Lazily build (and cache) a dockerode client for a host (ssh / tcp / unix socket). */
 export function getDockerFor(host: HostConfig): Docker {
   const cached = clients.get(host.id)

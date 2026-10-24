@@ -1,6 +1,6 @@
 import type { ContainerStats, HostStats, StatsMap, StatsResponse } from '~/types/service'
 import type { HostConfig } from './hosts'
-import { getDockerFor, listContainersFor, oneShot } from './docker'
+import { getDockerFor, listContainersFor, oneShot, infoOnce } from './docker'
 import { getHosts } from './hosts'
 import { getConfig } from './config'
 import { readHostSystem } from './host-system'
@@ -60,7 +60,7 @@ export async function getStatsFor(host: HostConfig, ids: string[]): Promise<Stat
 /** One host's capacity (CPU cores + total RAM from `docker info`). */
 export async function getHostInfo(host: HostConfig): Promise<{ ncpu: number; memTotal: number } | null> {
   try {
-    const info: any = await getDockerFor(host).info(oneShot())
+    const info: any = await infoOnce(getDockerFor(host))
     return { ncpu: info.NCPU || 1, memTotal: info.MemTotal || 0 }
   } catch {
     return null
