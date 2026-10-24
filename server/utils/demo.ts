@@ -5,7 +5,7 @@ import { startOp } from './ops'
 import { safeNetworkName, parseCidr, findSubnetConflicts, type NetworkInfo } from './networks-core'
 import { safeRelPath, type FileEntry } from './files-core'
 import { tagKindOf, withTag } from './versions-core'
-import { managedByOf } from './stacks-core'
+import { ownerOf } from './stacks-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -37,11 +37,11 @@ const seeds: Seed[] = [
   { name: 'portainer', image: 'portainer/portainer-ce:2.21.0', group: 'infra', statusText: 'Up 3 weeks', domains: [{ domain: 'portainer.example.com', ssl: true }], ports: [9443] },
   { name: 'vaultwarden', image: 'vaultwarden/server:1.32.0', group: 'infra', health: 'healthy', statusText: 'Up 3 weeks (healthy)', domains: [{ domain: 'vault.example.com', ssl: true }] },
   // downloads
-  { name: 'qbittorrent', image: 'lscr.io/linuxserver/qbittorrent:5.0.0', group: 'downloads', statusText: 'Up 6 days', domains: [{ domain: 'qbit.example.com', ssl: true }], ports: [8090] },
+  { name: 'qbittorrent', image: 'lscr.io/linuxserver/qbittorrent:5.0.0@sha256:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f', group: 'downloads', statusText: 'Up 6 days', domains: [{ domain: 'qbit.example.com', ssl: true }], ports: [8090] },
   { name: 'gluetun', image: 'qmcgaw/gluetun:v3.39.0', group: 'downloads', health: 'healthy', statusText: 'Up 6 days (healthy)' },
-  { name: 'watchtower', image: 'containrrr/watchtower:1.7.1', group: 'downloads', state: 'restarting', statusText: 'Restarting (1) 4 seconds ago' },
+  { name: 'watchtower', image: 'containrrr/watchtower:1.7.1@sha256:5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b', group: 'downloads', state: 'restarting', statusText: 'Restarting (1) 4 seconds ago' },
   // backups
-  { name: 'restic-backup', image: 'mazzolino/restic:1.6.0', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
+  { name: 'restic-backup', image: 'mazzolino/restic:1.6.0@sha256:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d', group: 'backups', state: 'exited', statusText: 'Exited (0) 2 hours ago' },
   // an "unmanaged" compose project: runs on the host, but no stack dir in /stacks
   { name: 'legacy-app', image: 'legacy/app:1.0', group: 'legacy-app', statusText: 'Up 3 months', ports: [9000] },
   // started with plain `docker run`: no compose project (group '' = standalone)
@@ -167,7 +167,7 @@ export function demoHistory(id: string, fromMs: number, toMs: number, res: numbe
 // "applying" flips them to current so the whole flow is clickable without Docker.
 const demoUpdateState: Record<string, 'update' | 'current'> = {}
 // What the registry's tag list would say about each demo image (versions-core).
-const DEMO_VERSIONS: Record<string, { tagKind?: 'exact' | 'line' | 'floating'; newer?: { tag: string; bump: 'major' | 'minor' | 'patch' }; newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch' } }> = {
+const DEMO_VERSIONS: Record<string, { tagKind?: 'exact' | 'line' | 'floating'; newer?: { tag: string; bump: 'major' | 'minor' | 'patch'; digest?: string }; newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch' }; rebuilt?: { digest: string } }> = {
   'jellyfin/jellyfin:10.9.6': { tagKind: 'exact', newer: { tag: '10.10.3', bump: 'minor' } },
   'lscr.io/linuxserver/sonarr:4.0.9': { tagKind: 'exact', newer: { tag: '4.0.11', bump: 'patch' } },
   'lscr.io/linuxserver/radarr:5.11.0': { tagKind: 'exact' },
@@ -177,6 +177,10 @@ const DEMO_VERSIONS: Record<string, { tagKind?: 'exact' | 'line' | 'floating'; n
   'portainer/portainer-ce:2.21.0': { tagKind: 'exact', newer: { tag: '2.21.4', bump: 'patch' } },
   'vaultwarden/server:1.32.0': { tagKind: 'exact', newer: { tag: '1.32.5', bump: 'patch' } },
   'qmcgaw/gluetun:v3.39.0': { tagKind: 'exact', newer: { tag: 'v3.40.0', bump: 'minor' } },
+  // tag+digest pins: one whose tag was rebuilt since, one with a newer version (digest known)
+  'lscr.io/linuxserver/qbittorrent:5.0.0@sha256:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f': { tagKind: 'exact', rebuilt: { digest: 'sha256:2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e' } },
+  'containrrr/watchtower:1.7.1@sha256:5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b': { tagKind: 'exact', newer: { tag: '2.0.0', bump: 'major', digest: 'sha256:6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a' }, rebuilt: { digest: 'sha256:7979797979797979797979797979797979797979797979797979797979797979' } },
+  'mazzolino/restic:1.6.0@sha256:3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d': { tagKind: 'exact', newer: { tag: '1.7.0', bump: 'minor', digest: 'sha256:4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c' } },
 }
 
 export function demoUpdates(): Record<string, any> {
@@ -184,7 +188,8 @@ export function demoUpdates(): Record<string, any> {
   seeds.forEach((s, i) => {
     const key = `default|${s.image}`
     const seeded = i === 0 || i === 8 || UNMANAGED_GROUPS.has(s.group) ? 'update' : 'current'
-    const status = demoUpdateState[key] ?? seeded
+    // a digest pin never "updates"; its version info comes from DEMO_VERSIONS
+    const status = s.image.includes('@') ? 'pinned' : demoUpdateState[key] ?? seeded
     const tag = s.image.includes(':') ? s.image.slice(s.image.lastIndexOf(':') + 1) : 'latest'
     out[key] = {
       status,
@@ -198,10 +203,10 @@ export function demoUpdates(): Record<string, any> {
 }
 
 /** A demo version switch: the container now runs the new tag (and is current). */
-export function demoSwitchTag(name: string, tag: string) {
+export function demoSwitchTag(name: string, tag: string, digest?: string) {
   const seed = seeds.find((s) => s.name === name)
   if (!seed) return
-  seed.image = withTag(seed.image, tag)
+  seed.image = withTag(seed.image, tag) + (digest ? `@${digest}` : '')
   demoUpdateState[`default|${seed.image}`] = 'current'
 }
 export function demoApplyUpdate(image: string) {
@@ -333,7 +338,7 @@ function synthCompose(group: string): string {
       ...(s.ports?.length ? [`    ports:`, ...s.ports.map((p) => `      - "${p}:${p}"`)] : []),
     ].join('\n')
   // the adopted demo stack is owned by another tool, so the "managed by" guard is demoable
-  const owner = group === DEMO_EXTERNAL_STACK ? `x-homeport:\n  managed-by: ansible playbook\n\n` : ''
+  const owner = group === DEMO_EXTERNAL_STACK ? `x-homeport:\n  managed-by: ansible playbook\n  url: https://github.com/example/infra\n\n` : ''
   return `${owner}services:\n${members.map(svc).join('\n')}\n`
 }
 
@@ -358,7 +363,8 @@ export function demoStackList() {
       source: external ? 'adopted' : 'stacks',
       dir: external ? `/home/demo/docker/${g}` : undefined,
       git: g === 'media' || demoGitStacks.has(g),
-      managedBy: managedByOf(demoStackContent.get(g) ?? synthCompose(g)) ?? undefined,
+      managedBy: ownerOf(demoStackContent.get(g) ?? synthCompose(g))?.by,
+      managedByUrl: ownerOf(demoStackContent.get(g) ?? synthCompose(g))?.url,
     }
   })
   return {

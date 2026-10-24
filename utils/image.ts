@@ -31,3 +31,16 @@ export function imageTag(img: string): string {
   const colon = s.lastIndexOf(':')
   return colon > s.lastIndexOf('/') ? s.slice(colon + 1) || 'latest' : 'latest'
 }
+
+/**
+ * The image reference to paste for a version: `repo:tag`, plus `@sha256:…` when
+ * the digest is known (a tag+digest pin stays one). Registry and repo as written.
+ */
+export function pinFor(image: string, tag: string, digest?: string): string {
+  let base = (image || '').trim()
+  const at = base.indexOf('@')
+  if (at >= 0) base = base.slice(0, at)
+  const colon = base.lastIndexOf(':')
+  if (colon > base.lastIndexOf('/')) base = base.slice(0, colon)
+  return `${base}:${tag}${digest ? `@${digest}` : ''}`
+}

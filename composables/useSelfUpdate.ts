@@ -4,6 +4,10 @@ export interface SelfUpdateState {
   checkEnabled: boolean
   updateAvailable: boolean
   image?: string
+  /** a newer homeport VERSION (tag), shown even when a pin means there's nothing to "update" */
+  newerVersion?: string
+  /** who owns homeport's compose file (x-homeport managed-by), where that version gets set */
+  owner?: string | null
 }
 
 // homeport's own update: availability (from the update map) + the apply flow

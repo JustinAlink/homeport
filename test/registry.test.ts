@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, dockerConfigJson, mergeRegistryCredSecrets, changelogUrlFor } from '../server/utils/registry-core.ts'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, normalizeRegistry, authForImage, dockerConfigJson, mergeRegistryCredSecrets, changelogUrlFor, hasExplicitTag, pullInterruptedByPrune } from '../server/utils/registry-core.ts'
 import { buildCreatePayload } from '../server/utils/recreate-core.ts'
 
 // ---- mergeRegistryCredSecrets (masked-token keep-existing on save) ----
@@ -207,4 +207,19 @@ test('recreate: keeps a custom (non short-id) hostname', () => {
   inspect.Config.Hostname = 'my-pinned-host'
   const plan = buildCreatePayload(inspect, 'user/webapp:1.2')
   assert.equal(plan.config.Hostname, 'my-pinned-host')
+})
+
+test('hasExplicitTag: a digest pin may or may not name its tag', () => {
+  assert.equal(hasExplicitTag('jc21/nginx-proxy-manager:2.16.0@sha256:abc'), true)
+  assert.equal(hasExplicitTag('nginx@sha256:abc'), false)
+  assert.equal(hasExplicitTag('registry:5000/app@sha256:abc'), false) // a port is not a tag
+  assert.equal(hasExplicitTag('registry:5000/app:1.2'), true)
+})
+
+test('pullInterruptedByPrune: recognises the containerd lease error, nothing else', () => {
+  assert.equal(pullInterruptedByPrune('failed to commit: lease "abc123": lease does not exist: not found'), true)
+  assert.equal(pullInterruptedByPrune('Error response from daemon: lease does not exist: not found'), true)
+  assert.equal(pullInterruptedByPrune('manifest unknown'), false)
+  assert.equal(pullInterruptedByPrune('pull access denied for x, repository does not exist'), false)
+  assert.equal(pullInterruptedByPrune('release v9 does not exist'), false) // "release" contains "lease"
 })

@@ -9,15 +9,15 @@ import { log } from './log'
 // id), validate it's compose-managed, and launch the detached helper that
 // pulls + recreates the project from outside. See self-update-core.ts.
 
-/** homeport's own container (id + image) on the primary host (null when not in Docker). */
-export async function findSelf(): Promise<{ id: string; image: string } | null> {
+/** homeport's own container (id, image, compose project) on the primary host (null when not in Docker). */
+export async function findSelf(): Promise<{ id: string; image: string; project?: string } | null> {
   const short = hostname()
   if (!/^[0-9a-f]{12}$/.test(short)) return null
   try {
     const docker = getDockerFor(getHosts()[0])
     const list = await docker.listContainers({ all: false, ...oneShot() })
     const self = list.find((c: any) => c.Id.startsWith(short))
-    return self ? { id: self.Id, image: self.Image } : null
+    return self ? { id: self.Id, image: self.Image, project: self.Labels?.['com.docker.compose.project'] } : null
   } catch (e) {
     // Don't mask a real Docker error as "not containerized" silently.
     log.warn('self-update', 'could not list containers to find homeport itself', e)

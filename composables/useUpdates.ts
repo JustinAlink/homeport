@@ -9,8 +9,10 @@ export interface UpdateEntry {
   error?: string
   /** see server/utils/versions-core.ts */
   tagKind?: TagKind
-  newer?: { tag: string; bump: Bump }
-  newerSameMajor?: { tag: string; bump: Bump }
+  newer?: { tag: string; bump: Bump; digest?: string }
+  newerSameMajor?: { tag: string; bump: Bump; digest?: string }
+  /** a tag+digest pin whose tag was rebuilt since: same version, new digest */
+  rebuilt?: { digest: string }
 }
 
 // Duplicated from server/utils/registry-core.ts (no shared/ dir in this app — server

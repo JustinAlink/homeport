@@ -91,6 +91,19 @@
           <span class="min-w-0 flex-1 leading-tight">Update homeport<span class="block text-[11px] font-normal text-accent-light">new version ready</span></span>
           <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent-light" />
         </button>
+        <!-- pinned homeport (a playbook's tag+digest): no update to apply, but a newer version to know about -->
+        <NuxtLink
+          v-else-if="!selfUpdate.busy.value && selfUpdate.state.value.newerVersion"
+          to="/updates"
+          class="flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] px-2.5 py-2 text-left text-[13px] font-medium text-slate-200 transition-colors hover:bg-white/[0.04]"
+          :title="selfUpdate.state.value.owner ? `homeport's version is set by ${selfUpdate.state.value.owner}` : 'homeport is pinned to its current version'"
+        >
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/[0.06]"><Icon name="arrow-up" class="h-3.5 w-3.5" /></span>
+          <span class="min-w-0 flex-1 leading-tight">
+            homeport {{ selfUpdate.state.value.newerVersion }} is out
+            <span class="block truncate text-[11px] font-normal text-slate-500">{{ selfUpdate.state.value.owner ? `update it in ${selfUpdate.state.value.owner}` : 'change the pin to update' }}</span>
+          </span>
+        </NuxtLink>
         <div
           v-else-if="selfUpdate.busy.value"
           class="flex items-center gap-2.5 rounded-lg border border-accent/25 bg-accent/5 px-2.5 py-2 text-[12px] text-accent-light/90"

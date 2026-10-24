@@ -9,7 +9,14 @@
       <template #badges>
         <span v-if="file" class="badge font-mono">{{ file }}</span>
         <span v-if="gitInfo" class="badge badge-info"><Icon name="git-branch" class="h-3 w-3" />git</span>
-        <span v-if="stackOwner" class="badge badge-warn" :title="`The compose file says it is managed by ${stackOwner} (x-homeport: managed-by), so homeport doesn't write it`">managed by {{ stackOwner }}</span>
+        <component
+          :is="stackOwnerUrl ? 'a' : 'span'"
+          v-if="stackOwner"
+          v-bind="stackOwnerUrl ? { href: stackOwnerUrl, target: '_blank', rel: 'noopener noreferrer' } : {}"
+          class="badge badge-warn"
+          :class="stackOwnerUrl ? 'hover:brightness-110' : ''"
+          :title="`The compose file says it is managed by ${stackOwner} (x-homeport: managed-by), so homeport doesn't write it${stackOwnerUrl ? '. Opens ' + stackOwnerUrl : ''}`"
+        >managed by {{ stackOwner }}<Icon v-if="stackOwnerUrl" name="external" class="h-3 w-3" /></component>
         <span
           v-if="source !== 'stacks' && !notManaged && !isNew"
           class="badge"
@@ -688,6 +695,7 @@ interface GitInfo {
 }
 const gitInfo = ref<GitInfo | null>(null)
 const stackOwner = computed(() => stacksStore.managedBy(name))
+const stackOwnerUrl = computed(() => stacksStore.managedByUrl(name))
 const gitTracked = useExternalSource(() => ({ git: gitInfo.value, managedBy: stackOwner.value }))
 const gitChecking = ref(false)
 

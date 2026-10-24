@@ -118,3 +118,11 @@ test('tag: refuses variables, build-only services and bad tags', () => {
   assert.throws(() => patchComposeService('services:\n  app:\n    build: .\n', 'app', { tag: '2.0' }), /no image/)
   assert.throws(() => patchComposeService('services:\n  app:\n    image: app:1.0\n', 'app', { tag: '2.0; rm -rf' }), /not a valid image tag/)
 })
+
+test('tag: a digest pin stays a pin, and refuses to become a floating tag', () => {
+  const d = 'sha256:' + 'a'.repeat(64)
+  const out = patchComposeService('services:\n  db:\n    image: postgres:16.15-alpine@sha256:' + 'b'.repeat(64) + '\n', 'db', { tag: '16.16-alpine', digest: d })
+  assert.match(out, new RegExp(`image: postgres:16\\.16-alpine@${d}`))
+  assert.throws(() => patchComposeService('services:\n  db:\n    image: postgres:16@sha256:' + 'b'.repeat(64) + '\n', 'db', { tag: '17' }), /pinned by digest/)
+  assert.throws(() => patchComposeService('services:\n  db:\n    image: postgres:16\n', 'db', { tag: '17', digest: 'nope' }), /not an image digest/)
+})

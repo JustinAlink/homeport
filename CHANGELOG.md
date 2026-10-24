@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.34.0 (2026-10-24)
+
+- **Pinned images get version checks too.** An image pinned by tag and digest
+  (`postgres:16.15-alpine@sha256:…`, the way a playbook pins it) skipped the
+  newer-version check entirely, so the pins that matter most never heard of a new
+  release. They now get it, plus a **rebuilt** note when their tag points at a
+  newer build than the pin (same version, usually security fixes), with the safe
+  rebuild offered before a major jump.
+- **Copy pin.** Every offered version comes with the exact `image:tag@sha256:…`
+  to paste where the version is set (a playbook, a repo); the digest is read from
+  the registry with a HEAD request, which Docker Hub doesn't count as a pull.
+  Switching a digest-pinned service from homeport keeps it pinned.
+- **A pinned homeport shows its own newer version** in the sidebar, with where to
+  change it, since its "Update homeport" button can't apply anything to a pin.
+- **`url` in the managed-by marker.** `x-homeport: { managed-by, url }` turns the
+  "managed by" badge and the "change it there" hints into links.
+- **Pulls killed by a prune say so.** "lease does not exist" now explains that a
+  `docker image prune` ran at the same time and to try again. (homeport's own
+  image removal was measured not to cause it: 4 of 4 pulls passed while images
+  were removed alongside, so it gets no lock.)
+
 ## v2.33.1 (2026-10-24)
 
 - **The `managed-by` marker also works in an override file.** homeport read it

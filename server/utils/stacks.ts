@@ -13,14 +13,14 @@ import {
   externalProjectFromLabels,
   projectNameFromDir,
   composeProjectNameFromContent,
-  managedByOfFiles,
+  ownerOfFiles,
   COMPOSE_OVERRIDE_FILENAMES,
   type StackOp,
   type StackSource,
   type ExternalProject,
 } from './stacks-core'
 import { detectNetworkError, findSubnetConflicts, subnetsFromComposeConfig } from './networks-core'
-import { dockerConfigJson } from './registry-core'
+import { dockerConfigJson, pullInterruptedByPrune, PRUNE_INTERRUPTED_HINT } from './registry-core'
 
 // Compose stacks come from three places, in resolution priority order:
 //   1. HOMEPORT_STACKS_DIR subdirs (dirname = project name) — homeport's own,
@@ -227,8 +227,8 @@ export class ComposeValidationError extends Error {
   }
 }
 
-/** x-homeport.managed-by for a stack: its main compose file, then the override files compose loads. */
-export function stackManagedBy(dir: string, mainContent: string | null): string | null {
+/** x-homeport.managed-by (and its optional url) for a stack: its main compose file, then the override files compose loads. */
+export function stackOwner(dir: string, mainContent: string | null): { by: string; url?: string } | null {
   const read = (f: string) => {
     try {
       return readFileSync(join(dir, f), 'utf8')
@@ -236,7 +236,11 @@ export function stackManagedBy(dir: string, mainContent: string | null): string 
       return null // absent or unreadable: no marker there
     }
   }
-  return managedByOfFiles(mainContent, COMPOSE_OVERRIDE_FILENAMES.map(read))
+  return ownerOfFiles(mainContent, COMPOSE_OVERRIDE_FILENAMES.map(read))
+}
+
+export function stackManagedBy(dir: string, mainContent: string | null): string | null {
+  return stackOwner(dir, mainContent)?.by ?? null
 }
 
 export async function readStack(name: string): Promise<StackFile | null> {
@@ -422,6 +426,7 @@ export async function runStackOp(name: string, op: StackOp, emit: (line: string)
     const { code } = await runCompose(name, args, capture)
     if (code !== 0) {
       emit(`✗ exited with code ${code}`)
+      if (pullInterruptedByPrune(lines.join('\n'))) emit(`⚠ ${PRUNE_INTERRUPTED_HINT}`)
       await emitNetworkHints(name, lines.join('\n'), emit)
       return false
     }

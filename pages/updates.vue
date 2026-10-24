@@ -130,7 +130,9 @@
         <p class="mb-3 max-w-3xl text-xs leading-relaxed text-slate-500">
           These containers are pinned to a version (or a version line like <code>16-alpine</code>), so a newer one never
           arrives by itself: switching is your call. Patch and minor steps are usually safe, a
-          <span class="text-amber-300">major</span> one deserves a look at the changelog first.
+          <span class="text-amber-300">major</span> one deserves a look at the changelog first. A digest pin also misses
+          rebuilds of its own version; those show as <span class="text-ok">rebuilt</span>. Where a stack is managed
+          elsewhere, "Copy pin" gives the exact line to paste there.
         </p>
         <div class="card overflow-hidden">
           <div class="row-list">
@@ -223,10 +225,10 @@ const kindOf = (s: Service) => explainUpdate(s.image, updates.entryFor(s)?.tagKi
 const BUMP_ORDER = { patch: 0, minor: 1, major: 2 } as const
 const newerList = computed(() =>
   (svcData.value?.services ?? [])
-    .filter((s) => s.kind === 'container' && updates.entryFor(s)?.newer)
+    .filter((s) => s.kind === 'container' && (updates.entryFor(s)?.newer || updates.entryFor(s)?.rebuilt))
     .sort(
       (a, b) =>
-        BUMP_ORDER[updates.entryFor(a)!.newer!.bump] - BUMP_ORDER[updates.entryFor(b)!.newer!.bump] ||
+        BUMP_ORDER[updates.entryFor(a)!.newer?.bump ?? 'patch'] - BUMP_ORDER[updates.entryFor(b)!.newer?.bump ?? 'patch'] ||
         a.displayName.localeCompare(b.displayName),
     ),
 )

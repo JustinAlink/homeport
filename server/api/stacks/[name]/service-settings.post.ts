@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
   if (typeof body.addNetwork === 'string' && body.addNetwork) patch.addNetwork = body.addNetwork
   if (typeof body.removeNetwork === 'string' && body.removeNetwork) patch.removeNetwork = body.removeNetwork
   if (typeof body.tag === 'string' && body.tag) patch.tag = body.tag.trim()
+  if (typeof body.digest === 'string' && body.digest) patch.digest = body.digest.trim()
 
   if (!cfg.demo && !cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
@@ -60,7 +61,7 @@ export default defineEventHandler(async (event) => {
 
   if (cfg.demo) {
     demoStackSave(name, next, false)
-    if (patch.tag) demoSwitchTag(service, patch.tag)
+    if (patch.tag) demoSwitchTag(service, patch.tag, patch.digest)
     return { ok: true, changed: true, file: current.file }
   }
   try {

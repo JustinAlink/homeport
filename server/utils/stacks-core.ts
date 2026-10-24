@@ -61,20 +61,28 @@ export function declaredServices(content: string): DeclaredService[] | null {
  *
  *   x-homeport:
  *     managed-by: juniperserver playbook
+ *     url: https://github.com/me/juniperserver   # optional: where to change it
  *
  * homeport then never writes the file itself (its next run would overwrite the
  * change, like an update from git does) and warns before a hand edit.
  */
 export function managedByOf(content: string): string | null {
+  return ownerOf(content)?.by ?? null
+}
+
+/** The owner plus, optionally, where to change it (`url:` next to `managed-by:`, http(s) only). */
+export function ownerOf(content: string): { by: string; url?: string } | null {
   let doc: any
   try {
     doc = parseYAML(content)
   } catch {
     return null
   }
-  const by = doc?.['x-homeport']?.['managed-by']
+  const x = doc?.['x-homeport']
+  const by = x?.['managed-by']
   if (typeof by !== 'string' || !by.trim()) return null
-  return by.trim().slice(0, 120)
+  const url = typeof x?.url === 'string' && /^https?:\/\/[^\s"<>]+$/i.test(x.url.trim()) ? x.url.trim().slice(0, 300) : undefined
+  return { by: by.trim().slice(0, 120), ...(url ? { url } : {}) }
 }
 
 /**
@@ -84,9 +92,14 @@ export function managedByOf(content: string): string | null {
  * marker can only live in docker-compose.override.yml). Missing files are null.
  */
 export function managedByOfFiles(main: string | null, overrides: (string | null)[]): string | null {
+  return ownerOfFiles(main, overrides)?.by ?? null
+}
+
+/** ownerOf over the main file, then the override files; the first file that names an owner wins. */
+export function ownerOfFiles(main: string | null, overrides: (string | null)[]): { by: string; url?: string } | null {
   for (const content of [main, ...overrides]) {
-    const by = content == null ? null : managedByOf(content)
-    if (by) return by
+    const owner = content == null ? null : ownerOf(content)
+    if (owner) return owner
   }
   return null
 }

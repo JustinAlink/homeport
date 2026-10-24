@@ -3,14 +3,14 @@ import { join, dirname } from 'node:path'
 import { getConfig } from './config'
 import { getHosts, type HostConfig } from './hosts'
 import { getDockerFor, listContainersFor, oneShot } from './docker'
-import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, authForImage, type UpdateEntry } from './registry-core'
+import { parseImageRef, digestMatches, pickDueChecks, isBareImageId, authForImage, hasExplicitTag, pinnedDigest, pullInterruptedByPrune, PRUNE_INTERRUPTED_HINT, type UpdateEntry } from './registry-core'
 import { buildCreatePayload, type ApplyStep } from './recreate-core'
 import { listStackDirs } from './stacks'
 import { dispatch } from './alerts'
 import { guard } from './guard'
 import { createContainerLock, ContainerBusyError } from './container-lock-core'
 import { findNewer, tagKindOf, withTag } from './versions-core'
-import { listTags } from './versions'
+import { listTags, tagDigest } from './versions'
 import { log } from './log'
 
 // Image update detection + apply.
@@ -84,19 +84,36 @@ export function getUpdateMap(): Record<string, UpdateEntry> {
 async function versionInfo(image: string, tag: string, prev: UpdateEntry | undefined, now: number): Promise<Partial<UpdateEntry>> {
   if (tagKindOf(tag) === 'floating') return { tagKind: 'floating' }
   try {
-    const tags = await listTags(image, getConfig().registryCreds)
-    return { tagKind: tagKindOf(tag, tags), ...findNewer(tag, tags), versionsCheckedAt: now }
+    const creds = getConfig().registryCreds
+    const tags = await listTags(image, creds)
+    const found = findNewer(tag, tags)
+    // a tag+digest pin (`x:1.2@sha256:…`) is bumped by pasting the new tag AND its
+    // digest, so look those up for the offered versions (best-effort: no digest, no
+    // copyable pin, the version is still shown)
+    let rebuilt: UpdateEntry['rebuilt']
+    if (parseImageRef(image).digestPinned) {
+      for (const v of [found.newer, found.newerSameMajor]) {
+        if (v) v.digest = (await tagDigest(image, v.tag, creds).catch(() => null)) ?? undefined
+      }
+      // the pin never moves, but its tag may have been rebuilt since it was taken
+      const tagNow = await tagDigest(image, tag, creds).catch(() => null)
+      if (tagNow && tagNow !== pinnedDigest(image)) rebuilt = { digest: tagNow }
+    }
+    return { tagKind: tagKindOf(tag, tags), ...found, ...(rebuilt ? { rebuilt } : {}), versionsCheckedAt: now }
   } catch {
     const fresh = prev?.versionsCheckedAt && now - prev.versionsCheckedAt < 7 * 24 * 3600_000
     return fresh
-      ? { tagKind: prev.tagKind, newer: prev.newer, newerSameMajor: prev.newerSameMajor, versionsCheckedAt: prev.versionsCheckedAt }
+      ? { tagKind: prev.tagKind, newer: prev.newer, newerSameMajor: prev.newerSameMajor, rebuilt: prev.rebuilt, versionsCheckedAt: prev.versionsCheckedAt }
       : { tagKind: tagKindOf(tag) }
   }
 }
 
 async function checkImage(host: HostConfig, image: string, now: number, prev?: UpdateEntry): Promise<UpdateEntry> {
   const entry = await checkDigest(host, image, now)
-  if (entry.status !== 'current' && entry.status !== 'update') return entry
+  // a digest pin never gets a rebuild, but its TAG can still be behind (npm:2.16.0@sha256:…
+  // while 2.17.0 is out): the pins that most need the newer-version check
+  const pinnedWithTag = entry.status === 'pinned' && hasExplicitTag(image)
+  if (entry.status !== 'current' && entry.status !== 'update' && !pinnedWithTag) return entry
   return { ...entry, ...(await versionInfo(image, parseImageRef(image).tag, prev, now)) }
 }
 
@@ -135,6 +152,7 @@ async function checkDigest(host: HostConfig, image: string, now: number): Promis
  */
 function friendlyCheckError(e: any): string {
   const raw = (e?.message || String(e || '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (pullInterruptedByPrune(raw)) return `${PRUNE_INTERRUPTED_HINT} (${raw.slice(0, 120)})`
   if (/403/.test(raw) && /forbidden|administrative rules/i.test(raw)) {
     return 'Docker socket-proxy blocked the registry check. Add DISTRIBUTION=1 to the socket-proxy to enable update checks.'
   }
@@ -201,8 +219,8 @@ export async function applyUpdate(host: HostConfig, containerId: string): Promis
 }
 
 /** Move a standalone container to another tag of its image (10.9.6 → 10.10.3), same swap and rollback. */
-export async function switchVersion(host: HostConfig, containerId: string, tag: string): Promise<{ steps: ApplyStep[]; newId: string }> {
-  return swapContainer(host, containerId, { pull: true, tag })
+export async function switchVersion(host: HostConfig, containerId: string, tag: string, digest?: string): Promise<{ steps: ApplyStep[]; newId: string }> {
+  return swapContainer(host, containerId, { pull: true, tag, digest })
 }
 
 /** Recreate a container in place with a new environment (same image, no pull). */
@@ -219,7 +237,7 @@ export async function recreateContainer(host: HostConfig, containerId: string): 
 async function swapContainer(
   host: HostConfig,
   containerId: string,
-  opts: { pull: boolean; env?: string[]; tag?: string },
+  opts: { pull: boolean; env?: string[]; tag?: string; digest?: string },
 ): Promise<{ steps: ApplyStep[]; newId: string }> {
   const docker = getDockerFor(host)
   const steps: ApplyStep[] = []
@@ -262,7 +280,7 @@ async function swapContainer(
     )
   }
 
-  const image = opts.tag ? withTag(inspect.Config?.Image, opts.tag) : inspect.Config?.Image
+  const image = opts.tag ? withTag(inspect.Config?.Image, opts.tag) + (opts.digest ? `@${opts.digest}` : '') : inspect.Config?.Image
   const wasRunning = !!inspect.State?.Running
   // When the image changes (a pull or a version switch), settings that only came
   // from the old image must not be pinned onto the new one (stripImageDefaults).

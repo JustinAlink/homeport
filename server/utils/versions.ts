@@ -31,20 +31,57 @@ async function tokenFor(challenge: string | null, repo: string, basic: string | 
   return tok ? `Bearer ${tok}` : undefined
 }
 
+const registryHost = (registry: string) => (registry === 'docker.io' ? 'registry-1.docker.io' : registry)
+
+/** One registry request, with the 401 → pull-token → retry dance; `auth` carries the token between calls. */
+async function registryFetch(
+  url: string,
+  ref: { registry: string; repo: string },
+  creds: RegistryCred[] | undefined,
+  state: { auth?: string },
+  init: { method?: string; headers?: Record<string, string> } = {},
+): Promise<Response> {
+  const go = () => fetch(url, { method: init.method, signal: AbortSignal.timeout(TIMEOUT_MS), headers: { ...init.headers, ...(state.auth ? { authorization: state.auth } : {}) } })
+  let r = await go()
+  if (r.status === 401 && !state.auth) {
+    state.auth = await tokenFor(r.headers.get('www-authenticate'), ref.repo, basicFor(ref.registry, creds))
+    if (!state.auth) throw new Error(`${registryHost(ref.registry)} wants a login`)
+    r = await go()
+  }
+  return r
+}
+
+const MANIFEST_ACCEPT = [
+  'application/vnd.oci.image.index.v1+json',
+  'application/vnd.docker.distribution.manifest.list.v2+json',
+  'application/vnd.oci.image.manifest.v1+json',
+  'application/vnd.docker.distribution.manifest.v2+json',
+].join(', ')
+
+/**
+ * The digest a tag points at right now, the same value a `image:tag@sha256:...` pin
+ * holds (the multi-arch index for multi-arch images). A HEAD request: registries
+ * answer with Docker-Content-Digest, and Docker Hub doesn't count it as a pull.
+ */
+export async function tagDigest(image: string, tag: string, creds?: RegistryCred[]): Promise<string | null> {
+  const ref = parseImageRef(image)
+  const r = await registryFetch(`https://${registryHost(ref.registry)}/v2/${ref.repo}/manifests/${encodeURIComponent(tag)}`, ref, creds, {}, {
+    method: 'HEAD',
+    headers: { accept: MANIFEST_ACCEPT },
+  })
+  const digest = r.ok ? r.headers.get('docker-content-digest') : null
+  return digest && /^sha256:[a-f0-9]{64}$/.test(digest) ? digest : null
+}
+
 /** Every tag the registry lists for an image's repository. Throws when it can't be read. */
 export async function listTags(image: string, creds?: RegistryCred[]): Promise<string[]> {
   const ref = parseImageRef(image)
-  const host = ref.registry === 'docker.io' ? 'registry-1.docker.io' : ref.registry
+  const host = registryHost(ref.registry)
   let url: string | undefined = `https://${host}/v2/${ref.repo}/tags/list?n=1000`
-  let auth: string | undefined
+  const state: { auth?: string } = {}
   const tags: string[] = []
   for (let page = 0; url && page < MAX_PAGES; page++) {
-    let r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: auth ? { authorization: auth } : {} })
-    if (r.status === 401 && !auth) {
-      auth = await tokenFor(r.headers.get('www-authenticate'), ref.repo, basicFor(ref.registry, creds))
-      if (!auth) throw new Error(`${host} wants a login to list tags`)
-      r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { authorization: auth } })
-    }
+    const r = await registryFetch(url, ref, creds, state)
     if (!r.ok) throw new Error(`${host} answered ${r.status}`)
     const j: any = await r.json()
     if (Array.isArray(j?.tags)) tags.push(...j.tags.filter((t: unknown) => typeof t === 'string'))

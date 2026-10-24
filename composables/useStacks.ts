@@ -12,6 +12,8 @@ export interface StackInfo {
   git?: boolean
   /** x-homeport.managed-by in the compose file: another system owns it */
   managedBy?: string
+  /** x-homeport.url: where to change it (the owning repo or file) */
+  managedByUrl?: string
   source?: 'stacks' | 'root' | 'adopted'
   dir?: string
 }
@@ -42,8 +44,9 @@ export function useStacks() {
   const isGit = (project: string | null | undefined) => !!byName(project)?.git
   /** Another system (named in the compose file) owns it; homeport must not write its files either. */
   const managedBy = (project: string | null | undefined) => byName(project)?.managedBy ?? null
+  const managedByUrl = (project: string | null | undefined) => byName(project)?.managedByUrl ?? null
   /** homeport must not write this stack's files itself: git resets them, or another system owns them. */
   const isLocked = (project: string | null | undefined) => isGit(project) || !!managedBy(project)
 
-  return { stacks, loaded, refresh, byName, isManaged, isGit, managedBy, isLocked }
+  return { stacks, loaded, refresh, byName, isManaged, isGit, managedBy, managedByUrl, isLocked }
 }

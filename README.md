@@ -7,7 +7,7 @@
 **A zero-config status hub for your self-hosted Docker fleet — no tiles to configure.**
 
 [![CI](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml/badge.svg)](https://github.com/JustinAlink/homeport/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v2.33.1-2ea44f)](https://github.com/JustinAlink/homeport/releases)
+[![Release](https://img.shields.io/badge/release-v2.34.0-2ea44f)](https://github.com/JustinAlink/homeport/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-justinalink%2Fhomeport-2496ED?logo=docker&logoColor=white)](https://github.com/JustinAlink/homeport/pkgs/container/homeport)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -364,6 +364,7 @@ run. Say so in the file; compose ignores `x-` keys:
 ```yaml
 x-homeport:
   managed-by: my ansible playbook
+  url: https://github.com/me/infra   # optional: makes "managed by" a link
 ```
 
 homeport then never writes that file itself (version switches, network and restart/limit
@@ -438,6 +439,14 @@ count) groups them by compose project:
   recreated with rollback. A major version asks you to read the changelog and back up first.
   A git-backed stack is changed in its repository instead: homeport never edits files that
   the next update from git would reset.
+- **Tag + digest pins** (`image: postgres:16.15-alpine@sha256:…`, as a playbook writes them) get
+  the same newer-version check, and a **rebuilt** note when the tag now points at a newer build
+  than the pin (same version, usually security fixes; a digest pin never picks that up). Each
+  offer has a **Copy pin** button with the exact `image:tag@sha256:…` to paste where the
+  version is set; switching from homeport keeps the pin form. A pinned homeport shows its own
+  newer version in the sidebar.
+- A pull that dies with "lease does not exist" was interrupted by a `docker image prune`
+  running at the same time (another tool, a deploy script); homeport now says so.
 - **Scheduled automatic updates** (opt-in, off by default): pick a daily hour and opt
   targets in with the "auto" toggles on the Updates page, the target list in settings, or
   a `hub.autoupdate=true` label. Managed stacks pull & up, the rest recreate; homeport

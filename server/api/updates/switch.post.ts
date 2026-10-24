@@ -14,14 +14,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Applying updates is disabled (HOMEPORT_ALLOW_UPDATES=true to enable).' })
   }
 
-  const body = await readBody<{ id?: string; tag?: string; name?: string; image?: string }>(event)
+  const body = await readBody<{ id?: string; tag?: string; digest?: string; name?: string; image?: string }>(event)
   const id = body?.id
   const tag = String(body?.tag || '').trim()
-  if (!id || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(tag)) throw createError({ statusCode: 400, statusMessage: 'Expected { id, tag }' })
+  const digest = body?.digest ? String(body.digest).trim() : undefined
+  if (!id || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(tag) || (digest && !/^sha256:[a-f0-9]{64}$/.test(digest))) {
+    throw createError({ statusCode: 400, statusMessage: 'Expected { id, tag, digest? }' })
+  }
 
   if (cfg.demo) {
     await new Promise((r) => setTimeout(r, 1500))
-    if (body.name) demoSwitchTag(body.name, tag)
+    if (body.name) demoSwitchTag(body.name, tag, digest)
     return { ok: true, steps: demoApplyUpdate(body?.image || '') }
   }
 
@@ -32,7 +35,7 @@ export default defineEventHandler(async (event) => {
   if (!host) throw createError({ statusCode: 404, statusMessage: 'Unknown host' })
 
   try {
-    const { steps, newId } = await switchVersion(host, containerId, tag)
+    const { steps, newId } = await switchVersion(host, containerId, tag, digest)
     return { ok: true, steps, newId }
   } catch (err: any) {
     throw createError({

@@ -79,6 +79,32 @@ export function changelogUrlFor(image: string): string | undefined {
   return undefined // quay.io, lscr.io, self-hosted, gcr.io, etc — no reliable inference
 }
 
+/** The digest a pinned reference holds (`x:1.2@sha256:…` → `sha256:…`), or null. */
+export function pinnedDigest(image: string): string | null {
+  const at = image.indexOf('@')
+  return at >= 0 ? image.slice(at + 1) : null
+}
+
+/**
+ * A pull killed by an image clean-up running at the same time. With containerd's
+ * image store, `docker image prune` drops the lease an in-flight pull holds and the
+ * pull dies with "lease does not exist" (measured on JuniperServer: 16 of 16 pulls
+ * failed under a prune loop, 6 of 6 passed without). Removing single images does
+ * not do this (4 of 4 pulls passed under repeated `docker rmi`).
+ */
+export function pullInterruptedByPrune(text: string): boolean {
+  return /\blease\b[^\n]*does not exist/i.test(text)
+}
+
+export const PRUNE_INTERRUPTED_HINT =
+  'the download was interrupted by an image clean-up (docker image prune) running at the same time, usually another tool or a deploy script: run it again once that has finished'
+
+/** `nginx:1.27@sha256:…` names its tag; `nginx@sha256:…` doesn't (parseImageRef then reports 'latest'). */
+export function hasExplicitTag(image: string): boolean {
+  const base = image.split('@')[0]
+  return base.lastIndexOf(':') > base.lastIndexOf('/')
+}
+
 /**
  * A bare image *ID* — the container's image lost its repo:tag (e.g. `docker pull`
  * replaced `:latest` and the old tag was pruned), so the daemon reports it as a
@@ -182,9 +208,11 @@ export interface UpdateEntry {
   /** How the tag moves (versions-core.ts): a fixed release, a release line, or latest-style. */
   tagKind?: 'exact' | 'line' | 'floating'
   /** Newest tag of the same shape, from the registry's tag list (the digest check can't see it). */
-  newer?: { tag: string; bump: 'major' | 'minor' | 'patch' }
+  newer?: { tag: string; bump: 'major' | 'minor' | 'patch'; digest?: string }
   /** When `newer` is a major jump: the newest release on the current major. */
-  newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch' }
+  newerSameMajor?: { tag: string; bump: 'major' | 'minor' | 'patch'; digest?: string }
+  /** A tag+digest pin whose tag now points at another digest: same version, rebuilt (usually security fixes). */
+  rebuilt?: { digest: string }
   versionsCheckedAt?: number
 }
 

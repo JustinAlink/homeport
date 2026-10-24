@@ -160,7 +160,7 @@
             <p v-if="!caps.control" class="field-hint">Changing it needs the start/stop capability.</p>
             <p v-else-if="restart.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
-              <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git, so in its repository)</template><template v-else-if="stacksStore.managedBy(composeProject)"> (the file is managed by {{ stacksStore.managedBy(composeProject) }}, so change it there)</template>.</span>
+              <span>Compose-managed: applies now, but the compose file's <code>restart:</code> wins when the stack is recreated. Change it there too to make it stick<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git, so in its repository)</template><template v-else-if="stacksStore.managedBy(composeProject)"> (the file is managed by <a v-if="stacksStore.managedByUrl(composeProject)" :href="stacksStore.managedByUrl(composeProject)!" target="_blank" rel="noopener noreferrer" class="link">{{ stacksStore.managedBy(composeProject) }}</a><template v-else>{{ stacksStore.managedBy(composeProject) }}</template>, so change it there)</template>.</span>
             </p>
           </div>
 
@@ -209,7 +209,7 @@
             <p v-if="!caps.control" class="field-hint">Changing them needs the start/stop capability.</p>
             <p v-else-if="resources.composeManaged && !canWriteCompose" class="mt-3 flex gap-1.5 text-xs leading-relaxed text-slate-500">
               <Icon name="info" class="mt-px h-3.5 w-3.5 shrink-0" />
-              <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git: change it in its repository)</template><template v-else-if="stacksStore.managedBy(composeProject)"> (the file is managed by {{ stacksStore.managedBy(composeProject) }}: change it there)</template>.</span>
+              <span>Compose-managed: the compose file's <code>deploy.resources</code> / <code>mem_limit</code> wins when the stack is recreated<template v-if="stacksStore.isGit(composeProject)"> (this stack is deployed from git: change it in its repository)</template><template v-else-if="stacksStore.managedBy(composeProject)"> (the file is managed by <a v-if="stacksStore.managedByUrl(composeProject)" :href="stacksStore.managedByUrl(composeProject)!" target="_blank" rel="noopener noreferrer" class="link">{{ stacksStore.managedBy(composeProject) }}</a><template v-else>{{ stacksStore.managedBy(composeProject) }}</template>: change it there)</template>.</span>
             </p>
             <p v-if="caps.control && service.state === 'restarting'" class="mt-2 flex gap-1.5 text-xs leading-relaxed text-amber-300/90">
               <Icon name="alert" class="mt-px h-3.5 w-3.5 shrink-0" />

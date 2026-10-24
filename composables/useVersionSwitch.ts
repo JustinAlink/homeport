@@ -48,7 +48,7 @@ export function useVersionSwitch() {
     return 'Applying updates is off (Settings → Capabilities).'
   }
 
-  async function switchTo(s: Service, tag: string, bump: Bump): Promise<{ ok: boolean; newId?: string }> {
+  async function switchTo(s: Service, tag: string, bump: Bump, digest?: string): Promise<{ ok: boolean; newId?: string }> {
     const m = mode(s)
     if (!m || busy.value[s.id]) return { ok: false }
     const go = await confirm({
@@ -66,7 +66,7 @@ export function useVersionSwitch() {
       if (m === 'stack') {
         await $fetch(`/api/stacks/${encodeURIComponent(s.project!)}/service-settings`, {
           method: 'POST',
-          body: { service: s.composeService, tag },
+          body: { service: s.composeService, tag, ...(digest ? { digest } : {}) },
         })
         const ok = await stackOp.run(s.project!, 'up')
         await updates.refresh()
@@ -74,7 +74,7 @@ export function useVersionSwitch() {
       }
       const r = await $fetch<{ newId?: string }>('/api/updates/switch', {
         method: 'POST',
-        body: { id: s.id, tag, name: s.name, image: s.image },
+        body: { id: s.id, tag, ...(digest ? { digest } : {}), name: s.name, image: s.image },
       })
       toast.success(`${s.displayName} now runs ${tag}`)
       await Promise.all([services.refresh(), updates.refresh()])
@@ -97,5 +97,8 @@ export function useVersionSwitch() {
     return 'switching is off'
   }
 
-  return { mode, blockedReason, blockedShort, switchTo, busy, ensureReady }
+  /** the owner's url (x-homeport.url), so "change it there" can be a link */
+  const ownerUrl = (s: Service) => (stacksStore.isGit(s.project) ? null : stacksStore.managedByUrl(s.project))
+
+  return { mode, blockedReason, blockedShort, ownerUrl, switchTo, busy, ensureReady }
 }

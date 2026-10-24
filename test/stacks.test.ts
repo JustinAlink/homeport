@@ -7,6 +7,7 @@ import {
   declaredServices,
   managedByOf,
   managedByOfFiles,
+  ownerOf,
   composeArgs,
   externalProjectFromLabels,
   projectNameFromDir,
@@ -152,4 +153,10 @@ test('managedByOfFiles: the marker may live in an override compose loads (mailco
   assert.equal(managedByOfFiles(marker.replace('ansible', 'main file'), [marker]), 'main file') // main file wins
   assert.equal(managedByOfFiles('services: {}\n', [null, null]), null)
   assert.equal(managedByOfFiles(null, []), null)
+})
+
+test('ownerOf: an optional url says where to change it (http(s) only)', () => {
+  assert.deepEqual(ownerOf('x-homeport:\n  managed-by: playbook\n  url: https://github.com/me/infra\n'), { by: 'playbook', url: 'https://github.com/me/infra' })
+  assert.deepEqual(ownerOf('x-homeport:\n  managed-by: playbook\n  url: javascript:alert(1)\n'), { by: 'playbook' })
+  assert.deepEqual(ownerOf('x-homeport:\n  managed-by: playbook\n'), { by: 'playbook' })
 })
