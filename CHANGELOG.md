@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.35.1 (2026-10-25)
+
+- **Bug: a switch set by an environment variable hid everything under it.** With
+  `HOMEPORT_ALERTS=true` but alerts never switched on in the UI, the settings page
+  showed alerts as off and hid the Down / Unhealthy / Recovered choices, so
+  "Recovered" could not be turned on and recoveries (containers and domains) were
+  never announced. The page now shows the effective value of every env-locked
+  switch (secrets excepted), so the options under it stay editable; the same fix
+  brings back sections like Compose roots under a locked-on capability. Saving no
+  longer writes env-owned values into `settings.json`.
+
 ## v2.35.0 (2026-10-24)
 
 Under the hood: Nuxt 4, and checks that keep homeport from quietly breaking.

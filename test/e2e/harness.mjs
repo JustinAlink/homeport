@@ -42,5 +42,5 @@ export async function boot({ port = 3128, env = {}, viewport = { width: 1440, he
     if (unexpected.length || results.some((r) => r.startsWith('FAIL'))) process.exitCode = 1
     await browser.close(); server.kill(); rmSync(dataDir, { recursive: true, force: true })
   }
-  return { BASE, page, ctx, check, done, errs }
+  return { BASE, page, ctx, check, done, errs, dataDir }
 }

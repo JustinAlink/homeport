@@ -1,5 +1,6 @@
 import { writeSettings, readSettings, settingsWritable, type PersistedSettings, type SettingsHost } from '../utils/settings'
-import { getSettingsView } from '../utils/config'
+import { getSettingsView, getEnvLocks } from '../utils/config'
+import { withoutLocked } from '../utils/settings-locks-core'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
@@ -207,7 +208,8 @@ export default defineEventHandler(async (event) => {
   if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
 
   try {
-    writeSettings(patch)
+    // the environment owns locked fields: never persist the value the page mirrored
+    writeSettings(withoutLocked(patch, getEnvLocks()))
   } catch (e: any) {
     // Writable-check passed but the write still failed (volume flipped, disk full).
     throw createError({ statusCode: 500, statusMessage: `Could not save settings: ${e?.message || e}` })

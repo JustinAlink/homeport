@@ -3,6 +3,7 @@
 // container start (env) AND via the in-app settings page (when env doesn't lock it).
 
 import { readSettings, type PersistedSettings } from './settings'
+import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
 
@@ -355,7 +356,8 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
   registryCreds: { registry: string; username: string; token: string; tokenSet: boolean }[]
 } {
   const s = readSettings()
-  return {
+  // locked switches show their effective value (settings-locks-core.ts)
+  return withEffective({
     dockerMode: s.dockerMode || 'local',
     dockerHost: s.dockerHost || '',
     dockerSshKey: s.dockerSshKey || '',
@@ -411,5 +413,5 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     alertDebounceSamples: s.alertDebounceSamples ?? 3,
     alertCooldownSec: s.alertCooldownSec ?? 3600,
     alertChannels: s.alertChannels ?? [],
-  }
+  }, getConfig(), getEnvLocks())
 }

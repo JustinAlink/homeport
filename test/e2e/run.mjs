@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const SUITES = ['regression', 'access', 'stacks', 'networks', 'updates-domains', 'git-editor', 'managed-stacks', 'pins', 'a11y']
+const SUITES = ['regression', 'access', 'stacks', 'networks', 'updates-domains', 'git-editor', 'managed-stacks', 'pins', 'settings-locks', 'a11y']
 const pick = process.argv.slice(2)
 const run = pick.length ? SUITES.filter((s) => pick.includes(s)) : SUITES
 const failed = []
