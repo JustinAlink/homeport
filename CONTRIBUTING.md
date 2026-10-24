@@ -30,9 +30,12 @@ npm test                    # node --test over test/*.test.ts
 npm run build               # production build must stay clean
 npm run smoke               # boots the demo build and visits every page
                             # (once: npx playwright install chromium)
+npm run e2e                 # browser suites in test/e2e (~7 min), incl. an
+                            # accessibility gate; `npm run e2e -- pins` runs one
+npm run shots               # regenerate the README screenshots in docs/
 ```
 
-- **CI** runs all three on every push and PR (`.github/workflows/ci.yml`);
+- **CI** runs all of these on every push and PR (`.github/workflows/ci.yml`);
   pushing a `v*` tag builds + publishes the multi-arch image to GHCR and
   creates the GitHub Release from the CHANGELOG (`release.yml`).
 - Pure logic lives in `*-core.ts` modules with **no runtime relative imports**

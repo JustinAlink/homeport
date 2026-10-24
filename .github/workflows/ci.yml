@@ -30,6 +30,24 @@ jobs:
       - name: Smoke test (demo build, every page)
         run: npm run smoke
 
+  # Browser suites (test/e2e): every page and flow in demo mode, plus an
+  # accessibility gate. Its own job so the ~7 minutes run beside the unit tests.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright Chromium
+        run: |
+          npx playwright install chromium
+          node -e "require('playwright').chromium.launch().then((b) => b.close())" || npx playwright install-deps chromium
+      - run: npm run e2e
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:

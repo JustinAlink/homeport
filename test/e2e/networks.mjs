@@ -1,0 +1,32 @@
+import { boot } from './harness.mjs'
+const { BASE, page, check, done } = await boot({ port: 3200 })
+const wait = (ms) => page.waitForTimeout(ms)
+try {
+await page.goto(BASE + '/', { waitUntil: 'load' }); await wait(3500)
+check('dashboard: umami flagged "proxy can\'t reach it"', /umami\s*proxy can't reach it/.test(await page.locator('main').innerText()))
+await page.goto(BASE + '/services/demo-4', { waitUntil: 'load' }); await wait(3500)
+await page.getByRole('button', { name: /Connect to proxy/ }).click(); await wait(2500)
+const stack = await (await page.request.get(BASE + '/api/stacks/web')).json()
+check('connect from the warning writes default + proxy into the compose file', /umami:[\s\S]*networks:\s*\n\s*- default\n\s*- proxy/.test(stack.content) && /networks:\s*\n\s*proxy:\s*\n\s*external: true/.test(stack.content))
+check('warning disappears', !(await page.getByText("can't reach").count()))
+await page.goto(BASE + '/networks', { waitUntil: 'load' }); await wait(3000)
+check('networks: no unreachable summary any more', !(await page.getByText("can't reach").count()))
+const card = page.locator('main .card').filter({ hasText: 'reverse proxy' })
+await card.locator('.chip').filter({ hasText: /^umami/ }).getByRole('button', { name: /Disconnect umami$/ }).click(); await wait(300)
+await page.getByRole('alertdialog').getByRole('button', { name: 'Only until the next start' }).click(); await wait(2500)
+const stack2 = await (await page.request.get(BASE + '/api/stacks/web')).json()
+check('"only until the next start" leaves the compose file alone', /umami:[\s\S]*- proxy/.test(stack2.content))
+check('…but the container is off the network now', (await page.getByText("can't reach").count()) > 0)
+// connect picker with save
+await card.getByRole('button', { name: 'Connect a container' }).click(); await wait(200)
+await card.getByLabel('Container').selectOption({ label: 'umami' })
+check('picker offers saving to the compose file for a stack container', await card.getByText("Also save it to the stack's compose file").isVisible())
+await card.getByRole('button', { name: /^Connect$/ }).click(); await wait(2500)
+check('connected via the picker', !(await page.getByText("can't reach").count()))
+// domain form warning for a container off the proxy network
+await page.goto(BASE + '/domains', { waitUntil: 'load' }); await wait(2500)
+await page.getByRole('button', { name: /Add domain/ }).click(); await wait(300)
+await page.getByLabel('Upstream host').fill('gluetun'); await wait(400)
+check('domain form warns when the chosen container is off the proxy network', /can't reach[\s\S]*gluetun/.test(await page.locator('main').innerText()))
+} catch (e) { check('suite ran to the end', false, String(e.message).split('\n').slice(0, 3).join(' | ')) }
+await done()
