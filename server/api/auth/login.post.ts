@@ -10,6 +10,7 @@ import {
   recordGlobalFailure,
   type LoginRate,
 } from '../../utils/auth-core'
+import { clientIp } from '../../utils/client-ip'
 
 // Failed-login tracking per client IP (in-memory; resets on restart, which is
 // fine — its job is slowing brute force, not being a ledger). Kept separate
@@ -22,17 +23,12 @@ const MAP_CAP = 10_000
 // A single global counter that no key rotation can dodge (see auth-core).
 let globalRate: LoginRate | undefined
 
-// X-Forwarded-For is only trustworthy when a proxy WE control sets it — a
-// directly-exposed instance lets any client forge it, defeating per-IP limits.
-// Trust it only on explicit opt-in; otherwise key on the real socket address.
-const trustProxy = process.env.HOMEPORT_TRUSTED_PROXY === 'true' || process.env.HOMEPORT_TRUSTED_PROXY === '1'
-
 export default defineEventHandler(async (event) => {
   if (!hasPassword()) {
     throw createError({ statusCode: 409, statusMessage: 'No password set yet — complete first-run setup.' })
   }
 
-  const ip = (trustProxy ? getRequestIP(event, { xForwardedFor: true }) : getRequestIP(event)) || 'unknown'
+  const ip = clientIp(event)
   const now = Date.now()
 
   // Global ceiling first — rotation-proof, so it can't be sidestepped by a fresh key.

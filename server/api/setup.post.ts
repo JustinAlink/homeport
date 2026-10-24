@@ -4,6 +4,7 @@ import { judgeSetup } from '../utils/setup-core'
 import { setupCode, retireSetupCode } from '../utils/setup'
 import { lockRemaining, recordFailure, type LoginRate } from '../utils/auth-core'
 import { log } from '../utils/log'
+import { clientIp } from '../utils/client-ip'
 
 // Public, but only effective during first-run setup (no password configured
 // yet), and only with the one-time setup code from homeport's log: without it,
@@ -17,10 +18,8 @@ import { log } from '../utils/log'
 const attempts = new Map<string, LoginRate>()
 const MAP_CAP = 10_000
 
-const trustProxy = process.env.HOMEPORT_TRUSTED_PROXY === 'true' || process.env.HOMEPORT_TRUSTED_PROXY === '1'
-
 export default defineEventHandler(async (event) => {
-  const ip = (trustProxy ? getRequestIP(event, { xForwardedFor: true }) : getRequestIP(event)) || 'unknown'
+  const ip = clientIp(event)
   const now = Date.now()
 
   const wait = lockRemaining(attempts.get(ip), now)

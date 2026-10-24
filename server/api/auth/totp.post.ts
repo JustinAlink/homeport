@@ -7,6 +7,7 @@ import {
   recordGlobalFailure,
   type LoginRate,
 } from '../../utils/auth-core'
+import { clientIp } from '../../utils/client-ip'
 
 // Second step of login when 2FA is enrolled: the client holds the pending
 // token /api/auth/login handed back after the password checked out, and
@@ -17,10 +18,8 @@ const attempts = new Map<string, LoginRate>()
 const MAP_CAP = 10_000
 let globalRate: LoginRate | undefined
 
-const trustProxy = process.env.HOMEPORT_TRUSTED_PROXY === 'true' || process.env.HOMEPORT_TRUSTED_PROXY === '1'
-
 export default defineEventHandler(async (event) => {
-  const ip = (trustProxy ? getRequestIP(event, { xForwardedFor: true }) : getRequestIP(event)) || 'unknown'
+  const ip = clientIp(event)
   const now = Date.now()
 
   const gWait = globalLockRemaining(globalRate, now)

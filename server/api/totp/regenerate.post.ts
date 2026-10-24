@@ -1,8 +1,7 @@
 import { verifyPassword } from '../../utils/auth'
 import { isTotpEnabled, regenerateRecoveryCodes } from '../../utils/totp'
 import { reauthWaitMs, recordReauthFailure, recordReauthSuccess } from '../../utils/reauth-rate'
-
-const trustProxy = process.env.HOMEPORT_TRUSTED_PROXY === 'true' || process.env.HOMEPORT_TRUSTED_PROXY === '1'
+import { clientIp } from '../../utils/client-ip'
 
 // Replace the recovery-code set (old ones stop working). Requires the current
 // password, same bar as disabling 2FA.
@@ -11,7 +10,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: '2FA is not enabled.' })
   }
 
-  const ip = (trustProxy ? getRequestIP(event, { xForwardedFor: true }) : getRequestIP(event)) || 'unknown'
+  const ip = clientIp(event)
   const now = Date.now()
   const wait = reauthWaitMs(ip, now)
   if (wait > 0) {

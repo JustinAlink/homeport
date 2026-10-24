@@ -2,15 +2,14 @@ import { verifyPassword, setPassword } from '../../utils/auth'
 import { createSessionToken, SESSION_COOKIE } from '../../utils/session'
 import { getConfig } from '../../utils/config'
 import { reauthWaitMs, recordReauthFailure, recordReauthSuccess } from '../../utils/reauth-rate'
-
-const trustProxy = process.env.HOMEPORT_TRUSTED_PROXY === 'true' || process.env.HOMEPORT_TRUSTED_PROXY === '1'
+import { clientIp } from '../../utils/client-ip'
 
 // Change the admin password (authenticated). Requires the current password.
 // No-op when the password is locked by HOMEPORT_ADMIN_PASSWORD (env wins).
 export default defineEventHandler(async (event) => {
   if (getConfig().demo) return { ok: true } // demo: don't mutate auth
 
-  const ip = (trustProxy ? getRequestIP(event, { xForwardedFor: true }) : getRequestIP(event)) || 'unknown'
+  const ip = clientIp(event)
   const now = Date.now()
   const wait = reauthWaitMs(ip, now)
   if (wait > 0) {

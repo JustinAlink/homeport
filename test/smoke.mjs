@@ -193,6 +193,20 @@ try {
   expect((await setupPost({ code, password: 'another-long-password' })) === 403, 'setup is closed once a password exists')
   expect((await setupState()).needsSetup === false, 'the login page now shows sign-in')
   expect(!('authSkipped' in JSON.parse(readFileSync(join(setupDir, 'auth.json'), 'utf8'))), 'the stale skip flag is gone from auth.json')
+
+  // Rate limits key on the socket address unless HOMEPORT_TRUSTED_PROXY says a
+  // proxy we control sets X-Forwarded-For: a forged header per guess must not
+  // buy a fresh lockout bucket. The 6th wrong password (5 are free) is refused.
+  let last = 0
+  for (let i = 1; i <= 6; i++) {
+    const r = await fetch(`${SETUP_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': `203.0.113.${i}` },
+      body: JSON.stringify({ password: 'not-the-password' }),
+    })
+    last = r.status
+  }
+  expect(last === 429, 'a forged X-Forwarded-For per guess still hits the login lockout')
 } catch (e) {
   problems.push(`setup fatal: ${e?.message || e}`)
 } finally {
