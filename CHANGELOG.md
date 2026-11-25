@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.36.1 (2026-11-25)
+
+The rest of the v2.36.0 audit: the follow-ups that needed more than a line.
+
+- **Containers left behind on a moved tag now show their update.** When a tag
+  moves to a newer image (another container's update, or any `docker pull`),
+  Docker lists containers still on the old image by its bare id, and homeport
+  treated them as local builds: never flagged, never auto-updated. They are now
+  checked as the image name they were created from, shown by that name on the
+  Updates page, and Update recreates them on the new image. Update entries of
+  images nothing uses any more are dropped, so old "check failed" lines go away.
+- **A long update no longer pauses monitoring.** Update checks and auto-updates
+  ran inside the collector's tick, so a big pull (or a registry that hung)
+  stopped alerts and history until it finished. They run beside it now, and
+  `/healthz` calls the collector stalled after 10 minutes instead of 30.
+- **The collector interval applies without a restart** when changed in Settings.
+- **An open terminal ends with its session.** Logging out, changing the password
+  or turning the terminal off now closes open shells: the next keystroke is
+  refused, and an idle shell closes within about 15 seconds.
+- **Multi-host:** a remote host's domains are no longer checked through this
+  host's proxy, whose "unknown host" page read as up and hid their outages; and
+  hosts whose names differ only in case or punctuation (`Pi` and `pi`) get
+  separate ids instead of both talking to the first one.
+
 ## v2.36.0 (2026-11-25)
 
 A full audit of homeport: security fixes first, then bugs that could take a
