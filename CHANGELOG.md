@@ -1,5 +1,97 @@
 # Changelog
 
+## v2.36.0 (2026-11-25)
+
+A full audit of homeport: security fixes first, then bugs that could take a
+service down or lose data, then a long tail of smaller ones. **Upgrade
+recommended**, especially if you use API tokens, viewer accounts or several
+apps on one host.
+
+### Security
+
+- **Cross-origin protection.** State-changing API requests and the terminal
+  WebSocket are refused when a browser sends them from another origin. The
+  `SameSite=Lax` cookie stopped other sites, but not another port or subdomain
+  of the same host, which on a homelab is where every other app lives.
+- **Read-only tokens and viewer accounts can no longer read secrets.**
+  Container files, container environments and settings are now admin-only. A
+  read token could read homeport's own `/data/auth.json` and forge an admin
+  session from it.
+- **API tokens can't export or restore backups** (the export holds the session
+  secret, which undid every other token restriction).
+- **Logging out no longer signs everyone out** unless it's the admin's own
+  session. The endpoint is public, so anyone could kick every user out in a loop.
+- **2FA can't be set up again over working 2FA** without turning it off first,
+  which asks for the password.
+- **Changing `HOMEPORT_ADMIN_PASSWORD` now ends existing sessions**, and a
+  backup restore can no longer bring revoked sessions back.
+- **`HOMEPORT_ALLOW_PROXY_ADMIN=false` is respected** by the "connect Nginx
+  Proxy Manager" flow too.
+- `install.sh` writes `.env` (it holds the session secret) owner-only.
+- `HOMEPORT_TRUSTED_PROXY` is documented: behind a reverse proxy without it, a
+  few wrong passwords from anyone lock everyone out for a while.
+
+### Things that could take a service down or lose data
+
+- **A failed update now really rolls back.** When the new container could not
+  start, the rollback always failed and left the service stopped and renamed.
+- **homeport no longer stops itself** through Update, Recreate or an env change
+  on its own container, and no longer deletes or auto-updates its own compose
+  project (that recreated the socket proxy it talks to Docker through).
+- **Editing a route in Nginx Proxy Manager keeps the rest of it.** homeport sent
+  a full rebuilt route, which removed Access Lists, custom config, locations and
+  https backends: changing a port could make a login-protected app public.
+- **Creating or installing a stack can't take over an existing one.** A name in
+  use by a stack, a folder, or a compose project started outside homeport is
+  refused. "New stack" with an existing name used to replace its compose file.
+- **"+ File" with an existing name opens that file** instead of a blank editor
+  whose Save overwrote it.
+- **The settings page no longer shows (and saves) defaults when it fails to
+  load**; one Save could wipe hosts, channels and capabilities.
+- **The Traefik file writer refuses a file it can't parse** instead of replacing
+  it with only homeport's route, and writes before it backs up.
+- **Container file edits keep the file's owner and permissions** (they became
+  root, 644, so apps could no longer write their own config).
+- `settings.json` is written atomically.
+
+### New
+
+- **`/healthz` and a container `HEALTHCHECK`.** The image reports unhealthy
+  when homeport can't reach Docker or its collector has stalled, so a homeport
+  that lost its socket proxy shows up in `docker ps` and in any monitor.
+- **Host alerts.** A Docker host homeport can't reach (or a dead socket proxy on
+  a single host) now sends a down alert, and a recovered one when it's back.
+  Its containers' alert state survives the outage.
+
+### Fixes
+
+- Projects started with several `-f` compose files keep all of them on pull and
+  up; compose runs without stdin, so a prompt can't hang an operation.
+- A git stack cloned from a tag stays on that tag when updated.
+- Live operation output no longer stops after 2000 lines.
+- Catalog inputs with `$`, quotes or backslashes land in the compose file as
+  typed. Stack names must be lowercase (compose refuses capitals).
+- Removing a stack's own network from the compose file works without a `name:`
+  key; failure cleanup only removes folders homeport created.
+- Removing a container on one host no longer deletes same-named routes on
+  another host's proxy.
+- Custom webhook templates stay valid JSON when alert text has quotes; ntfy
+  titles with emoji or non-Latin text are delivered.
+- nginx and Traefik domain discovery reads symlinked config files (Debian's
+  `sites-enabled`, Kubernetes ConfigMaps).
+- History no longer grows without bound from requests for unknown ids, and
+  files of long-gone containers are pruned.
+- Updates page: a failed "Pull & up" keeps its output until dismissed, "Update
+  everything" reports failures, and a dropped connection is no longer reported
+  as success.
+- File editors ask before discarding edits (X, backdrop, Escape); Escape in the
+  editor's search box only closes the search.
+- "Clone & deploy" lands on a working stack page; saving the compose file from
+  the Files dialog refreshes the main editor.
+- Command palette links switch tabs on the page you're already on; delayed
+  navigations no longer fire after you leave a page; searches and graph ranges
+  ignore stale responses; stacked dialogs keep keyboard focus in the top one.
+
 ## v2.35.2 (2026-11-25)
 
 - **Bug: recovery alerts said "running → running".** A container that went down
