@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseYAML } from 'confbox/yaml'
+import { parse as parseStrict } from 'yaml'
 import {
   parsePortainerTemplates,
   parseNativeCatalog,
@@ -117,6 +118,47 @@ test('substituteTokens: replaces known, reports unknown', () => {
   const { content, unresolved } = substituteTokens('port: "{{PORT}}" x: {{NOPE}}', { PORT: '8080' })
   assert.equal(content, 'port: "8080" x: {{NOPE}}')
   assert.deepEqual(unresolved, ['NOPE'])
+})
+
+// Install inputs are user text (passwords above all). A plain text replace lost
+// `$word` to compose interpolation, let `\` become an escape and let `"` or `'`
+// end the quoted string early. Each must read back as exactly what was typed,
+// with `$` doubled (compose's literal dollar).
+const NASTY = ['pa$word', 'back\\slash', 'say "hi"', "it's"]
+const asCompose = (v: string) => v.split('$').join('$$')
+
+test('substituteTokens: values survive double quotes, single quotes, plain and block scalars', () => {
+  const tpl = `services:
+  app:
+    image: nginx
+    environment:
+      DQ: "{{V}}"
+      SQ: '{{V}}'
+      BARE: {{V}}
+      MIXED: pre-{{V}}
+    command: |
+      run {{V}}
+`
+  for (const v of NASTY) {
+    const { content, unresolved } = substituteTokens(tpl, { V: v })
+    assert.deepEqual(unresolved, [])
+    const env = parseStrict(content).services.app.environment
+    const want = asCompose(v)
+    assert.deepEqual(env, { DQ: want, SQ: want, BARE: want, MIXED: `pre-${want}` }, `input ${JSON.stringify(v)}`)
+    assert.equal(parseStrict(content).services.app.command, `run ${want}\n`)
+  }
+})
+
+test('composeForInstall: Portainer (single-quoted) templates keep the exact value', () => {
+  const { apps } = parsePortainerTemplates(
+    { templates: [{ type: 1, title: 'Vault', image: 'vault:1', env: [{ name: 'PASS', label: 'Password' }] }] },
+    'test',
+  )
+  for (const v of NASTY) {
+    const out = composeForInstall(apps[0], { PASS: v })
+    assert.ok(out.ok)
+    assert.equal(parseStrict((out as any).content).services.vault.environment.PASS, asCompose(v), `input ${JSON.stringify(v)}`)
+  }
 })
 
 test('composeForInstall: end-to-end on a built-in app', () => {

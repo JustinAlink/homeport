@@ -2,6 +2,7 @@
 // input validation, and compose generation. No fs/network — unit-testable.
 
 import { stringifyYAML } from 'confbox/yaml'
+import { parseDocument, visit } from 'yaml'
 
 /** One prompt shown on the install form; becomes a value substituted into the compose. */
 export interface AppInput {
@@ -364,17 +365,92 @@ export function resolveInputs(app: CatalogApp, given: Record<string, unknown>): 
   return { ok: errors.length === 0, errors, values }
 }
 
-/** Replace {{VAR}} tokens. Unknown tokens are left in place and reported. */
+const TOKEN_RE = /\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g
+// what can sit unquoted in YAML and mean exactly itself, wherever the token is
+const PLAIN_SAFE = /^[A-Za-z0-9._\/@+-]*$/
+
+interface ScalarSpan {
+  start: number
+  end: number
+  type: string
+  value: string
+}
+
+/** Every string scalar of the template: where its source text is and how it is quoted. */
+function scalarSpans(src: string): ScalarSpan[] {
+  const spans: ScalarSpan[] = []
+  try {
+    visit(parseDocument(src), {
+      Scalar(_key, node) {
+        if (typeof node.value === 'string' && node.range) {
+          spans.push({ start: node.range[0], end: node.range[1], type: String(node.type), value: node.value })
+        }
+      },
+    })
+  } catch {
+    // unparseable template: every token is then treated as unquoted
+  }
+  return spans
+}
+
+// Compose interpolates `$` everywhere in the file; `$$` is its literal dollar.
+const literalDollars = (v: string) => v.split('$').join('$$')
+
+/**
+ * A value written into the scalar style the token sits in, so it reads back as
+ * exactly what was typed. null: an unquoted spot that can't hold this value.
+ */
+function escapeFor(type: string | undefined, value: string): string | null {
+  const v = literalDollars(value)
+  if (type === 'QUOTE_DOUBLE') return v.replace(/[\\"]/g, (c) => `\\${c}`)
+  if (type === 'QUOTE_SINGLE') return v.replace(/'/g, "''")
+  if (type === 'BLOCK_LITERAL' || type === 'BLOCK_FOLDED') return v // no escapes inside block scalars
+  return PLAIN_SAFE.test(value) ? value : null
+}
+
+/**
+ * Replace {{VAR}} tokens. Unknown tokens are left in place and reported.
+ *
+ * Values are user input (passwords above all), so a plain text replace is not
+ * enough: `pa$word` lost `$word` to compose interpolation, a `"` ended a
+ * double-quoted string early and a `'` a single-quoted one (Portainer
+ * templates). Each token is escaped for the scalar it sits in; an unquoted
+ * scalar that can't hold the value is rewritten as a double-quoted one.
+ */
 export function substituteTokens(
   compose: string,
   values: Record<string, string>,
 ): { content: string; unresolved: string[] } {
   const unresolved = new Set<string>()
-  const content = compose.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (m, name: string) => {
-    if (values[name] !== undefined) return values[name]
-    unresolved.add(name)
-    return m
-  })
+  const spans = scalarSpans(compose)
+  const spanAt = (i: number) => spans.find((s) => i >= s.start && i < s.end)
+  const tokens = [...compose.matchAll(TOKEN_RE)].map((m) => ({ at: m.index ?? 0, raw: m[0], name: m[1], span: spanAt(m.index ?? 0) }))
+
+  const requote = new Set<ScalarSpan>()
+  for (const t of tokens) {
+    const v = values[t.name]
+    if (v !== undefined && t.span?.type === 'PLAIN' && escapeFor('PLAIN', v) === null) requote.add(t.span)
+  }
+
+  const edits: { start: number; end: number; text: string }[] = []
+  for (const span of requote) {
+    const value = span.value.replace(TOKEN_RE, (m, name: string) => (values[name] !== undefined ? literalDollars(values[name]) : m))
+    edits.push({ start: span.start, end: span.end, text: JSON.stringify(value) }) // JSON strings are valid YAML double-quoted scalars
+  }
+  for (const t of tokens) {
+    const v = values[t.name]
+    if (v === undefined) {
+      unresolved.add(t.name)
+      continue
+    }
+    if (t.span && requote.has(t.span)) continue
+    // outside any string scalar (`key: {{X}}` reads as a flow map until filled):
+    // the token is the whole value, so a quoted value can stand in for it
+    edits.push({ start: t.at, end: t.at + t.raw.length, text: escapeFor(t.span?.type, v) ?? JSON.stringify(literalDollars(v)) })
+  }
+
+  let content = compose
+  for (const e of edits.sort((a, b) => b.start - a.start)) content = content.slice(0, e.start) + e.text + content.slice(e.end)
   return { content, unresolved: [...unresolved] }
 }
 
