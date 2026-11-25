@@ -19,6 +19,7 @@ export function useStackOp() {
   const stacks = useStacks()
   const updates = useUpdates()
 
+  /** True only when the op reported success; false when it failed, couldn't start, or its outcome is unknown. */
   async function run(name: string, op: StackOpName): Promise<boolean> {
     if (busy.value[name]) return false
     busy.value = { ...busy.value, [name]: op }
@@ -26,7 +27,9 @@ export function useStackOp() {
     let lastLine = ''
     try {
       const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(name)}/action`, { method: 'POST', body: { op } })
-      ok = await new Promise<boolean>((resolve) => {
+      // null: the stream dropped before "done". The op keeps running server-side,
+      // so it is neither a failure nor a success: say so instead of guessing.
+      const outcome = await new Promise<boolean | null>((resolve) => {
         const es = new EventSource(`/api/ops/${opId}`)
         es.onmessage = (e) => {
           try {
@@ -38,13 +41,14 @@ export function useStackOp() {
             }
           } catch {}
         }
-        // a dropped stream doesn't mean a failed op: it keeps running server-side
         es.onerror = () => {
           es.close()
-          resolve(true)
+          resolve(null)
         }
       })
-      if (ok) toast.success(`Stack ${name} ${VERB[op][1]}`)
+      ok = outcome === true
+      if (outcome === true) toast.success(`Stack ${name} ${VERB[op][1]}`)
+      else if (outcome === null) toast.error(`Lost the connection while ${VERB[op][0].toLowerCase()} stack ${name}. It may still be running: open the stack to check.`)
       else toast.error(`Stack ${name}: ${op} failed${lastLine ? `\n${lastLine}` : ''}`)
     } catch (e: any) {
       toast.error(errMsg(e, `Could not ${op} stack ${name}`))
