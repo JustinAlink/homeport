@@ -79,7 +79,7 @@
         <span class="hidden shrink-0 text-[11px] text-slate-600 sm:block">{{ ago(e.mtime) }}</span>
         <div
           class="flex shrink-0 items-center gap-1 transition-opacity"
-          :class="pendingDelete === e.name ? '' : 'opacity-0 group-hover:opacity-100'"
+          :class="pendingDelete === e.name ? '' : 'pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100'"
         >
           <template v-if="pendingDelete === e.name">
             <span class="text-[10px] text-red-300">delete {{ e.type === 'dir' ? 'folder + contents' : 'file' }}?</span>
@@ -145,6 +145,8 @@
 
 <script setup lang="ts">
 const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean; git?: { tracked?: string[]; branch?: string } | null; managedBy?: string | null }>()
+// tells the stack page a file changed on disk (it reloads its own compose editor)
+const emit = defineEmits<{ saved: [path: string] }>()
 const gitTracked = useExternalSource(() => ({ git: props.git, managedBy: props.managedBy }))
 
 interface Entry {
@@ -241,25 +243,25 @@ async function setupFileEditor(content: string, yamlMode: boolean) {
   fileDirty.value = false
 }
 
-async function openEditor(relPath: string, initial = '') {
+// Always reads the file first, "+ File" included: a name that already exists
+// opens with its real content, so Save can't overwrite it with a blank page.
+async function openEditor(relPath: string) {
   fileMsg.value = ''
   editing.value = relPath
-  let content = initial
-  if (initial === '') {
-    try {
-      const r = await $fetch<{ content: string }>(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
-        query: { path: relPath },
-      })
-      content = r.content
-    } catch (e: any) {
-      const code = e?.statusCode ?? e?.response?.status
-      if (code === 404) content = '' // new file
-      else {
-        editing.value = null
-        err.value = errMsg(e, 'Could not open the file')
-        return
-      }
+  let content = ''
+  try {
+    const r = await $fetch<{ content: string }>(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
+      query: { path: relPath },
+    })
+    content = r.content
+  } catch (e: any) {
+    const code = e?.statusCode ?? e?.response?.status
+    if (code !== 404) {
+      editing.value = null
+      err.value = errMsg(e, 'Could not open the file')
+      return
     }
+    // 404: a new file, saving creates it
   }
   await nextTick()
   await setupFileEditor(content, /\.ya?ml$/i.test(relPath))
@@ -286,19 +288,21 @@ async function closeEditor() {
 }
 
 async function saveFile() {
-  if (editing.value === null) return
-  if (!(await gitTracked.confirmSave(editing.value))) return
+  const path = editing.value
+  if (path === null) return
+  if (!(await gitTracked.confirmSave(path))) return
   fileSaving.value = true
   fileMsg.value = ''
   try {
     await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
       method: 'PUT',
-      body: { path: editing.value, content: fileView.state.doc.toString() },
+      body: { path, content: fileView.state.doc.toString() },
     })
     fileBaseline = fileView.state.doc.toString()
     fileDirty.value = false
     fileOk.value = true
     fileMsg.value = 'Saved.'
+    emit('saved', path)
     load()
   } catch (e: any) {
     fileOk.value = false
@@ -330,7 +334,7 @@ async function confirmNaming() {
   err.value = ''
   if (mode === 'file') {
     naming.value = null
-    return openEditor(rel(name), '\n')
+    return openEditor(rel(name))
   }
   try {
     if (mode === 'folder') {

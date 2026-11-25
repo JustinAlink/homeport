@@ -427,6 +427,10 @@ async function loadHubTop() {
   }
 }
 
+// typing fires overlapping searches: only the newest may fill the list, or a
+// slow answer for "jel" can land after the one for "jellyfin" and replace it
+const hubSeq = requestSequence()
+
 async function searchHub() {
   const q = hubQuery.value.trim()
   if (!q) {
@@ -434,16 +438,18 @@ async function searchHub() {
     hubResults.value = []
     return
   }
+  const current = hubSeq.start()
   hubLoading.value = true
   hubError.value = ''
   try {
     const r = await $fetch<{ results: HubResult[] }>('/api/hub/search', { query: { q } })
+    if (!current()) return
     hubResults.value = r.results
     hubSearched.value = true
   } catch (e: any) {
-    hubError.value = errMsg(e, 'Docker Hub search failed')
+    if (current()) hubError.value = errMsg(e, 'Docker Hub search failed')
   } finally {
-    hubLoading.value = false
+    if (current()) hubLoading.value = false
   }
 }
 
@@ -453,6 +459,8 @@ watch(hubQuery, () => {
   if (hubTimer) clearTimeout(hubTimer)
   hubError.value = ''
   if (!hubQuery.value.trim()) {
+    hubSeq.invalidate() // a search still in flight must not refill the cleared list
+    hubLoading.value = false
     hubSearched.value = false
     hubResults.value = []
     return
@@ -499,6 +507,9 @@ async function loadGhTop() {
   }
 }
 
+// same as Docker Hub: typing and the sort switch both fire overlapping searches
+const ghSeq = requestSequence()
+
 async function searchGithub() {
   const q = ghQuery.value.trim()
   if (!q) {
@@ -506,16 +517,18 @@ async function searchGithub() {
     ghResults.value = []
     return
   }
+  const current = ghSeq.start()
   ghLoading.value = true
   ghError.value = ''
   try {
     const r = await $fetch<{ results: GhResult[] }>('/api/github/search', { query: { q, sort: ghSort.value } })
+    if (!current()) return
     ghResults.value = r.results
     ghSearched.value = true
   } catch (e: any) {
-    ghError.value = errMsg(e, 'GitHub search failed')
+    if (current()) ghError.value = errMsg(e, 'GitHub search failed')
   } finally {
-    ghLoading.value = false
+    if (current()) ghLoading.value = false
   }
 }
 
@@ -525,6 +538,8 @@ watch(ghQuery, () => {
   if (ghTimer) clearTimeout(ghTimer)
   ghError.value = ''
   if (!ghQuery.value.trim()) {
+    ghSeq.invalidate() // a search still in flight must not refill the cleared list
+    ghLoading.value = false
     ghSearched.value = false
     ghResults.value = []
     return

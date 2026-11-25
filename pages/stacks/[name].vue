@@ -236,8 +236,18 @@
       </div>
     </section>
 
-    <!-- compose editor -->
-    <section v-if="!notManaged" class="mb-6">
+    <!-- compose editor (hidden while a clone is still creating the stack's files) -->
+    <section v-if="!notManaged && !cloning" class="mb-6">
+      <!-- "New stack" with a name that is taken: the server refused to overwrite it -->
+      <div v-if="createConflict" class="callout callout-danger mb-3">
+        <Icon name="alert" />
+        <div>
+          {{ createConflict }}
+          <p class="mt-1 text-xs">
+            Nothing was saved and the existing stack is unchanged. <NuxtLink to="/stacks?new=1" class="link">Choose another name</NuxtLink>
+          </p>
+        </div>
+      </div>
       <!-- a tracked file in a git stack: the next update from git resets it -->
       <p v-if="caps.control && gitTracked.isTracked(file || 'compose.yaml')" class="callout callout-warn mb-3 text-xs">
         <Icon name="git-branch" />
@@ -278,11 +288,21 @@
     </section>
 
     <!-- file browser: everything in the stack's directory -->
-    <StackFiles v-if="!notManaged && !isNew" ref="filesRef" :stack="name" :compose-file="file" :read-only="!caps.control" :git="gitInfo" :managed-by="stackOwner" class="mb-6" />
+    <StackFiles
+      v-if="!notManaged && !isNew && !cloning"
+      ref="filesRef"
+      :stack="name"
+      :compose-file="file"
+      :read-only="!caps.control"
+      :git="gitInfo"
+      :managed-by="stackOwner"
+      class="mb-6"
+      @saved="onFileSaved"
+    />
 
     <!-- where the stack's data actually lives: named volumes + host binds that
          sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
-    <StackMounts v-if="!notManaged && !isNew" :stack="name" @browse="onBrowse" />
+    <StackMounts v-if="!notManaged && !isNew && !cloning" :stack="name" @browse="onBrowse" />
   </div>
 </template>
 
@@ -290,8 +310,13 @@
 import type { Service } from '~/types/service'
 
 const route = useRoute()
+const router = useRouter()
 const name = String(route.params.name)
 const isNew = ref(String(route.query.new || '') === '1')
+// Arriving from "Clone & deploy" (?op=): the stack's directory only exists once
+// the clone finishes, so until then a 404 means "not yet", not "unmanaged project".
+const arrivingOp = String(route.query.op || '')
+const cloning = ref(!!arrivingOp)
 
 const file = ref('')
 const source = ref<'stacks' | 'root' | 'adopted'>('stacks')
@@ -380,10 +405,29 @@ const filesRef = ref<{ goto: (rel: string) => void } | null>(null)
 function onBrowse(rel: string) {
   filesRef.value?.goto(rel)
 }
+// Saving the compose file from the Files dialog changes it on disk behind this
+// editor. Without a reload the editor shows the old version, and its next Save
+// would quietly put that old version back.
+async function onFileSaved(path: string) {
+  if (path !== (file.value || 'compose.yaml')) return
+  if (
+    dirty.value &&
+    !(await confirm({
+      title: 'Load the version you just saved?',
+      message: `${path} was saved from the Files dialog. The compose editor on this page has unsaved edits of its own: loading the saved version discards them.`,
+      confirmLabel: 'Load saved version',
+      cancelLabel: 'Keep my edits',
+      danger: true,
+    }))
+  )
+    return
+  await load()
+}
 const dirty = ref(false)
 const saving = ref(false)
 const saveMsg = ref('')
 const saveOk = ref(false)
+const createConflict = ref('')
 
 let view: any = null
 let savedContent = ''
@@ -401,10 +445,14 @@ async function setupEditor(content: string) {
     import('@codemirror/lang-yaml'),
     import('@codemirror/theme-one-dark'),
   ])
+  // the editor section may only just have been un-hidden (a clone finished, or
+  // the page stopped being the unmanaged view): let it render first
+  await nextTick()
+  if (!editorEl.value) return
   view?.destroy()
   view = new EditorView({
     doc: content,
-    parent: editorEl.value!,
+    parent: editorEl.value,
     extensions: [
       basicSetup,
       yaml(),
@@ -419,6 +467,10 @@ async function setupEditor(content: string) {
   })
 }
 
+// Only the newest load may land: the 404 from before a clone finished must not
+// arrive after the successful load that followed it and flip the page back.
+const loadSeq = requestSequence()
+
 async function load() {
   if (isNew.value) {
     file.value = 'compose.yaml'
@@ -427,20 +479,29 @@ async function load() {
     dirty.value = true
     return
   }
+  const current = loadSeq.start()
   try {
     const s = await $fetch<{ name: string; file: string; content: string; source?: 'stacks' | 'root' | 'adopted'; dir?: string }>(
       `/api/stacks/${encodeURIComponent(name)}`,
     )
+    if (!current()) return
+    // it exists now, whatever an earlier load concluded (a clone that just finished)
+    notManaged.value = false
+    loadError.value = ''
     file.value = s.file
     source.value = s.source ?? 'stacks'
     stackDir.value = s.dir ?? ''
     savedContent = s.content
     await setupEditor(s.content)
+    dirty.value = false // a reload replaces the editor's content, edits included
   } catch (e: any) {
+    if (!current()) return
     const code = e?.statusCode ?? e?.response?.status
     if (code === 401) return navigateTo('/login')
-    // 404 = no stack dir; 403 = stacks disabled — either way, fall back to the
-    // unmanaged-project view driven by the live container list
+    // 404 = no stack dir; 403 = stacks disabled. Either way, fall back to the
+    // unmanaged-project view driven by the live container list, unless a clone
+    // is still creating the directory (the op card shows its progress meanwhile).
+    if (code === 404 && cloning.value) return
     if (code === 404 || code === 403) {
       notManaged.value = true
       return
@@ -453,9 +514,11 @@ async function save() {
   if (!(await gitTracked.confirmSave(file.value || 'compose.yaml'))) return
   saving.value = true
   saveMsg.value = ''
+  createConflict.value = ''
+  const wasNew = isNew.value
   try {
     const content = view.state.doc.toString()
-    await $fetch(`/api/stacks/${encodeURIComponent(name)}${isNew.value ? '?create=1' : ''}`, {
+    await $fetch(`/api/stacks/${encodeURIComponent(name)}${wasNew ? '?create=1' : ''}`, {
       method: 'PUT',
       body: { content },
     })
@@ -464,9 +527,17 @@ async function save() {
     isNew.value = false
     saveOk.value = true
     saveMsg.value = 'Saved & validated.'
+    if (wasNew) {
+      // the stack exists now: a reload must open it, not the "new stack" template again
+      router.replace({ query: { ...route.query, new: undefined, image: undefined } })
+      stacksStore.refresh()
+    }
   } catch (e: any) {
     saveOk.value = false
-    saveMsg.value = errMsg(e, 'Save failed')
+    // 409: the name is taken (the "New stack" form checks, but a link or a typed
+    // URL can still get here). The server refused, so nothing was overwritten.
+    if (wasNew && (e?.statusCode ?? e?.response?.status) === 409) createConflict.value = errMsg(e, `A stack named “${name}” already exists.`)
+    else saveMsg.value = errMsg(e, 'Save failed')
   } finally {
     saving.value = false
   }
@@ -669,15 +740,18 @@ async function deleteStack() {
 
 // After the delete op ends, confirm the stack is really gone (it may still be
 // finishing when a stream drops), then navigate away. If it's still there after
-// a few seconds the delete failed — stay so the op log explains why.
+// a few seconds the delete failed: stay so the op log explains why. Stops once
+// the user has left this page, so it never drags them back to /stacks.
+const timers = usePageTimers()
 async function leaveWhenGone() {
   for (let i = 0; i < 12; i++) {
     try {
       await $fetch(`/api/stacks/${encodeURIComponent(name)}`)
     } catch (e: any) {
-      if ((e?.statusCode ?? e?.response?.status) === 404) return navigateTo('/stacks', { replace: true })
+      if ((e?.statusCode ?? e?.response?.status) === 404) return timers.alive() ? navigateTo('/stacks', { replace: true }) : undefined
     }
-    await new Promise((r) => setTimeout(r, 500))
+    await timers.wait(500)
+    if (!timers.alive()) return
   }
   deleting.value = false
 }
@@ -720,11 +794,18 @@ onMounted(() => {
   statsStart()
   updates.refresh()
   if (!isNew.value) loadGit()
-  // arriving from "Clone & deploy" — attach to the in-flight clone op
-  const opId = String(useRoute().query.op || '')
-  if (opId) {
+  // arriving from "Clone & deploy": follow the in-flight clone op. Finished or
+  // lost, the page then loads whatever exists, and ?op= leaves the URL so a
+  // reload doesn't re-attach to an op the server may have forgotten.
+  if (arrivingOp) {
     opRunning.value = true
-    attachOp(opId, () => { load(); loadGit() })
+    const settle = () => {
+      cloning.value = false
+      router.replace({ query: { ...route.query, op: undefined } })
+      load()
+      loadGit()
+    }
+    attachOp(arrivingOp, settle, settle)
   }
 })
 onBeforeUnmount(() => {

@@ -38,8 +38,9 @@
       </div>
 
       <div class="space-y-4">
-        <!-- groups with pending updates -->
-        <section v-for="g in groups" :key="g.key" class="card overflow-hidden">
+        <!-- groups with pending updates, plus finished stack operations whose group
+             has no updates left (their result stays until dismissed) -->
+        <section v-for="g in shownGroups" :key="g.key" class="card overflow-hidden">
           <div class="card-header">
             <component
               :is="g.project ? NuxtLinkC : 'h2'"
@@ -49,9 +50,9 @@
             >{{ g.label }}</component>
             <span v-if="g.managed" class="badge badge-accent" title="Managed compose stack: updates run through docker compose">stack</span>
             <span v-else-if="g.project" class="badge" title="Compose project homeport can't see the files of: containers are recreated in place">unmanaged</span>
-            <span class="text-xs text-slate-500">{{ g.services.length }} update{{ g.services.length > 1 ? 's' : '' }}</span>
+            <span v-if="g.services.length" class="text-xs text-slate-500">{{ g.services.length }} update{{ g.services.length > 1 ? 's' : '' }}</span>
 
-            <div class="ml-auto flex items-center gap-2">
+            <div v-if="g.services.length" class="ml-auto flex items-center gap-2">
               <label
                 v-if="autoLoaded && caps.updates && g.project"
                 class="check items-center rounded-md px-2 py-1 text-xs hover:bg-white/[0.04]"
@@ -113,11 +114,27 @@
             </div>
           </div>
 
-          <!-- live output for this group's operation -->
-          <pre
-            v-if="busyGroup === g.key && opLines.length"
-            class="max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-white/[0.06] bg-ink-950/60 px-4 py-3 font-mono text-[11.5px] leading-relaxed text-slate-300"
-          >{{ opLines.join('\n') }}</pre>
+          <!-- this group's stack operation: live output, then its result until dismissed -->
+          <div v-if="results[g.key]" class="border-t border-white/[0.06]">
+            <div class="flex items-center gap-2 px-4 py-2 text-[12.5px] font-medium sm:px-5" :class="RESULT_TONE[results[g.key].state]">
+              <Icon
+                :name="results[g.key].state === 'running' ? 'refresh' : results[g.key].state === 'ok' ? 'check' : 'alert'"
+                class="h-3.5 w-3.5 shrink-0"
+                :class="results[g.key].state === 'running' ? 'animate-spin' : ''"
+              />
+              {{ RESULT_TEXT[results[g.key].state] }}
+              <button
+                v-if="results[g.key].state !== 'running'"
+                class="btn btn-ghost btn-icon btn-sm ml-auto"
+                aria-label="Dismiss output"
+                @click="dismissResult(g.key)"
+              ><Icon name="x" /></button>
+            </div>
+            <pre
+              v-if="results[g.key].lines.length"
+              class="max-h-48 overflow-y-auto whitespace-pre-wrap bg-ink-950/60 px-4 py-3 font-mono text-[11.5px] leading-relaxed text-slate-300"
+            >{{ results[g.key].lines.join('\n') }}</pre>
+          </div>
         </section>
       </div>
 
@@ -248,64 +265,91 @@ const lastChecked = computed(() => {
 
 // --- actions (one group at a time) ---
 const busyGroup = ref('')
-const opLines = ref<string[]>([])
 const rowNote = ref<Record<string, string>>({})
 let es: EventSource | null = null
 
-// resolves the in-flight stack operation once its stream finishes (lets "Update everything" run groups in order)
-let opResolve: (() => void) | null = null
+// A stack's "Pull & up" result is kept per group until dismissed. A success
+// removes the group from the update list (nothing left to update), and a
+// failure must stay readable after the operation ends, not vanish with it.
+// 'unknown': the event stream dropped. The op keeps running server-side; its outcome went unseen.
+type OpState = 'running' | 'ok' | 'failed' | 'unknown'
+interface GroupResult { label: string; project: string | null; state: OpState; lines: string[] }
+const results = ref<Record<string, GroupResult>>({})
+const RESULT_TEXT: Record<OpState, string> = {
+  running: 'Pulling and redeploying…',
+  ok: 'Pulled and redeployed',
+  failed: 'Failed',
+  unknown: 'Lost the connection to the operation. It may still be running; reload to check.',
+}
+const RESULT_TONE: Record<OpState, string> = { running: 'text-slate-200', ok: 'text-ok', failed: 'text-red-300', unknown: 'text-amber-300' }
+function dismissResult(key: string) {
+  delete results.value[key]
+}
+const shownGroups = computed<Group[]>(() => {
+  const live = new Set(groups.value.map((g) => g.key))
+  const finished = Object.entries(results.value)
+    .filter(([k]) => !live.has(k))
+    .map(([key, r]) => ({ key, label: r.label, project: r.project, managed: true, services: [] }))
+  return [...groups.value, ...finished]
+})
 
-async function pullStack(g: Group, ask = true) {
-  if (ask && !(await confirm({ message: `Pull new images and redeploy stack “${g.project}”?`, confirmLabel: 'Pull & up' }))) return
+async function pullStack(g: Group, ask = true): Promise<OpState | null> {
+  if (ask && !(await confirm({ message: `Pull new images and redeploy stack “${g.project}”?`, confirmLabel: 'Pull & up' }))) return null
   busyGroup.value = g.key
-  opLines.value = []
+  results.value[g.key] = { label: g.label, project: g.project, state: 'running', lines: [] }
+  const res = results.value[g.key]
   try {
     const { opId } = await $fetch<{ opId: string }>(`/api/stacks/${encodeURIComponent(g.project!)}/action`, {
       method: 'POST',
       body: { op: 'pull' },
     })
     es?.close()
-    es = new EventSource(`/api/ops/${opId}`)
-    es.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data)
-        if (msg.line !== undefined) opLines.value.push(msg.line)
-        if (msg.done) finishOp()
-      } catch {}
-    }
-    es.onerror = () => finishOp()
-    await new Promise<void>((r) => (opResolve = r))
+    res.state = await new Promise<OpState>((resolve) => {
+      es = new EventSource(`/api/ops/${opId}`)
+      es.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg.line !== undefined) res.lines.push(msg.line)
+          if (msg.done) {
+            es?.close()
+            resolve(msg.ok ? 'ok' : 'failed')
+          }
+        } catch {}
+      }
+      es.onerror = () => {
+        es?.close()
+        resolve('unknown')
+      }
+    })
   } catch (e: any) {
-    opLines.value.push(errMsg(e, 'could not start the operation'))
+    res.lines.push(errMsg(e, 'could not start the operation'))
+    res.state = 'failed'
+  } finally {
     busyGroup.value = ''
+    svcRefresh()
+    updates.refresh()
   }
+  return res.state
 }
 
-function finishOp() {
-  es?.close()
-  busyGroup.value = ''
-  svcRefresh()
-  updates.refresh()
-  opResolve?.()
-  opResolve = null
-}
-
-async function updateGroup(g: Group, ask = true) {
+async function updateGroup(g: Group, ask = true): Promise<OpState | null> {
   const n = g.services.length
-  if (ask && !(await confirm({ message: `Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`, confirmLabel: 'Update' }))) return
+  if (ask && !(await confirm({ message: `Update ${n} container${n > 1 ? 's' : ''}${g.project ? ` in “${g.project}”` : ''}? Each is pulled and recreated in place.`, confirmLabel: 'Update' }))) return null
   busyGroup.value = g.key
-  opLines.value = []
+  let failed = false
   for (const s of g.services) {
     rowNote.value[s.id] = 'updating…'
     try {
       await $fetch('/api/updates/apply', { method: 'POST', body: { id: s.id, image: s.image } })
       rowNote.value[s.id] = 'updated'
     } catch (e: any) {
-      rowNote.value[s.id] = `failed — ${errMsg(e, 'update failed')}`
+      failed = true
+      rowNote.value[s.id] = `failed: ${errMsg(e, 'update failed')}` // stays: the row keeps its update
     }
   }
   busyGroup.value = ''
   await Promise.all([svcRefresh(), updates.refresh()])
+  return failed ? 'failed' : 'ok'
 }
 
 // --- update everything: every group in turn, one confirmation up front ---
@@ -326,11 +370,16 @@ async function updateEverything() {
     return
   bulkRunning.value = true
   try {
-    for (const g of gs) {
-      if (g.managed) await pullStack(g, false)
-      else await updateGroup(g, false)
+    const states: (OpState | null)[] = []
+    for (const g of gs) states.push(g.managed ? await pullStack(g, false) : await updateGroup(g, false))
+    // "applied" only when every group says so; otherwise say how many did not
+    const failed = states.filter((s) => s === 'failed').length
+    const unknown = states.filter((s) => s === 'unknown').length
+    if (!failed && !unknown) toast.success('Updates applied')
+    else {
+      const parts = [failed ? `${failed} failed` : '', unknown ? `${unknown} lost the connection (may still be running)` : ''].filter(Boolean)
+      toast.error(`Updates finished with problems: ${parts.join(', ')}, out of ${gs.length}. Details are on this page.`)
     }
-    toast.success('Updates applied')
   } finally {
     bulkRunning.value = false
   }

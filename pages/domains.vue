@@ -157,8 +157,20 @@ async function remove(r: AdminRoute) {
   }
 }
 
+// "Add a domain" from the command palette is ?add=1. It is watched (the palette
+// can fire it while this page is already open) and then dropped from the URL, or
+// the next one would be a navigation to the same URL, which does nothing.
+const route = useRoute()
+const router = useRouter()
+function openFromQuery() {
+  if (!route.query.add) return
+  adding.value = true
+  router.replace({ query: { ...route.query, add: undefined } })
+}
+watch(() => route.query.add, openFromQuery)
+
 onMounted(() => {
-  if (useRoute().query.add) adding.value = true // "Add a domain" from the command palette
+  openFromQuery()
   load()
   loadHpCaps()
   svcStart()

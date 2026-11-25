@@ -1,13 +1,21 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="$emit('close')">
-    <div class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900" style="box-shadow: var(--shadow-pop)">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="requestClose">
+    <div
+      ref="panelEl"
+      class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/10 bg-ink-900"
+      style="box-shadow: var(--shadow-pop)"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="`Files of ${title} in the container`"
+      @keydown="onPanelKey"
+    >
       <!-- header -->
       <div class="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
         <Icon name="stacks" class="h-4 w-4 shrink-0 text-sky-300/80" />
         <span class="truncate font-mono text-sm text-slate-200" :title="`${root} in ${name}`">{{ title }}</span>
         <span class="badge shrink-0">in container</span>
         <span v-if="readOnly" class="badge badge-warn shrink-0">read-only</span>
-        <button class="ml-auto text-slate-500 hover:text-slate-200" aria-label="Close" @click="$emit('close')"><Icon name="x" class="h-4 w-4" /></button>
+        <button class="ml-auto text-slate-500 hover:text-slate-200" aria-label="Close" @click="requestClose"><Icon name="x" class="h-4 w-4" /></button>
       </div>
 
       <!-- browser -->
@@ -35,7 +43,7 @@
             placeholder="file name (e.g. settings.yml)"
             class="min-w-[12rem] flex-1 input font-mono input-sm"
             @keydown.enter="confirmNewFile"
-            @keydown.esc="naming = false"
+            @keydown.esc.stop="naming = false"
           />
           <span v-if="path" class="font-mono text-[10px] text-slate-600">in {{ path }}/</span>
           <button class="btn btn-primary btn-sm" :disabled="!newName.trim()" @click="confirmNewFile">Create</button>
@@ -65,7 +73,7 @@
             <a
               v-if="e.type === 'file'"
               :href="downloadHref(e.name)"
-              class="btn btn-ghost btn-sm h-6 shrink-0 px-2 text-[11px] opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+              class="btn btn-ghost btn-sm h-6 shrink-0 px-2 text-[11px] transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
               :download="e.name"
             >download</a>
           </div>
@@ -99,7 +107,7 @@
 
 <script setup lang="ts">
 const props = defineProps<{ container: string; root: string; name: string; title: string; readOnly?: boolean }>()
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
 
 interface Entry {
   name: string
@@ -189,35 +197,59 @@ async function setupEditor(content: string, yamlMode: boolean) {
   fileDirty.value = false
 }
 
-async function openEditor(relPath: string, initial = '') {
+// Always reads the file first, "+ File" included: a name that already exists
+// opens with its real content. Inside a container there is no .bak, so a blank
+// editor saved over an existing file would lose it for good.
+async function openEditor(relPath: string) {
   fileMsg.value = ''
   editing.value = relPath
-  let content = initial
-  if (initial === '') {
-    try {
-      const r = await $fetch<{ content: string }>('/api/containers/file', { query: query({ path: relPath }) })
-      content = r.content
-    } catch (e: any) {
-      const code = e?.statusCode ?? e?.response?.status
-      if (code === 404) content = '' // new file
-      else {
-        editing.value = null
-        err.value = errMsg(e, 'Could not open the file')
-        return
-      }
+  let content = ''
+  try {
+    const r = await $fetch<{ content: string }>('/api/containers/file', { query: query({ path: relPath }) })
+    content = r.content
+  } catch (e: any) {
+    const code = e?.statusCode ?? e?.response?.status
+    if (code !== 404) {
+      editing.value = null
+      err.value = errMsg(e, 'Could not open the file')
+      return
     }
+    // 404: a new file, saving creates it
   }
   await nextTick()
   await setupEditor(content, /\.ya?ml$/i.test(relPath))
 }
 
+async function confirmDiscard(): Promise<boolean> {
+  if (!fileDirty.value) return true
+  return confirmDialog({ title: 'Discard unsaved changes?', message: `Your edits to ${editing.value} have not been saved.`, confirmLabel: 'Discard', danger: true })
+}
+
 async function closeEditor() {
-  if (fileDirty.value && !(await confirmDialog({ title: 'Discard unsaved changes?', message: `Your edits to ${editing.value} have not been saved.`, confirmLabel: 'Discard', danger: true }))) return
+  if (!(await confirmDiscard())) return
   fileView?.destroy()
   fileView = null
   fileDirty.value = false
   editing.value = null
   load()
+}
+
+// The X, a backdrop click and Escape all close the whole dialog: like "back",
+// they ask first when the open file has unsaved edits.
+async function requestClose() {
+  if (!(await confirmDiscard())) return
+  fileDirty.value = false
+  emit('close')
+}
+
+const panelEl = ref<HTMLElement | null>(null)
+useFocusTrap(panelEl, () => true)
+function onPanelKey(e: KeyboardEvent) {
+  // defaultPrevented: the editor used this Escape itself (closing its search panel)
+  if (e.key === 'Escape' && !e.defaultPrevented) {
+    e.preventDefault()
+    requestClose()
+  }
 }
 
 // inline "new file" naming (native prompt() is silently blocked in embedded views)
@@ -236,7 +268,7 @@ function confirmNewFile() {
   if (!n) return
   naming.value = false
   newName.value = ''
-  openEditor(rel(n), '\n') // blank editor; saving creates it
+  openEditor(rel(n))
 }
 
 async function saveFile() {
