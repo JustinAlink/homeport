@@ -4,6 +4,7 @@ export interface Capabilities {
   updateCheck: boolean
   updates: boolean
   stacks: boolean
+  gitWebhooks: boolean
   terminal: boolean
   containerFiles: boolean
   proxyAdmin: boolean
@@ -20,6 +21,7 @@ const NONE: Capabilities = {
   updateCheck: false,
   updates: false,
   stacks: false,
+  gitWebhooks: false,
   terminal: false,
   containerFiles: false,
   proxyAdmin: false,

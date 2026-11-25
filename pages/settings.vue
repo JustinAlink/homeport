@@ -263,7 +263,7 @@
             :key="c.key"
             class="check"
           >
-            <input v-model="(form as any)[c.key]" type="checkbox" :disabled="!!locked[c.lock]" />
+            <input v-model="(form as any)[c.key]" type="checkbox" :disabled="!!locked[c.lock] || !requirementMet(c)" />
             <span>
               {{ c.label }}
               <span
@@ -274,7 +274,7 @@
                 :title="v.title"
               >{{ v.text }}</span>
               <span class="block text-[11px] text-slate-500">
-                {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code>, locked</template>
+                {{ c.hint }}<template v-if="locked[c.lock]"> · set by <code>{{ c.env }}</code>, locked</template><template v-else-if="!requirementMet(c)"> · turn on {{ requirementLabel(c) }} first</template>
               </span>
             </span>
           </label>
@@ -932,6 +932,7 @@ const form = reactive({
   allowUpdates: false,
   registryCreds: [] as RegistryCredRow[],
   allowStacks: false,
+  allowGitWebhooks: false,
   composeRoots: [] as string[],
   catalogUrls: [] as string[],
   allowTerminal: false,
@@ -977,10 +978,20 @@ const capabilityToggles = [
   { key: 'updateCheckEnabled', lock: 'updateCheckEnabled', env: 'HOMEPORT_UPDATE_CHECK', label: 'Check for image updates', hint: 'needs DISTRIBUTION=1 (read-only registry digests)' },
   { key: 'allowUpdates', lock: 'allowUpdates', env: 'HOMEPORT_ALLOW_UPDATES', label: 'Apply image updates (pull + recreate)', hint: 'needs IMAGES=1 POST=1' },
   { key: 'allowStacks', lock: 'allowStacks', env: 'HOMEPORT_ALLOW_STACKS', label: 'Compose stack management', hint: 'needs POST=1 CONTAINERS=1 IMAGES=1 NETWORKS=1 VOLUMES=1 + a mounted stacks dir' },
+  { key: 'allowGitWebhooks', lock: 'allowGitWebhooks', env: 'HOMEPORT_ALLOW_GIT_WEBHOOKS', requires: 'allowStacks', label: 'Deploy git stacks on push (webhooks)', hint: 'opens a public URL for each git stack you switch it on for (/api/hooks/git/…); every call must carry that stack\'s secret. Set it up on the stack\'s page' },
   { key: 'allowTerminal', lock: 'allowTerminal', env: 'HOMEPORT_ALLOW_TERMINAL', label: 'Web terminal (exec into containers)', hint: 'needs EXEC=1 POST=1 — full shell access, enable with care' },
   { key: 'allowContainerFiles', lock: 'allowContainerFiles', env: 'HOMEPORT_ALLOW_CONTAINER_FILES', label: 'Browse + edit files inside containers/volumes', hint: 'reads/writes container files via docker cp — needs CONTAINERS=1 + PUT allowed on the socket proxy' },
   { key: 'allowProxyAdmin', lock: 'allowProxyAdmin', env: 'HOMEPORT_ALLOW_PROXY_ADMIN', label: 'Manage the reverse proxy (domains)', hint: 'talks to your proxy, not Docker — needs provider credentials below' },
 ] as const
+
+// a capability that only works on top of another one (webhooks need stacks)
+type CapToggle = (typeof capabilityToggles)[number]
+function requirementMet(c: CapToggle): boolean {
+  return !('requires' in c) || !!(form as any)[c.requires]
+}
+function requirementLabel(c: CapToggle): string {
+  return 'requires' in c ? capabilityToggles.find((t) => t.key === c.requires)?.label ?? c.requires : ''
+}
 
 interface ChannelRow {
   name: string

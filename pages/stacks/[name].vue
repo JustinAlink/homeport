@@ -292,6 +292,16 @@
       </div>
     </section>
 
+    <!-- deploy on push: webhook + auto-sync for a git stack (admin settings) -->
+    <GitDeployCard
+      v-if="gitInfo && !notManaged && !isNew && !cloning && !adminOnly && !caps.viewer"
+      :stack="name"
+      :branch="gitInfo.branch"
+      :repo="gitInfo.repo"
+      @show-op="showOp"
+      @deployed="onPushDeployed"
+    />
+
     <!-- file browser: everything in the stack's directory -->
     <StackFiles
       v-if="!notManaged && !isNew && !cloning && !adminOnly"
@@ -654,6 +664,24 @@ async function runAction(op: string) {
     opOk.value = false
     opRunning.value = false
   }
+}
+
+// a push or auto-sync update, opened from the Deploy on push card: same output card as a click
+function showOp(opId: string) {
+  opLines.value = []
+  opOk.value = null
+  opDropped.value = false
+  opRunning.value = true
+  attachOp(opId, () => {
+    if (!dirty.value) load()
+    loadGit()
+  })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+// a deploy the card was waiting on finished: refresh the git bar, and the editor unless it holds edits
+function onPushDeployed() {
+  if (!dirty.value) load()
+  loadGit()
 }
 
 // --- docker network conflict helper ---
