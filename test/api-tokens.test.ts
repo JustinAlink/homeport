@@ -57,3 +57,18 @@ test('scopeAllows: read scope cannot reach secrets through plain GETs', () => {
   for (const p of ['/api/services', '/api/stats', '/api/pings', '/api/logs', '/api/alerts', '/api/containers/abc/mounts'])
     assert.equal(scopeAllows('read', 'GET', p), true, p)
 })
+
+test('scopeAllows: read scope cannot read stack files, but still sees stacks', () => {
+  // compose file contents and anything in the stack folder (.env)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media'), false)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media/'), false)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media/file'), false)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media/files'), false)
+  assert.equal(scopeAllows('read', 'HEAD', '/api/stacks/media/file'), false)
+  // the list, mounts and git info carry no file contents
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks'), true)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media/mounts'), true)
+  assert.equal(scopeAllows('read', 'GET', '/api/stacks/media/git'), true)
+  // admins and full tokens unaffected
+  assert.equal(scopeAllows('full', 'GET', '/api/stacks/media/file'), true)
+})

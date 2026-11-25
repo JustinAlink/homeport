@@ -57,6 +57,20 @@ mkdirSync(S, { recursive: true })
   await page.goto(BASE + '/services/demo-0', { waitUntil: 'load' }); await wait(2000)
   check('viewer: no Restart/Stop on the container page', (await page.getByRole('button', { name: /^Restart$|^Stop$/ }).count()) === 0)
   await page.screenshot({ path: S + 'viewer-service.png' })
+  // stack files are admin-only for viewers: they hold inline passwords and the .env
+  const composeApi = await page.request.get(`${BASE}/api/stacks/media`)
+  const envApi = await page.request.get(`${BASE}/api/stacks/media/file?path=.env`)
+  const listApi = await page.request.get(`${BASE}/api/stacks/media/files`)
+  check('viewer: compose file and stack files are refused', [composeApi, envApi, listApi].every((r) => r.status() === 403), [composeApi, envApi, listApi].map((r) => r.status()).join(' '))
+  check('viewer: the stack list still loads', (await page.request.get(`${BASE}/api/stacks`)).status() === 200)
+  await page.goto(BASE + '/stacks/media', { waitUntil: 'load' }); await wait(2000)
+  const stackBody = await page.locator('main').innerText()
+  check(
+    'viewer: stack page says files are admin-only, shows its services, no editor',
+    /visible to admins only/.test(stackBody) && !/unmanaged/i.test(stackBody) && /Services/.test(stackBody) && (await page.locator('.cm-editor').count()) === 0,
+    stackBody.slice(0, 240).replace(/\s+/g, ' '),
+  )
+  await page.screenshot({ path: S + 'viewer-stack.png' })
   // admin via "admin" username
   await ctx.clearCookies()
   await page.goto(BASE + '/login', { waitUntil: 'load' }); await wait(800)

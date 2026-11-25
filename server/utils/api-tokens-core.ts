@@ -73,10 +73,18 @@ const READ_DENY = [
   '/api/containers/files',
 ]
 
+// Stack file contents: the compose file (GET /api/stacks/<name>) and anything in the
+// stack's folder (/file, /files). These hold inline passwords and the stack's .env,
+// the same secrets /api/env keeps from read-only callers for running containers.
+// Juniper's call (2026-11-25): viewers see stacks, status, mounts and logs, not files.
+// Patterns, not prefixes: /api/stacks, /mounts and /git stay readable.
+const READ_DENY_PATTERNS = [/^\/api\/stacks\/[^/]+\/?$/, /^\/api\/stacks\/[^/]+\/files?\/?$/]
+
 /** May a token of this scope perform (method, path)? full = everything. */
 export function scopeAllows(scope: TokenScope, method: string, path: string): boolean {
   if (scope === 'full') return true
   const m = (method || '').toUpperCase()
   if (m !== 'GET' && m !== 'HEAD') return false // read tokens are read-only
+  if (READ_DENY_PATTERNS.some((re) => re.test(path))) return false
   return !READ_DENY.some((p) => path === p || path.startsWith(`${p}/`))
 }

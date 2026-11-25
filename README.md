@@ -518,11 +518,12 @@ login still works for requests without the header.
 ### Viewer accounts (read-only role)
 
 Share the dashboard with a partner or housemate without handing over management: create a viewer
-account in **Settings → Security & users → User accounts** (username + password). Viewer sessions can see everything the
-admin can — status, logs, graphs, domains, updates — but every write is blocked, enforced
-server-side regardless of what the UI shows: no start/stop/restart, no compose editing, no
-terminal, no proxy admin, and no access to backups, API tokens, or 2FA settings. Deleting a viewer
-account revokes its session instantly.
+account in **Settings → Security & users → User accounts** (username + password). Viewers see the
+fleet (status, logs, graphs, domains, updates, stacks and their mounts) but every write is blocked,
+enforced server-side regardless of what the UI shows: no start/stop/restart, no compose editing, no
+terminal, no proxy admin. Anything that can hold a secret stays admin-only: settings, container
+environments and files, compose files and the files in a stack's folder (its `.env`), backups, API
+tokens and 2FA. Deleting a viewer account revokes its session instantly.
 
 ### Scoped API tokens
 
@@ -533,8 +534,10 @@ instead of handing out the admin password:
 curl -H "Authorization: Bearer hp_xxx" https://homeport.example.com/api/services
 ```
 
-- **Read-only** tokens can only make `GET` requests (and never `/api/backup`, which exports secrets).
-- **Full** tokens can do anything the admin can.
+- **Read-only** tokens can only make `GET` requests, and only for what a viewer may see: never
+  settings, container environments or files, stack files, or backups.
+- **Full** tokens can do anything the admin can, except export or restore backups (the export holds
+  the secret that signs logins) and manage tokens, users or 2FA.
 - Tokens are stored **hashed** (shown once at creation) and can be revoked any time. No token can
   mint or revoke tokens — that always needs a real login.
 

@@ -9,8 +9,10 @@
       >{{ loading ? '…' : 'Refresh' }}</button>
     </div>
     <p class="mb-3 text-xs leading-relaxed text-slate-500">
-      Where this stack's containers keep their files. Config inside the stack folder is editable in Files above;
-      named volumes and host paths live outside it — their data survives a recreate, but it isn't edited from here.
+      Where this stack's containers keep their files.
+      <template v-if="browsable">Config inside the stack folder is editable in Files above; named volumes and host paths live
+        outside it: their data survives a recreate, but it isn't edited from here.</template>
+      <template v-else>Named volumes and host paths live outside the stack folder: their data survives a recreate.</template>
     </p>
 
     <div class="card overflow-hidden">
@@ -57,7 +59,7 @@
         <template v-if="m.kind === 'bind-internal'">
           <!-- homeport can read the bind → edit it directly in the file browser -->
           <button
-            v-if="m.hostVisible !== false"
+            v-if="browsable && m.hostVisible !== false"
             class="shrink-0 btn btn-ghost btn-sm h-6 px-2 text-[11px]"
             @click="$emit('browse', m.rel)"
           >open</button>
@@ -104,7 +106,8 @@ interface BindInternal { kind: 'bind-internal'; rel: string; dest: string; rw: b
 interface BindExternal { kind: 'bind-external'; source: string; dest: string; rw: boolean; services: string[]; container: string }
 type Mount = VolumeMount | BindInternal | BindExternal
 
-const props = defineProps<{ stack: string }>()
+// browsable: false for viewers, who get no file browser to open a folder in
+const props = withDefaults(defineProps<{ stack: string; browsable?: boolean }>(), { browsable: true })
 defineEmits<{ browse: [rel: string] }>()
 
 const { caps, load: loadCaps } = useCapabilities()

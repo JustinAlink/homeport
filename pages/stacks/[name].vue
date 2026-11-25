@@ -236,8 +236,13 @@
       </div>
     </section>
 
+    <p v-if="adminOnly" class="callout callout-info mb-6">
+      <Icon name="lock" />
+      <span>The compose file and the files in this stack's folder are visible to admins only: they can hold passwords and the stack's <code>.env</code>.</span>
+    </p>
+
     <!-- compose editor (hidden while a clone is still creating the stack's files) -->
-    <section v-if="!notManaged && !cloning" class="mb-6">
+    <section v-if="!notManaged && !cloning && !adminOnly" class="mb-6">
       <!-- "New stack" with a name that is taken: the server refused to overwrite it -->
       <div v-if="createConflict" class="callout callout-danger mb-3">
         <Icon name="alert" />
@@ -289,7 +294,7 @@
 
     <!-- file browser: everything in the stack's directory -->
     <StackFiles
-      v-if="!notManaged && !isNew && !cloning"
+      v-if="!notManaged && !isNew && !cloning && !adminOnly"
       ref="filesRef"
       :stack="name"
       :compose-file="file"
@@ -302,7 +307,7 @@
 
     <!-- where the stack's data actually lives: named volumes + host binds that
          sit OUTSIDE the compose file (an installed app's config/data isn't a mystery) -->
-    <StackMounts v-if="!notManaged && !isNew && !cloning" :stack="name" @browse="onBrowse" />
+    <StackMounts v-if="!notManaged && !isNew && !cloning" :stack="name" :browsable="!adminOnly" @browse="onBrowse" />
   </div>
 </template>
 
@@ -323,6 +328,7 @@ const source = ref<'stacks' | 'root' | 'adopted'>('stacks')
 const stackDir = ref('')
 const loadError = ref('')
 const notManaged = ref(false) // no stack dir for this name — unmanaged compose project view
+const adminOnly = ref(false) // a viewer: the compose file and stack files are admin-only
 
 // live services belonging to this compose project (both managed + unmanaged views)
 const { data: svcData, refresh: svcRefresh, start: svcStart, stop: svcStop } = useServices()
@@ -502,6 +508,16 @@ async function load() {
     // unmanaged-project view driven by the live container list, unless a clone
     // is still creating the directory (the op card shows its progress meanwhile).
     if (code === 404 && cloning.value) return
+    // A viewer is refused stack files (they hold passwords and .env). That is not an
+    // unmanaged project: keep the stack view, just without the editor and files.
+    if (code === 403) {
+      await loadCaps()
+      if (!current()) return
+      if (caps.value.viewer) {
+        adminOnly.value = true
+        return
+      }
+    }
     if (code === 404 || code === 403) {
       notManaged.value = true
       return
