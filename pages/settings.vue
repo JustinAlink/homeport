@@ -137,11 +137,7 @@
               <Field v-slot="{ id }" label="Reverse proxy">
               <select :id="id" v-model="h.domainProvider" class="select">
                 <option value="">Auto-detect / none</option>
-                <option value="npm">Nginx Proxy Manager</option>
-                <option value="nginx">Nginx (plain)</option>
-                <option value="traefik">Traefik (labels)</option>
-                <option value="traefik-file">Traefik (file)</option>
-                <option value="caddy">Caddy</option>
+                <option v-for="o in PROVIDER_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
               </Field>
               <Field v-if="h.domainProvider === 'npm'" v-slot="{ id }" label="NPM proxy_host directory">
@@ -155,6 +151,17 @@
               </Field>
               <Field v-else-if="h.domainProvider === 'caddy'" v-slot="{ id }" label="Caddyfile path">
                 <input :id="id" v-model="h.caddyfilePath" class="input font-mono" placeholder="/caddy/Caddyfile" spellcheck="false" />
+              </Field>
+              <Field v-else-if="h.domainProvider === 'traefik-api'" v-slot="{ id }" label="Traefik API URL">
+                <input :id="id" v-model="h.traefikApiUrl" class="input font-mono" placeholder="http://traefik:8080" spellcheck="false" />
+              </Field>
+            </div>
+            <div v-if="h.domainProvider === 'traefik-api'" class="grid gap-3 sm:grid-cols-2">
+              <Field v-slot="{ id }" label="API username" optional>
+                <input :id="id" v-model="h.traefikApiUser" class="input" autocomplete="off" spellcheck="false" />
+              </Field>
+              <Field v-slot="{ id }" label="API password" optional :hint="h.traefikApiPasswordSet ? 'A password is stored; leave empty to keep it.' : undefined">
+                <input :id="id" v-model="h.traefikApiPassword" type="password" class="input" :placeholder="h.traefikApiPasswordSet ? '••••••' : ''" autocomplete="new-password" />
               </Field>
             </div>
           </div>
@@ -173,14 +180,10 @@
         <h2 class="text-[15px] font-semibold text-slate-100">Reverse proxy (domain mapping)</h2>
         <p v-if="locked.domainProvider" class="text-xs text-slate-500">Set by <code>DOMAIN_PROVIDER</code> — locked.</p>
         <div class="space-y-3" :class="locked.domainProvider ? 'is-locked' : ''">
-          <Field v-slot="{ id }" label="Provider" hint="Auto-detect uses whichever config path below is set, and falls back to Traefik container labels.">
+          <Field v-slot="{ id }" label="Provider" hint="Auto-detect uses whichever config path or API URL below is set, and falls back to Traefik container labels. caddy-docker-proxy and Pangolin labels are added on top whenever their proxy container runs on this host.">
           <select :id="id" v-model="form.domainProvider" class="select">
             <option value="">Auto-detect</option>
-            <option value="npm">Nginx Proxy Manager</option>
-            <option value="nginx">Nginx (plain)</option>
-            <option value="traefik">Traefik (labels)</option>
-            <option value="traefik-file">Traefik (file)</option>
-            <option value="caddy">Caddy</option>
+            <option v-for="o in PROVIDER_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
           </Field>
           <Field v-if="form.domainProvider === 'npm' || (form.domainProvider === '' && form.npmConfDir)" v-slot="{ id }" label="NPM proxy_host directory" hint="The path inside the homeport container.">
@@ -195,6 +198,46 @@
           <Field v-if="form.domainProvider === 'caddy'" v-slot="{ id }" label="Caddyfile path" hint="The path inside the homeport container.">
             <input :id="id" v-model="form.caddyfilePath" class="input font-mono" placeholder="/caddy/Caddyfile" spellcheck="false" />
           </Field>
+          <div v-if="form.domainProvider === 'traefik-api' || (form.domainProvider === '' && form.traefikApiUrl)" class="space-y-3">
+            <p v-if="locked.traefikApiUrl" class="text-xs text-slate-500">Set by <code>HOMEPORT_TRAEFIK_API_URL</code>, locked.</p>
+            <Field label="Traefik API URL" :class="locked.traefikApiUrl ? 'is-locked' : ''">
+              <template #default="{ id }">
+                <input :id="id" v-model="form.traefikApiUrl" class="input font-mono" placeholder="http://traefik:8080" spellcheck="false" />
+              </template>
+              <template #hint>
+                Reads the routers of every Traefik provider at once: Docker, file, Kubernetes, Consul. Traefik
+                usually serves its API only on an internal entrypoint (<code>api.insecure</code> puts it on the
+                <code>traefik</code> entrypoint, port 8080): give homeport that address over a shared Docker
+                network, and never publish the port.
+              </template>
+            </Field>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <Field v-slot="{ id }" label="API username" optional :class="locked.traefikApiUser ? 'is-locked' : ''">
+                <input :id="id" v-model="form.traefikApiUser" class="input" autocomplete="off" spellcheck="false" />
+              </Field>
+              <Field
+                v-slot="{ id }"
+                label="API password"
+                optional
+                :class="locked.traefikApiPassword ? 'is-locked' : ''"
+                :hint="locked.traefikApiPassword ? 'Set by HOMEPORT_TRAEFIK_API_PASSWORD.' : traefikApiPasswordSet ? 'A password is stored; leave empty to keep it. Changing the URL to another server clears it.' : 'For an API behind a basic-auth middleware.'"
+              >
+                <input :id="id" v-model="form.traefikApiPassword" type="password" class="input" :placeholder="traefikApiPasswordSet || locked.traefikApiPassword ? '••••••' : ''" autocomplete="new-password" />
+              </Field>
+            </div>
+          </div>
+          <p v-if="form.domainProvider === 'caddy-docker-proxy'" class="callout callout-info text-xs">
+            <Icon name="info" />
+            <span>Reads the <code>caddy</code> and <code>caddy_0</code>, <code>caddy_1</code>, … site labels on your containers with
+              their <code>{{ CDP_EXAMPLE }}</code>. Auto-detect already adds these when a
+              caddy-docker-proxy container runs here; choose it to read them without that check.</span>
+          </p>
+          <p v-if="form.domainProvider === 'pangolin'" class="callout callout-info text-xs">
+            <Icon name="info" />
+            <span>Reads Pangolin blueprint labels on your containers: <code>pangolin.public-resources.&lt;name&gt;.full-domain</code>
+              and its <code>targets[n]</code> (hostname and port, or this container and its exposed port). Auto-detect
+              already adds these when a Newt or pangolin site container runs here.</span>
+          </p>
         </div>
         <TestButton label="Test provider" :run="testProvider" />
       </section>
@@ -222,6 +265,10 @@
         <Field v-if="form.domainProvider === 'caddy'" v-slot="{ id }" label="Caddy admin API" hint="The admin API controls the whole proxy: keep it on a private network, never published.">
           <input :id="id" v-model="form.caddyAdminUrl" class="input font-mono" placeholder="http://caddy:2019" spellcheck="false" />
         </Field>
+        <p v-if="READ_ONLY_SOURCES.includes(form.domainProvider)" class="text-[11px] text-slate-500">
+          {{ PROVIDER_OPTIONS.find((o) => o.value === form.domainProvider)?.label }} is a read-only source: homeport shows
+          its domains but does not create or edit them. Change them in your container labels or the proxy's own config.
+        </p>
         <p v-if="form.domainProvider === 'traefik-file'" class="text-[11px] text-slate-500">
           Traefik file admin writes a <code>homeport.yml</code> in the dynamic-config dir (or only
           <code>homeport-*</code> keys in a single file). Mount it <strong>read-write</strong>.
@@ -779,6 +826,23 @@ const loaded = ref(false)
 const loadError = ref('')
 const writable = ref(true)
 const npmApiSecretSet = ref(false) // a secret is stored server-side (masked); blank on save = keep
+const traefikApiPasswordSet = ref(false)
+
+// Domain sources (server/utils/providers/sources-core.ts DOMAIN_PROVIDER_IDS), '' = auto-detect
+const PROVIDER_OPTIONS = [
+  { value: 'npm', label: 'Nginx Proxy Manager' },
+  { value: 'nginx', label: 'Nginx (plain)' },
+  { value: 'traefik', label: 'Traefik (labels)' },
+  { value: 'traefik-file', label: 'Traefik (file)' },
+  { value: 'traefik-api', label: 'Traefik (API)' },
+  { value: 'caddy', label: 'Caddy' },
+  { value: 'caddy-docker-proxy', label: 'caddy-docker-proxy (labels)' },
+  { value: 'pangolin', label: 'Pangolin (labels)' },
+]
+// a caddy-docker-proxy label value; a constant because its braces would read as a template
+const CDP_EXAMPLE = 'reverse_proxy {{upstreams 8080}}'
+// sources homeport only reads: there is no proxy API behind them to write routes to
+const READ_ONLY_SOURCES = ['traefik', 'traefik-api', 'caddy-docker-proxy', 'pangolin']
 const smtpPassSet = ref(false)
 const locked = ref<Record<string, boolean>>({})
 const busy = ref(false)
@@ -905,11 +969,19 @@ async function testDocker() {
   return { ok, message: r.hosts.map((h) => `${h.name}: ${h.message}`).join(' · ') }
 }
 async function testProvider() {
-  const r = await $fetch<{ ok: boolean; provider: string | null; count?: number; samples?: string[]; message?: string }>('/api/test/provider', { method: 'POST' })
-  return {
-    ok: r.ok,
-    message: r.ok ? `${r.provider}: ${r.count} route(s)${r.samples?.length ? ' · ' + r.samples.join(', ') : ''}` : r.message || 'no provider',
+  // the on-screen values, so a URL or password can be tried before saving (nothing is written)
+  const body = {
+    domainProvider: form.domainProvider,
+    npmConfDir: form.npmConfDir,
+    caddyfilePath: form.caddyfilePath,
+    nginxConfDir: form.nginxConfDir,
+    traefikFilePath: form.traefikFilePath,
+    traefikApiUrl: form.traefikApiUrl,
+    traefikApiUser: form.traefikApiUser,
+    traefikApiPassword: form.traefikApiPassword,
   }
+  const r = await $fetch<{ ok: boolean; provider: string | null; message?: string }>('/api/test/provider', { method: 'POST', body })
+  return { ok: r.ok, message: r.message || (r.ok ? `${r.provider}: ok` : 'no provider') }
 }
 
 const form = reactive({
@@ -922,6 +994,9 @@ const form = reactive({
   caddyfilePath: '',
   nginxConfDir: '',
   traefikFilePath: '',
+  traefikApiUrl: '',
+  traefikApiUser: '',
+  traefikApiPassword: '',
   npmApiUrl: '',
   npmApiIdentity: '',
   npmApiSecret: '',
@@ -1186,6 +1261,10 @@ interface HostRow {
   caddyfilePath: string
   nginxConfDir: string
   traefikFilePath: string
+  traefikApiUrl: string
+  traefikApiUser: string
+  traefikApiPassword: string
+  traefikApiPasswordSet?: boolean
 }
 
 function addHost() {
@@ -1199,6 +1278,9 @@ function addHost() {
     caddyfilePath: '',
     nginxConfDir: '',
     traefikFilePath: '',
+    traefikApiUrl: '',
+    traefikApiUser: '',
+    traefikApiPassword: '',
   })
 }
 
@@ -1225,6 +1307,10 @@ async function loadSettings() {
       caddyfilePath: h.caddyfilePath ?? '',
       nginxConfDir: h.nginxConfDir ?? '',
       traefikFilePath: h.traefikFilePath ?? '',
+      traefikApiUrl: h.traefikApiUrl ?? '',
+      traefikApiUser: h.traefikApiUser ?? '',
+      traefikApiPassword: '',
+      traefikApiPasswordSet: !!h.traefikApiPasswordSet,
     }))
     form.alertChannels = (r.settings.alertChannels ?? []).map((c: Partial<ChannelRow>) => ({
       name: c.name ?? '',
@@ -1241,6 +1327,7 @@ async function loadSettings() {
     locked.value = r.locked
     writable.value = r.writable
     npmApiSecretSet.value = !!r.settings.npmApiSecretSet
+    traefikApiPasswordSet.value = !!r.settings.traefikApiPasswordSet
     smtpPassSet.value = !!r.settings.smtpPassSet
     loaded.value = true
   } catch (e: any) {
@@ -1271,7 +1358,17 @@ async function save() {
   busy.value = true
   msg.value = ''
   try {
-    await $fetch('/api/settings', { method: 'POST', body: { ...form } })
+    const r = await $fetch<any>('/api/settings', { method: 'POST', body: { ...form } })
+    // a saved password leaves the field (it is never sent back): show it as stored
+    traefikApiPasswordSet.value = !!r?.settings?.traefikApiPasswordSet
+    form.traefikApiPassword = ''
+    const savedHosts = r?.settings?.hosts ?? []
+    if (savedHosts.length === form.hosts.length) {
+      form.hosts.forEach((h: HostRow, i: number) => {
+        h.traefikApiPasswordSet = !!savedHosts[i]?.traefikApiPasswordSet
+        h.traefikApiPassword = ''
+      })
+    }
     snapshot.value = JSON.stringify(form)
     msgOk.value = true
     msg.value = 'Saved.'

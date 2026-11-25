@@ -112,6 +112,8 @@
                   >
                     <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
                   </span>
+                  <!-- where homeport read the route: several sources can feed one host -->
+                  <span v-if="d.source" class="whitespace-nowrap text-[11.5px] text-slate-500" :title="`Read from ${d.source}`">from {{ d.source }}</span>
                 </div>
                 <CopyButton :text="d.url" label="URL" class="ml-auto" />
                 <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
