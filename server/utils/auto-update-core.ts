@@ -4,7 +4,10 @@
 // in the configured target list, or it carries the label `hub.autoupdate=true`.
 // The label `hub.autoupdate=false` always opts out, even if targeted. homeport's
 // own container is always skipped (recreating it would kill the updater — the
-// self-update helper exists for that).
+// self-update helper exists for that). So is the rest of homeport's own compose
+// project: in the standard deployment that holds the docker-socket-proxy
+// homeport and compose reach the daemon THROUGH, and recreating it mid-run
+// severs that transport (the 2026-08-05 incident; see buildHelperPayload).
 
 export interface AutoCandidate {
   id: string
@@ -19,7 +22,7 @@ export interface AutoPlan {
   stacks: string[]
   /** Containers to update via direct pull + recreate. */
   directs: AutoCandidate[]
-  skipped: { name: string; reason: 'self' | 'label-optout' }[]
+  skipped: { name: string; reason: 'self' | 'self-project' | 'label-optout' }[]
 }
 
 /** Fire once per local day, in the configured hour. */
@@ -32,6 +35,8 @@ export function planAutoUpdate(opts: {
   targets: string[] // stack/project or container names
   managedStacks: string[]
   selfIdPrefix?: string
+  /** homeport's own compose project: nothing in it is updated unattended */
+  selfProject?: string | null
 }): AutoPlan {
   const targets = new Set(opts.targets.map((t) => t.trim()).filter(Boolean))
   const plan: AutoPlan = { stacks: [], directs: [], skipped: [] }
@@ -47,6 +52,10 @@ export function planAutoUpdate(opts: {
     if (!opted) continue
     if (opts.selfIdPrefix && c.id.startsWith(opts.selfIdPrefix)) {
       plan.skipped.push({ name: c.name, reason: 'self' })
+      continue
+    }
+    if (opts.selfProject && c.project === opts.selfProject) {
+      plan.skipped.push({ name: c.name, reason: 'self-project' })
       continue
     }
     if (c.project && opts.managedStacks.includes(c.project)) stackSet.add(c.project)

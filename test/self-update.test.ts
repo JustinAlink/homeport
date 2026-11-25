@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHelperPayload, selfUpdatePlan, HELPER_LABEL } from '../server/utils/self-update-core.ts'
+import { buildHelperPayload, selfUpdatePlan, selfIdPrefix, HELPER_LABEL } from '../server/utils/self-update-core.ts'
 
 const INSPECT = {
   Config: {
@@ -77,4 +77,11 @@ test('buildHelperPayload: no service label falls back to a whole-project update'
     networks: [],
   }).Cmd[0]
   assert.match(cmd, /pull && docker compose -p homeport up -d$/)
+})
+
+test('selfIdPrefix: only a 12-hex container hostname counts as a container id', () => {
+  assert.equal(selfIdPrefix('deadbeef1234'), 'deadbeef1234')
+  assert.equal(selfIdPrefix('homeport'), null) // custom hostname: a prefix match could pick any container
+  assert.equal(selfIdPrefix(''), null)
+  assert.equal(selfIdPrefix('deadbeef12345'), null)
 })

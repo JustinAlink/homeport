@@ -1,7 +1,7 @@
 import { getConfig } from '../../../utils/config'
 import { getHosts } from '../../../utils/hosts'
 import { listContainersFor } from '../../../utils/docker'
-import { readStack, runCompose, deleteStackDir } from '../../../utils/stacks'
+import { readStack, runCompose, deleteStackDir, selfProject } from '../../../utils/stacks'
 import { listNetworksFor, removeNetworkFor } from '../../../utils/networks'
 import { leftoverProjectNetworks } from '../../../utils/networks-core'
 import { deleteRoutesForUpstreams } from '../../../utils/proxy-admin/cleanup'
@@ -35,6 +35,14 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 403,
       statusMessage: `"${name}" lives outside homeport's stacks directory (${stack.dir}) — take it down and remove its files there instead.`,
+    })
+  }
+  // `compose down` on homeport's own project stops homeport halfway through
+  // the delete, leaving the stack down and its folder still there
+  if (name === (await selfProject())) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `"${name}" is homeport's own stack: homeport can't delete the project it runs in. Take it down from the host instead.`,
     })
   }
 

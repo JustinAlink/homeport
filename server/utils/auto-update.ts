@@ -8,13 +8,15 @@ import { getUpdateMap, runUpdateSweep, applyUpdate } from './updates'
 import { listStackDirs, runStackOp } from './stacks'
 import { dispatch } from './alerts'
 import { isAutoUpdateDue, planAutoUpdate } from './auto-update-core'
+import { selfIdPrefix } from './self-update-core'
 import { guard } from './guard'
 import { log } from './log'
 
 // Scheduled automatic updates: once per day, in the configured hour, refresh
 // the update cache and apply updates to everything opted in (target list or
 // `hub.autoupdate=true` label). Managed stacks go through `compose pull && up`;
-// everything else gets the direct pull + recreate. homeport itself is skipped.
+// everything else gets the direct pull + recreate. homeport itself is skipped,
+// and so is the rest of its compose project (see auto-update-core).
 // Results are pushed through the alert channels and land in the alert log.
 
 const stateFile = () => join(process.env.HOMEPORT_DATA_DIR || '/data', 'auto-update.json')
@@ -79,12 +81,20 @@ export const maybeAutoUpdate = guard(async () => {
       .filter((c) => map[`${host.id}|${c.image}`]?.status === 'update')
       .map((c) => ({ id: c.id, name: c.name, image: c.image, project: c.project, labels: c.labels }))
 
+    const self = selfIdPrefix(hostname()) // inside a container, hostname = own short container id
     const plan = planAutoUpdate({
       candidates,
       targets: cfg.autoUpdateTargets,
       managedStacks: i === 0 ? managed : [], // the compose CLI only reaches the primary host
-      selfIdPrefix: hostname(), // inside a container, hostname = own short container id
+      selfIdPrefix: self ?? undefined,
+      // from ALL containers, not the candidates: homeport itself may have no update today
+      selfProject: self ? (containers.find((c) => c.id.startsWith(self))?.project ?? null) : null,
     })
+    for (const s of plan.skipped) {
+      if (s.reason === 'self-project') {
+        log.info('auto-update', `skipped "${s.name}" on ${host.name}: it is in homeport's own compose project, update it from the host`)
+      }
+    }
 
     for (const stack of plan.stacks) {
       const lines: string[] = []

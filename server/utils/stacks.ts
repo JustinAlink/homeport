@@ -22,6 +22,7 @@ import {
 } from './stacks-core'
 import { detectNetworkError, findSubnetConflicts, subnetsFromComposeConfig } from './networks-core'
 import { dockerConfigJson, pullInterruptedByPrune, PRUNE_INTERRUPTED_HINT } from './registry-core'
+import { selfIdPrefix } from './self-update-core'
 
 // Compose stacks come from three places, in resolution priority order:
 //   1. HOMEPORT_STACKS_DIR subdirs (dirname = project name) — homeport's own,
@@ -181,8 +182,9 @@ export async function resolveStack(name: string): Promise<ResolvedStack | null> 
 
 /** Compose project of homeport's own container (null when not containerized). */
 export async function selfProject(): Promise<string | null> {
+  const short = selfIdPrefix(hostname())
+  if (!short) return null
   try {
-    const short = hostname()
     const containers = await listContainersFor(getHosts()[0])
     return containers.find((c) => c.id.startsWith(short))?.project ?? null
   } catch {

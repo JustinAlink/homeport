@@ -24,6 +24,19 @@ export interface SelfUpdateInput {
 
 export const HELPER_LABEL = 'homeport.self-updater'
 
+/**
+ * The short container id homeport runs as, from its hostname (Docker sets a
+ * container's hostname to it). Anything else (a host install, a custom
+ * `hostname:`) is null: a prefix match on an arbitrary name could pick some
+ * other container as "self".
+ */
+export function selfIdPrefix(hostname: string): string | null {
+  return /^[0-9a-f]{12}$/.test(hostname) ? hostname : null
+}
+
+/** POSIX single-quoting: the helper's command runs through `sh -c`. */
+const shq = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`
+
 export function buildHelperPayload(input: SelfUpdateInput) {
   const env = ['HOMEPORT_HELPER=1']
   if (input.dockerHost) env.push(`DOCKER_HOST=${input.dockerHost}`)
