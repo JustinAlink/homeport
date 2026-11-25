@@ -51,6 +51,7 @@
                   >
                     <span class="dot h-1.5 w-1.5" :class="pingDot(pingOf(r, d)!)" />{{ pingText(pingOf(r, d)!) }}
                   </span>
+                  <CertChip :url="urlOf(r, d)" />
                 </span>
               </div>
               <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11.5px] text-slate-500">

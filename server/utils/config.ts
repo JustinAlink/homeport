@@ -3,6 +3,7 @@
 // container start (env) AND via the in-app settings page (when env doesn't lock it).
 
 import { readSettings, type PersistedSettings } from './settings'
+import { validWindow, type MaintenanceWindow } from '../../shared/utils/silence.ts'
 import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
@@ -97,6 +98,7 @@ export interface HomeportConfig {
   alertUpdates: boolean
   /** alert when a running container's domain answers 5xx or nothing */
   alertDomains: boolean
+  alertCerts: boolean
   /** Email (SMTP) alert channel — active when host/from/to are set. */
   smtpHost: string
   smtpPort: number
@@ -115,6 +117,7 @@ export interface HomeportConfig {
   alertDebounceSamples: number
   /** Min seconds between repeat notifications while a service stays bad (0 = once). */
   alertCooldownSec: number
+  maintenanceWindows: MaintenanceWindow[]
   /** Outbound webhook channels. */
   alertChannels: WebhookChannel[]
 }
@@ -291,6 +294,7 @@ export function getConfig(): HomeportConfig {
         : s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
     alertDomains: s.alertDomains ?? true,
+    alertCerts: s.alertCerts ?? true,
     smtpHost: s.smtpHost ?? '',
     smtpPort: s.smtpPort ?? 587,
     smtpSecure: s.smtpSecure ?? false,
@@ -308,6 +312,7 @@ export function getConfig(): HomeportConfig {
     },
     alertDebounceSamples: Math.max(1, s.alertDebounceSamples ?? 3),
     alertCooldownSec: Math.max(0, s.alertCooldownSec ?? 3600),
+    maintenanceWindows: (s.maintenanceWindows ?? []).filter(validWindow),
     alertChannels: s.alertChannels ?? [],
   }
 }
@@ -394,6 +399,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     alertsEnabled: s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
     alertDomains: s.alertDomains ?? true,
+    alertCerts: s.alertCerts ?? true,
     autoUpdateEnabled: s.autoUpdateEnabled ?? false,
     autoUpdateHour: s.autoUpdateHour ?? 4,
     autoUpdateTargets: s.autoUpdateTargets ?? [],
@@ -412,6 +418,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     },
     alertDebounceSamples: s.alertDebounceSamples ?? 3,
     alertCooldownSec: s.alertCooldownSec ?? 3600,
+    maintenanceWindows: s.maintenanceWindows ?? [],
     alertChannels: s.alertChannels ?? [],
   }, getConfig(), getEnvLocks())
 }

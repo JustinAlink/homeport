@@ -438,6 +438,14 @@
           </label>
 
           <label class="check">
+            <input v-model="form.alertCerts" type="checkbox" />
+            <span>
+              Notify before certificates expire
+              <span class="block text-[11px] text-slate-500">checked daily on each HTTPS domain; warns at 14 days left (or a third of a short certificate's lifetime), again at 7, and once more if it expires; also when a trusted certificate stops being trusted. One message per certificate, however many domains it covers</span>
+            </span>
+          </label>
+
+          <label class="check">
             <input v-model="form.alertUpdates" type="checkbox" />
             <span>
               Notify when image updates are found
@@ -557,6 +565,12 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- Silences: pause, snoozes, maintenance windows -->
+      <section v-show="inCategory('alerts')" id="silences" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Silences</h2>
+        <AlertSilences v-model="form.maintenanceWindows" :disabled="!form.alertsEnabled" />
       </section>
 
       <!-- Automatic updates -->
@@ -799,6 +813,7 @@ const CATEGORY_OF: Record<string, string> = {
   uptime: 'monitoring',
   monitoring: 'monitoring',
   alerts: 'monitoring',
+  silences: 'monitoring',
   autoupdate: 'updates',
   registries: 'updates',
   account: 'security',
@@ -846,6 +861,7 @@ const sections = computed(() =>
     { id: 'systemd', label: 'Host services' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'alerts', label: 'Alerts' },
+    { id: 'silences', label: 'Silences' },
     { id: 'autoupdate', label: 'Auto-update' },
     ...(form.updateCheckEnabled || form.allowUpdates ? [{ id: 'registries', label: 'Registry credentials' }] : []),
     { id: 'backup', label: 'Backup' },
@@ -945,6 +961,8 @@ const form = reactive({
   alertsEnabled: false,
   alertUpdates: false,
   alertDomains: true,
+  alertCerts: true,
+  maintenanceWindows: [] as { id: string; days: number[]; start: string; end: string; note?: string }[],
   smtpHost: '',
   smtpPort: 587,
   smtpSecure: false,

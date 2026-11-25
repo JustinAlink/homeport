@@ -16,6 +16,7 @@
         <span class="font-mono text-xs">{{ service.image }}</span>
       </template>
       <template v-if="service" #actions>
+        <SnoozeMenu v-if="service.kind === 'container' && caps.alerts" :app-key="appKey(service)" :name="service.displayName" :can-edit="!caps.viewer" />
         <NuxtLink
           v-if="composeProject && caps.stacks"
           :to="`/stacks/${encodeURIComponent(composeProject)}`"
@@ -112,6 +113,7 @@
                   >
                     <span class="dot h-1.5 w-1.5" :class="pingClass(d.url)" />{{ pingTitle(d.url) }}
                   </span>
+                  <CertChip v-if="d.ssl" :url="d.url" />
                 </div>
                 <CopyButton :text="d.url" label="URL" class="ml-auto" />
                 <a :href="d.url" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm btn-icon" :aria-label="`Open ${d.domain}`"><Icon name="external" /></a>
@@ -530,6 +532,8 @@ const crumbs = computed(() => {
 })
 
 const pings = usePings()
+// alert snoozes (shared with the banner, the dashboard and the snooze menu)
+const silences = useSilences()
 // this container's exposure (findings and the level shown on the Access card)
 const exposure = useExposure(() => id)
 const myExposure = computed(() => exposure.data.value?.services.find((e) => e.id === id) ?? null)
@@ -1080,6 +1084,7 @@ onMounted(() => {
   loadCaps()
   updates.refresh()
   exposure.refresh()
+  silences.refresh()
 })
 onBeforeUnmount(() => {
   stop()

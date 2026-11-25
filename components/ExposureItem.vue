@@ -17,9 +17,8 @@
       <dt class="pt-1 text-slate-500">Proxy</dt>
       <dd class="flex min-w-0 flex-wrap gap-1.5">
         <template v-if="e.routes.length">
+          <template v-for="r in e.routes" :key="r.url">
           <a
-            v-for="r in e.routes"
-            :key="r.url"
             :href="r.url"
             target="_blank"
             rel="noopener noreferrer"
@@ -30,6 +29,8 @@
             <span class="truncate">{{ r.domain }}</span>
             <span class="text-slate-500" :class="r.access === 'unchecked' && probing ? 'animate-pulse' : ''">· {{ routeAccessText(r, probing) }}</span>
           </a>
+          <CertChip v-if="r.https" :url="r.url" class="self-center" />
+          </template>
         </template>
         <span v-else class="pt-1 text-slate-500">no domain</span>
       </dd>

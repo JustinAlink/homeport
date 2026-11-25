@@ -8,6 +8,7 @@ import { tagKindOf, withTag } from './versions-core'
 import { ownerOf } from './stacks-core'
 import { PROXY_IMAGES, imageRepoOf } from './ping-core'
 import { exposureOf, exposureInput, sortExposure, exposureSummary, type DomainProbe } from '../../shared/utils/exposure.ts'
+import { certLevel, certLeftText, DAY as CERT_DAY } from '../../shared/utils/certs.ts'
 import { readAcks } from './exposure'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
@@ -239,6 +240,8 @@ export function demoActivity() {
     { id: 'demo-12', name: 'restic-backup', kind: 'down', from: 'running', to: 'exited', at: now - 11 * H },
     { id: 'demo-5', name: 'umami-db', kind: 'unhealthy', from: 'healthy', to: 'unhealthy', at: now - 26 * H },
     { id: 'demo-5', name: 'umami-db', kind: 'recovered', from: 'unhealthy', to: 'healthy', at: now - 25.7 * H },
+    { id: 'cert:demo-blog', name: 'blog.example.com', kind: 'cert-expiring', from: "Let's Encrypt", to: 'expires soon (5 days left)', at: now - 2 * H },
+    { id: 'default|qbittorrent', name: 'qbittorrent', kind: 'silence', from: 'alerts on', to: 'snoozed until it recovers', at: now - 3 * H },
   ].sort((a, b) => b.at - a.at)
 }
 
@@ -1029,4 +1032,36 @@ export function demoExposure(opts: { probe: boolean; id?: string }) {
   const acks = readAcks()
   const list = sortExposure(services.map((sv) => exposureOf(exposureInput(sv, PROXY_IMAGES.includes(imageRepoOf(sv.image))), probes, acks)))
   return { services: list, summary: exposureSummary(list), probed: opts.probe, pingEnabled: true, at: Date.now() }
+}
+
+// Certificates in demo mode: mostly healthy, one critical, one warning and one
+// self-signed, so the chips and their tooltips have something to show.
+export function demoCerts() {
+  const now = Date.now()
+  const special: Record<string, { left: number; trusted?: boolean; error?: string; issuer?: string; life?: number }> = {
+    'blog.example.com': { left: 5 },
+    'qbit.example.com': { left: 11 },
+    'portainer.example.com': { left: 300, trusted: false, error: 'DEPTH_ZERO_SELF_SIGNED_CERT', issuer: 'portainer', life: 365 },
+  }
+  const out: Record<string, { notAfter: number; notBefore: number; issuer?: string; names: string[]; trusted: boolean; error?: string; level: string; left: string; checkedAt: number }> = {}
+  seeds.forEach((seed, i) => {
+    for (const d of seed.domains ?? []) {
+      if (!d.ssl) continue
+      const sp = special[d.domain] ?? { left: 40 + ((i * 7) % 35) }
+      const notAfter = now + sp.left * CERT_DAY + 3600_000
+      const notBefore = notAfter - (sp.life ?? 90) * CERT_DAY
+      out[`https://${d.domain}`] = {
+        notAfter,
+        notBefore,
+        issuer: sp.issuer ?? "Let's Encrypt",
+        names: [d.domain],
+        trusted: sp.trusted ?? true,
+        ...(sp.error ? { error: sp.error } : {}),
+        level: certLevel({ notBefore, notAfter }, now),
+        left: certLeftText({ notAfter }, now),
+        checkedAt: now - 2 * 3600_000,
+      }
+    }
+  })
+  return out
 }

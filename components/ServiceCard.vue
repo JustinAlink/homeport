@@ -13,6 +13,7 @@
       <div class="flex items-center gap-2">
         <component :is="nameTag" v-bind="nameAttrs" class="truncate text-[13.5px] font-medium" :class="dim ? 'text-slate-300' : 'text-slate-100'">{{ service.displayName }}</component>
         <NuxtLink v-if="updateAvailable" :to="updateLink" class="badge badge-info h-[18px] px-1 text-[10px]" title="Update available"><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.4" />update</NuxtLink>
+        <span v-if="snoozed" class="shrink-0 text-slate-500" :title="snoozedTitle" role="img" :aria-label="snoozedTitle"><Icon name="bell-off" class="h-3.5 w-3.5" /></span>
       </div>
       <div class="truncate font-mono text-[11px] text-slate-500" :title="service.image">{{ service.image }}</div>
     </div>
@@ -81,6 +82,7 @@
             title="A newer image is available"
             @click.stop
           ><Icon name="arrow-up" class="h-2.5 w-2.5" :weight="2.4" />update</NuxtLink>
+          <span v-if="snoozed" class="shrink-0 text-slate-500" :title="snoozedTitle" role="img" :aria-label="snoozedTitle"><Icon name="bell-off" class="h-3.5 w-3.5" /></span>
         </div>
         <div class="mt-0.5 truncate font-mono text-[11px] text-slate-500" :title="service.image">{{ service.image }}</div>
       </div>
@@ -250,4 +252,12 @@ async function control(action: 'start' | 'stop' | 'restart') {
     busy.value = false
   }
 }
+
+// a snoozed app shows a quiet bell, so a silent channel is never a surprise
+const silences = useSilences()
+const snooze = computed(() => (props.service.kind === 'container' ? silences.snoozeOf(props.service) : null))
+const snoozed = computed(() => !!snooze.value)
+const snoozedTitle = computed(() =>
+  snooze.value ? `Alerts snoozed ${snooze.value.untilRecovered ? 'until it recovers' : untilText(snooze.value.until)}${snooze.value.note ? `: ${snooze.value.note}` : ''}` : '',
+)
 </script>

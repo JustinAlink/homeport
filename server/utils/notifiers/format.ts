@@ -4,7 +4,7 @@ import type { AlertEvent, WebhookChannel } from './types'
 // unit-testable in isolation. {{placeholder}} substitution mirrors alerts-core's
 // renderTemplate (kept local to avoid a runtime cross-import).
 
-const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵', 'domain-down': '🔴', 'domain-recovered': '🟢' }
+const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵', 'domain-down': '🔴', 'domain-recovered': '🟢', 'cert-expiring': '🟠', 'cert-renewed': '🟢', 'cert-invalid': '🔴', silence: '🔕' }
 
 const render = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
@@ -32,6 +32,11 @@ export function eventText(e: AlertEvent): string {
   if (e.kind === 'domain-recovered') return `🟢 ${e.name} answers again (${e.to})${where}`
   if (e.kind === 'recovered') return `🟢 ${e.name} recovered (${e.from} → ${e.to})${where}`
   if (e.kind === 'update') return `🔵 ${e.name}: image update available (${e.from})${where}`
+  // certificate events: name lists the domains the certificate covers
+  if (e.kind === 'cert-expiring') return `🟠 Certificate for ${e.name} ${e.to}${where} (${e.from})`
+  if (e.kind === 'cert-renewed') return `🟢 Certificate for ${e.name} renewed, ${e.to}${where}`
+  if (e.kind === 'cert-invalid') return `🔴 Certificate for ${e.name} is no longer trusted: ${e.to}${where}`
+  if (e.kind === 'silence') return `🔕 ${e.name}: ${e.to}`
   if (e.kind === 'updated')
     return e.to ? `🔴 ${e.name} auto-update failed — ${e.to}${where}` : `🟢 ${e.name} auto-updated${where}`
   const verb = e.kind === 'down' ? 'is down' : 'is unhealthy'

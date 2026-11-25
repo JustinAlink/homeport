@@ -5,6 +5,7 @@ import { recordHistory } from './history'
 import { evaluateAlerts, evaluateDomainAlerts } from './alerts'
 import { runUpdateSweep } from './updates'
 import { maybeAutoUpdate } from './auto-update'
+import { runCertChecks } from './certs'
 import { guard } from './guard'
 import { log } from './log'
 
@@ -75,6 +76,9 @@ const tick = guard(async () => {
 })
 
 async function updateChain(): Promise<void> {
+  // certificates: their own schedule (daily, hourly near expiry), so cheap to call every tick
+  const snap = latest
+  if (snap) await stage('certs', () => runCertChecks(snap.services))
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled
   await stage('update-sweep', () => runUpdateSweep(false))
   // once per day in its configured hour + no-op unless autoUpdateEnabled

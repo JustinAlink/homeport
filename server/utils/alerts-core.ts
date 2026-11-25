@@ -1,7 +1,19 @@
 // Pure, dependency-free alerting core: transition detection + a debounce/cooldown
 // reducer + template rendering. No fs/Docker imports, so it's unit-testable in isolation.
 
-export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update' | 'updated' | 'domain-down' | 'domain-recovered'
+export type AlertKind =
+  | 'down'
+  | 'unhealthy'
+  | 'recovered'
+  | 'update'
+  | 'updated'
+  | 'domain-down'
+  | 'domain-recovered'
+  | 'cert-expiring'
+  | 'cert-renewed'
+  | 'cert-invalid'
+  /** a snooze, pause or resume: logged to Activity, never sent */
+  | 'silence'
 
 export interface ServiceState {
   id: string
@@ -62,6 +74,8 @@ export interface AlertState {
   firing: boolean
   firedAt: number
   lastNotifiedAt: number
+  /** A down alert went out before a silence reset this state: owed a "recovered" if it comes back. */
+  heldOpen?: boolean
 }
 
 export const emptyAlertState = (): AlertState => ({ consecutiveBad: 0, firing: false, firedAt: 0, lastNotifiedAt: 0 })
@@ -176,12 +190,15 @@ export function eventLabels(
  * just repeat that). One entry per URL.
  */
 export function domainTargets(
-  services: { id: string; displayName: string; host?: string; state: string; noalert?: boolean; domains: { domain: string; url: string }[] }[],
-): { url: string; domain: string; service: string; host?: string }[] {
-  const out = new Map<string, { url: string; domain: string; service: string; host?: string }>()
+  services: { id: string; name?: string; displayName: string; host?: string; state: string; noalert?: boolean; domains: { domain: string; url: string }[] }[],
+): { url: string; domain: string; service: string; host?: string; key: string }[] {
+  const out = new Map<string, { url: string; domain: string; service: string; host?: string; key: string }>()
   for (const s of services) {
     if (s.noalert || s.state !== 'running') continue
-    for (const d of s.domains) if (!out.has(d.url)) out.set(d.url, { url: d.url, domain: d.domain, service: s.displayName, host: s.host })
+    // the owning app's stable key, so snoozing the app silences its domains too
+    const sep = s.id.indexOf('::')
+    const key = `${sep >= 0 ? s.id.slice(0, sep) : 'default'}|${s.name ?? s.displayName}`
+    for (const d of s.domains) if (!out.has(d.url)) out.set(d.url, { url: d.url, domain: d.domain, service: s.displayName, host: s.host, key })
   }
   return [...out.values()]
 }
