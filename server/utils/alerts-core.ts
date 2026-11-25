@@ -1,7 +1,19 @@
 // Pure, dependency-free alerting core: transition detection + a debounce/cooldown
 // reducer + template rendering. No fs/Docker imports, so it's unit-testable in isolation.
 
-export type AlertKind = 'down' | 'unhealthy' | 'recovered' | 'update' | 'updated' | 'domain-down' | 'domain-recovered'
+export type AlertKind =
+  | 'down'
+  | 'unhealthy'
+  | 'recovered'
+  | 'update'
+  | 'updated'
+  | 'domain-down'
+  | 'domain-recovered'
+  | 'cert-expiring'
+  | 'cert-renewed'
+  | 'cert-invalid'
+  /** a snooze, pause or resume: logged to Activity, never sent */
+  | 'silence'
 
 export interface ServiceState {
   id: string
@@ -62,6 +74,8 @@ export interface AlertState {
   firing: boolean
   firedAt: number
   lastNotifiedAt: number
+  /** A down alert went out before a silence reset this state: owed a "recovered" if it comes back. */
+  heldOpen?: boolean
 }
 
 export const emptyAlertState = (): AlertState => ({ consecutiveBad: 0, firing: false, firedAt: 0, lastNotifiedAt: 0 })

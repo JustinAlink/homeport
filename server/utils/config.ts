@@ -98,6 +98,7 @@ export interface HomeportConfig {
   alertUpdates: boolean
   /** alert when a running container's domain answers 5xx or nothing */
   alertDomains: boolean
+  alertCerts: boolean
   /** Email (SMTP) alert channel — active when host/from/to are set. */
   smtpHost: string
   smtpPort: number
@@ -293,6 +294,7 @@ export function getConfig(): HomeportConfig {
         : s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
     alertDomains: s.alertDomains ?? true,
+    alertCerts: s.alertCerts ?? true,
     smtpHost: s.smtpHost ?? '',
     smtpPort: s.smtpPort ?? 587,
     smtpSecure: s.smtpSecure ?? false,
@@ -397,6 +399,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     alertsEnabled: s.alertsEnabled ?? false,
     alertUpdates: s.alertUpdates ?? false,
     alertDomains: s.alertDomains ?? true,
+    alertCerts: s.alertCerts ?? true,
     autoUpdateEnabled: s.autoUpdateEnabled ?? false,
     autoUpdateHour: s.autoUpdateHour ?? 4,
     autoUpdateTargets: s.autoUpdateTargets ?? [],

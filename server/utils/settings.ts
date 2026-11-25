@@ -44,6 +44,8 @@ export interface PersistedSettings {
   alertsEnabled?: boolean
   alertUpdates?: boolean
   alertDomains?: boolean
+  /** certificate expiry and trust alerts */
+  alertCerts?: boolean
   /** Scheduled automatic updates. */
   autoUpdateEnabled?: boolean
   autoUpdateHour?: number

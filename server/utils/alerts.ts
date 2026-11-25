@@ -25,7 +25,8 @@ import { findProxyName, localDomainUrls } from './ping-core'
 import { getHosts } from './hosts'
 import { getNotifiers, type AlertEvent } from './notifiers'
 import { silenceFor } from './silences'
-import { serviceKey } from '../../shared/utils/silence.ts'
+import { serviceKey, silencedState } from '../../shared/utils/silence.ts'
+import { readSilences, writeSilences } from './silences'
 
 // Effectful alerting layer: turns successive collector snapshots into debounced
 // alert events, fans them out to webhook channels, and keeps a small in-app log.
@@ -133,6 +134,28 @@ export async function dispatch(event: AlertEvent, record = true): Promise<{ name
   return results
 }
 
+/** An "until it recovers" snooze ends the first time its app is fine again. */
+function endRecoveredSnooze(key: string, now: number) {
+  const s = readSilences(now)
+  const sn = s.snoozes[key]
+  if (!sn?.untilRecovered) return
+  const { [key]: _gone, ...rest } = s.snoozes
+  try {
+    writeSilences({ ...s, snoozes: rest })
+    recordActivity({ id: key, name: key.split('|').slice(1).join('|'), kind: 'silence', from: 'snoozed until it recovers', to: 'recovered, alerts back on', at: now })
+  } catch {
+    // best-effort: the snooze still ends at its latest time
+  }
+}
+
+/** Log something to Activity without sending it anywhere (snoozes, pauses, resumes). */
+export function recordActivity(event: AlertEvent): void {
+  const log = loadLog()
+  log.push(event)
+  if (log.length > LOG_CAP) log.splice(0, log.length - LOG_CAP)
+  persist()
+}
+
 /** Called by the collector each tick: detect → debounce → notify. */
 export async function evaluateAlerts(snap: Snapshot): Promise<void> {
   const cfg = getConfig()
@@ -162,15 +185,26 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
     // Silenced (snoozed, paused, or in a maintenance window): start from scratch
     // instead of muting, so the end of the silence neither floods nor stays quiet
     // about something still broken (see shared/utils/silence.ts).
-    if (silenceFor(keyOf.get(s.id) ?? null, now)) {
-      state[s.id] = emptyAlertState()
+    const key = keyOf.get(s.id) ?? null
+    const kind = badKind(s)
+    // "until it recovers": the snooze ends itself the first time the app is fine
+    if (key && kind === null) endRecoveredSnooze(key, now)
+    if (silenceFor(key, now)) {
+      state[s.id] = silencedState(state[s.id], emptyAlertState())
       continue
     }
-    const kind = badKind(s)
 
     const cur = state[s.id] ?? emptyAlertState()
+    // A down alert went out before the silence and the app is fine now: close it,
+    // so the channel isn't left with a down that never recovered.
+    if (cur.heldOpen && kind === null) {
+      state[s.id] = emptyAlertState()
+      if (rule.transitions.recovered) events.push({ id: s.id, name: s.name, host: s.host, kind: 'recovered', from: 'down before the silence', to: s.state, at: now })
+      continue
+    }
     const { state: nextState, emit } = reduceAlertState(cur, kind, rule, now)
-    state[s.id] = nextState
+    // a fresh down after a silence settles the open one; keep the flag until then
+    state[s.id] = cur.heldOpen && !emit ? { ...nextState, heldOpen: true } : nextState
 
     const ev = eventLabels(labels, s, transitions.get(s.id), emit)
     if (emit && ev) events.push({ id: s.id, name: s.name, host: s.host, kind: emit, from: ev.from, to: ev.to, at: now })
@@ -184,7 +218,7 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
   for (const [hostId, online] of Object.entries(snap.hostsOnline)) {
     const key = `host:${hostId}`
     if (hostsSilenced) {
-      state[key] = emptyAlertState()
+      state[key] = silencedState(state[key], emptyAlertState())
       continue
     }
     const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), online ? null : 'down', rule, now)
@@ -257,7 +291,12 @@ export async function evaluateDomainAlerts(snap: Snapshot): Promise<void> {
     const key = `domain:${t.url}`
     // a domain is silent with the app that serves it
     if (silenceFor(t.key, snap.at)) {
+      state[key] = silencedState(state[key], emptyAlertState())
+      continue
+    }
+    if (state[key]?.heldOpen && !domainDown(r)) {
       state[key] = emptyAlertState()
+      if (rule.transitions.recovered) events.push({ id: key, name: t.domain, host: t.host, kind: 'domain-recovered', from: t.service, to: domainLabel(r), at: snap.at })
       continue
     }
     const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), domainDown(r) ? 'down' : null, rule, snap.at)

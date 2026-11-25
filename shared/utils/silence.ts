@@ -11,6 +11,16 @@ export interface Snooze {
   until: number
   note?: string
   at: number
+  /** ends early, the first time the app is fine again (until is then the latest it can last) */
+  untilRecovered?: boolean
+}
+
+/**
+ * The state a silenced service is kept in: reset, but remembering that a down alert
+ * had already gone out, so its recovery is still announced and nothing is left open.
+ */
+export function silencedState<T extends { firing: boolean; heldOpen?: boolean }>(cur: T | undefined, empty: T): T {
+  return { ...empty, heldOpen: !!(cur?.firing || cur?.heldOpen) }
 }
 
 export interface MaintenanceWindow {

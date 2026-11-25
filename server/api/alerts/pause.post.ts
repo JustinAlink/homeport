@@ -1,4 +1,5 @@
 import { readSilences, writeSilences } from '../../utils/silences'
+import { recordActivity } from '../../utils/alerts'
 
 const MAX_MS = 31 * 24 * 3600_000
 
@@ -16,6 +17,14 @@ export default defineEventHandler(async (event) => {
   }
   try {
     const saved = writeSilences(next)
+    recordActivity({
+      id: 'pause',
+      name: 'All alerts',
+      kind: 'silence',
+      from: body?.until === null ? 'paused' : 'on',
+      to: body?.until === null ? 'back on' : `paused until ${new Date(saved.pausedUntil).toISOString()}`,
+      at: now,
+    })
     return { pausedUntil: saved.pausedUntil, pauseNote: saved.pauseNote ?? null }
   } catch (e: any) {
     throw createError({ statusCode: 500, statusMessage: `could not save: ${e?.message || e}` })
