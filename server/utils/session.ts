@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { sessionSecret, currentGeneration } from './auth'
+import { signingKey, currentGeneration } from './auth'
 
 export const SESSION_COOKIE = 'homeport_session'
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
@@ -16,7 +16,7 @@ export function createSessionToken(uid?: string): string {
   const body: Record<string, unknown> = { iat: Date.now(), gen: currentGeneration() }
   if (uid) body.uid = uid
   const payload = Buffer.from(JSON.stringify(body)).toString('base64url')
-  return `${payload}.${sign(payload, sessionSecret())}`
+  return `${payload}.${sign(payload, signingKey())}`
 }
 
 /**
@@ -27,7 +27,7 @@ export function createSessionToken(uid?: string): string {
  */
 export function createPendingTotpToken(): string {
   const payload = Buffer.from(JSON.stringify({ iat: Date.now(), gen: currentGeneration(), typ: 'totp-pending' })).toString('base64url')
-  return `${payload}.${sign(payload, sessionSecret())}`
+  return `${payload}.${sign(payload, signingKey())}`
 }
 
 export function verifyPendingTotpToken(token: string | undefined): boolean {
@@ -35,7 +35,7 @@ export function verifyPendingTotpToken(token: string | undefined): boolean {
   const [payload, sig] = token.split('.')
   if (!payload || !sig) return false
 
-  const expected = sign(payload, sessionSecret())
+  const expected = sign(payload, signingKey())
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return false
@@ -68,7 +68,7 @@ export function decodeSessionToken(token: string | undefined): SessionPayload | 
   const [payload, sig] = token.split('.')
   if (!payload || !sig) return null
 
-  const expected = sign(payload, sessionSecret())
+  const expected = sign(payload, signingKey())
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null

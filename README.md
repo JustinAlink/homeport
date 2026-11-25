@@ -221,6 +221,7 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_ADMIN_PASSWORD` | _(first-run setup)_ | Admin login password. Leave unset to create it in the browser on first run (stored hashed; needs the one-time setup code from the log); set it for headless/locked deploys. |
 | `HOMEPORT_ALLOW_OPEN` | `false` | `true` runs with **no login at all** while no password is set. Only for a trusted private network: anyone who reaches the URL gets every capability you enabled. The only way to turn the login off. |
 | `HOMEPORT_SESSION_SECRET` | _(auto-generated)_ | Secret used to sign the session cookie. Generated and persisted under the data dir if unset; set it to keep sessions stable across re-creates without a volume. |
+| `HOMEPORT_TRUSTED_PROXY` | `false` | `true` when homeport sits behind a reverse proxy you control: the login rate limiter then keys on `X-Forwarded-For`. Without it every visitor shares the proxy's address, so a few wrong passwords from anyone lock everyone out for a while. Leave it off when homeport is reachable directly (the header is forgeable). |
 | `DOCKER_HOST` | _(unix socket)_ | `tcp://docker-socket-proxy:2375` (recommended), `ssh://user@host` for a remote host, or empty for `DOCKER_SOCKET`. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Used only when `DOCKER_HOST` is empty. |
 | `DOCKER_SSH_KEY` | _(agent)_ | Private-key path for `ssh://` (mount it read-only); falls back to the SSH agent. |

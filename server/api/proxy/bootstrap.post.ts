@@ -1,4 +1,4 @@
-import { getConfig } from '../../utils/config'
+import { getConfig, getEnvLocks } from '../../utils/config'
 import { settingsWritable, writeSettings } from '../../utils/settings'
 import { bootstrapNpm, connectNpm } from '../../utils/proxy-admin/npm-bootstrap'
 import { credsSettingsPatch, npmBaseUrl, DEFAULT_NPM_IDENTITY } from '../../utils/proxy-admin/npm-bootstrap-core'
@@ -17,6 +17,12 @@ export default defineEventHandler(async (event) => {
   if (cfg.demo) {
     // Pretend: show the flow without touching anything.
     return { ok: true, rotated: !body?.identity, identity: body?.identity || DEFAULT_NPM_IDENTITY, secret: body?.identity ? undefined : 'demo-Generated-Passw0rd', demo: true }
+  }
+  // This endpoint turns proxy management on, so it can't require it to be on
+  // already. But an operator who set HOMEPORT_ALLOW_PROXY_ADMIN=false has decided
+  // it stays off, and nothing in the UI may override the environment.
+  if (getEnvLocks().allowProxyAdmin && !cfg.allowProxyAdmin) {
+    throw createError({ statusCode: 403, statusMessage: 'Proxy management is turned off by HOMEPORT_ALLOW_PROXY_ADMIN.' })
   }
   if (!settingsWritable()) {
     throw createError({ statusCode: 409, statusMessage: 'Settings storage is not writable — mount a writable HOMEPORT_DATA_DIR volume.' })

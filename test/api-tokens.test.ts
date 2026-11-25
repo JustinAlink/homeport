@@ -44,3 +44,16 @@ test('scopeAllows: full = everything; read = safe GETs minus secret exports', ()
   assert.equal(scopeAllows('read', 'GET', '/api/users'), false)
   assert.equal(scopeAllows('full', 'GET', '/api/users'), true)
 })
+
+test('scopeAllows: read scope cannot reach secrets through plain GETs', () => {
+  // container files: /data/auth.json holds the session secret, so a read token
+  // here could forge an admin cookie
+  assert.equal(scopeAllows('read', 'GET', '/api/containers/file'), false)
+  assert.equal(scopeAllows('read', 'GET', '/api/containers/files'), false)
+  // container environments and settings (proxy passwords, webhook URLs)
+  assert.equal(scopeAllows('read', 'GET', '/api/env'), false)
+  assert.equal(scopeAllows('read', 'GET', '/api/settings'), false)
+  // what read tokens exist for still works (junibot's contract)
+  for (const p of ['/api/services', '/api/stats', '/api/pings', '/api/logs', '/api/alerts', '/api/containers/abc/mounts'])
+    assert.equal(scopeAllows('read', 'GET', p), true, p)
+})

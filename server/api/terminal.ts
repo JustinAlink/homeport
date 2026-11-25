@@ -2,7 +2,8 @@ import { getConfig } from '../utils/config'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
 import { decodeCookieHeader } from '../utils/session'
-import { trustedAuthHeader } from '../utils/auth'
+import { authMode, trustedAuthHeader } from '../utils/auth'
+import { isCrossOrigin } from '../utils/csrf-core'
 import { forwardAuthUser } from '../utils/auth-core'
 import { splitServiceId } from '../utils/service-id'
 import { parseClientFrame, SHELL_CMD, demoShellRespond, demoPrompt } from '../utils/terminal-core'
@@ -24,11 +25,17 @@ const sessions = new Map<string, TermSession>()
 
 export default defineWebSocketHandler({
   upgrade(req) {
-    // Same auth as the HTTP middleware: a valid session cookie OR a trusted
-    // forward-auth header set by the upstream proxy.
+    // Browsers attach cookies to WebSocket handshakes from any origin, and the
+    // handshake is a GET, so the middleware's cross-origin check never sees it.
+    // Without this, a page on another port of the same host could open a shell.
+    if (isCrossOrigin((n) => req.headers.get(n))) return new Response('Cross-origin request refused', { status: 403 })
+    // Same auth as the HTTP middleware: open mode (no login at all, the operator's
+    // explicit choice), a valid session cookie, OR a trusted forward-auth header set
+    // by the upstream proxy. Open mode can never issue a cookie, so requiring one
+    // here made the terminal unusable in exactly the mode that has no login.
     const th = trustedAuthHeader()
     const forwardAuthed = !!th && !!forwardAuthUser(th, (n) => req.headers.get(n))
-    if (!forwardAuthed) {
+    if (!forwardAuthed && authMode() !== 'open') {
       const session = decodeCookieHeader(req.headers.get('cookie'))
       if (!session) return new Response('Unauthorized', { status: 401 })
       if (session.uid) return new Response('Viewers cannot open a terminal', { status: 403 })

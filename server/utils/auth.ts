@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { settingsWritable } from './settings'
 import { hashPassword, verifyHash, constantEquals, MIN_PASSWORD_LENGTH } from './auth-core'
 import { warnOnce } from './log'
@@ -72,7 +72,11 @@ export function restoreAuthFile(data: AuthFile): void {
   const next: AuthFile = {}
   if (typeof data.passwordHash === 'string') next.passwordHash = data.passwordHash
   if (typeof data.sessionSecret === 'string') next.sessionSecret = data.sessionSecret
-  if (typeof data.sessionGeneration === 'number') next.sessionGeneration = data.sessionGeneration
+  // Never move the generation backwards: restoring an older backup on the same
+  // instance (same secret) would otherwise bring back every session revoked since
+  // it was taken. Past both values, so the restore itself also signs everyone out.
+  const restored = typeof data.sessionGeneration === 'number' ? data.sessionGeneration : 0
+  next.sessionGeneration = Math.max(read().sessionGeneration || 0, restored) + 1
   const dir = process.env.HOMEPORT_DATA_DIR || '/data'
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(file(), JSON.stringify(next, null, 2), { mode: 0o600 })
@@ -141,6 +145,19 @@ export function authMode(): AuthMode {
   if (hasPassword()) return 'enforced'
   if (envAllowOpen()) return 'open'
   return 'setup'
+}
+
+/**
+ * Key that signs session tokens. A password changed in the UI bumps the generation,
+ * but a changed HOMEPORT_ADMIN_PASSWORD runs no homeport code that could, so cookies
+ * issued under the old env password stayed valid for their full 30 days. Mixing a
+ * fingerprint of the env password into the key revokes them on the restart that
+ * applies the new one. Without an env password the key is just the secret.
+ */
+export function signingKey(): string {
+  const env = envPassword()
+  if (!env) return sessionSecret()
+  return `${sessionSecret()}:${createHash('sha256').update(`homeport-env-password:${env}`).digest('hex')}`
 }
 
 /** Effective HMAC secret for session cookies; generated + persisted on first use. */

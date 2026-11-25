@@ -4,6 +4,7 @@ import { forwardAuthUser } from '../utils/auth-core'
 import { verifyApiToken } from '../utils/api-tokens'
 import { getUser } from '../utils/users'
 import { scopeAllows } from '../utils/api-tokens-core'
+import { isCrossOrigin, isUnsafeMethod } from '../utils/csrf-core'
 
 // Gate the API (pages redirect client-side). Fail-closed: a valid session is
 // required unless auth is intentionally off (open mode). /api/auth/* and the
@@ -11,6 +12,10 @@ import { scopeAllows } from '../utils/api-tokens-core'
 export default defineEventHandler((event) => {
   const path = getRequestURL(event).pathname
   if (!path.startsWith('/api/')) return
+  // Before anything else, including the public auth endpoints: a cross-origin page
+  // must not log the user out, log them in as someone else, or claim setup.
+  if (isUnsafeMethod(event.method) && isCrossOrigin((n) => getHeader(event, n)))
+    throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
   // /api/auth/totp is the second (2FA) step of login, gated by its own
   // short-lived pending token + rate limit rather than a session — a caller
   // here hasn't finished logging in yet, so no session cookie exists.
@@ -40,6 +45,10 @@ export default defineEventHandler((event) => {
     // Nor manage user accounts — a leaked token must not create/delete viewers.
     if (path === '/api/users' || path.startsWith('/api/users/'))
       throw createError({ statusCode: 403, statusMessage: 'API tokens cannot manage user accounts' })
+    // Nor touch backups: the export carries the session secret (enough to forge an
+    // admin cookie, which would undo every rule above) and a restore replaces it.
+    if (path === '/api/backup' || path.startsWith('/api/backup/'))
+      throw createError({ statusCode: 403, statusMessage: 'API tokens cannot export or restore backups' })
     if (!scopeAllows(t.scope, event.method, path))
       throw createError({ statusCode: 403, statusMessage: 'this token is read-only' })
     return
