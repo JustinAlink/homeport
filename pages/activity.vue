@@ -100,6 +100,15 @@ function eventRowBase(e: AlertRow): Row {
       return e.to
         ? { at: e.at, icon: 'x', cls: 'text-red-400', text: `auto-update of ${e.name} failed — ${e.to}`, host: e.host, group: 'updates' }
         : { at: e.at, icon: 'arrow-up', cls: 'text-ok', text: `${e.name} auto-updated`, host: e.host, group: 'updates' }
+    case 'cert-expiring':
+      return { at: e.at, icon: 'lock', cls: e.to === 'has expired' ? 'text-red-400' : 'text-amber-300', text: `certificate for ${e.name} ${e.to}`, host: e.host, group: 'status' }
+    case 'cert-renewed':
+      return { at: e.at, icon: 'lock', cls: 'text-ok', text: `certificate for ${e.name} renewed, ${e.to}`, host: e.host, group: 'status' }
+    case 'cert-invalid':
+      return { at: e.at, icon: 'alert', cls: 'text-red-400', text: `certificate for ${e.name} is no longer trusted (${certErrorText(e.to) || e.to})`, host: e.host, group: 'status' }
+    case 'silence':
+      // the server writes the end time as ISO: show it in the reader's time
+      return { at: e.at, icon: 'bell-off', cls: 'text-slate-400', text: `${e.name}: ${e.to.replace(/until (\d{4}-\d\d-\d\dT[\d:.]+Z)/, (_m, iso) => untilText(Date.parse(iso), e.at))}`, host: e.host, group: 'status' }
     default:
       return { at: e.at, icon: 'alert', cls: 'text-slate-400', text: `${e.name}: ${e.kind}`, host: e.host, group: 'status' }
   }

@@ -154,6 +154,18 @@
           Lost the connection to homeport. Retrying; what you see may be out of date.
         </div>
       </Transition>
+      <!-- alerts are silenced: say so everywhere, so nobody waits for a notification that won't come -->
+      <div
+        v-if="caps.alerts && (silenceBanner || snoozedCount)"
+        class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-[12.5px] text-slate-300"
+        role="status"
+      >
+        <Icon name="bell-off" class="h-3.5 w-3.5 text-slate-400" />
+        <span v-if="silenceBanner">{{ silenceBanner }}</span>
+        <span v-if="snoozedCount" class="text-slate-400">{{ silenceBanner ? '·' : '' }} {{ snoozedCount }} app{{ snoozedCount === 1 ? '' : 's' }} snoozed</span>
+        <button v-if="silences.globalSilence.value?.kind === 'pause' && !caps.viewer" type="button" class="link text-[12.5px]" @click="resumeAll">Resume alerts</button>
+        <NuxtLink v-if="!caps.viewer" to="/settings?tab=monitoring#silences" class="link text-[12.5px]">Manage</NuxtLink>
+      </div>
       <slot />
     </main>
 
@@ -183,6 +195,33 @@ const bare = computed(() => route.path === '/login')
 watch(() => route.fullPath, () => (drawer.value = false))
 
 const exposureRisk = useExposureBadge()
+
+// alert silences: the banner above every page
+const silences = useSilences()
+const silenceBanner = computed(() => {
+  const g = silences.globalSilence.value
+  if (!g) return ''
+  if (g.kind === 'pause') return `All alerts paused ${untilText(g.until)}${g.note ? ` (${g.note})` : ''}`
+  const w = g.window
+  return `Maintenance window${w.note ? ` “${w.note}”` : ''}: no alerts until ${w.end} (${silences.data.value?.timeZone ?? 'server'} time)`
+})
+const snoozedCount = computed(() => Object.values(silences.data.value?.snoozes ?? {}).filter((s) => s.until > Date.now()).length)
+async function resumeAll() {
+  try {
+    await silences.pause(null)
+  } catch (e: any) {
+    useToast().error(errMsg(e, 'Could not resume'))
+  }
+}
+let silenceTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  silences.refresh()
+  // windows start and end on their own: look again every minute
+  silenceTimer = setInterval(() => silences.refresh(), 60_000)
+})
+onBeforeUnmount(() => {
+  if (silenceTimer) clearInterval(silenceTimer)
+})
 const updateCount = computed(
   () => Object.values(updates.entries.value).filter((e) => e.status === 'update').length,
 )

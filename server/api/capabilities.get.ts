@@ -18,6 +18,8 @@ export default defineEventHandler((event) => {
     terminal: cfg.allowTerminal && !viewer,
     containerFiles: cfg.allowContainerFiles && !viewer,
     proxyAdmin: cfg.allowProxyAdmin,
+    // alerts are configured: snooze and pause controls are worth showing (demo shows them)
+    alerts: cfg.alertsEnabled || cfg.demo,
     // first-run / account hints (not secrets)
     loginDisabled: authMode() === 'open', // running without a login
     passwordEnvLocked: !!process.env.HOMEPORT_ADMIN_PASSWORD, // change-password unavailable

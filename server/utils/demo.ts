@@ -240,6 +240,8 @@ export function demoActivity() {
     { id: 'demo-12', name: 'restic-backup', kind: 'down', from: 'running', to: 'exited', at: now - 11 * H },
     { id: 'demo-5', name: 'umami-db', kind: 'unhealthy', from: 'healthy', to: 'unhealthy', at: now - 26 * H },
     { id: 'demo-5', name: 'umami-db', kind: 'recovered', from: 'unhealthy', to: 'healthy', at: now - 25.7 * H },
+    { id: 'cert:demo-blog', name: 'blog.example.com', kind: 'cert-expiring', from: "Let's Encrypt", to: 'expires soon (5 days left)', at: now - 2 * H },
+    { id: 'default|qbittorrent', name: 'qbittorrent', kind: 'silence', from: 'alerts on', to: 'snoozed until it recovers', at: now - 3 * H },
   ].sort((a, b) => b.at - a.at)
 }
 
