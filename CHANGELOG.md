@@ -1,5 +1,82 @@
 # Changelog
 
+## v2.38.0 (2026-11-25)
+
+### New: single sign-on (OpenID Connect)
+
+Sign in through Authentik, Authelia, Keycloak, Pocket ID, Zitadel or any OIDC
+provider (Settings, Security & users, Single sign-on). Access follows the provider's
+groups: an admin group gets full control, a viewer group a read-only account
+created on first sign-in (matched by the provider's account id, never by
+email), and anyone else is turned away. The password login stays, and
+`/login?local=1` always shows it. Optional: a custom button label, going
+straight to the provider, hiding the password form. The protocol is done by
+openid-client (PKCE, state, nonce, ID token checks). Environment:
+`HOMEPORT_PUBLIC_URL`, `HOMEPORT_OIDC`, `HOMEPORT_OIDC_ISSUER`,
+`HOMEPORT_OIDC_CLIENT_ID`, `HOMEPORT_OIDC_CLIENT_SECRET`.
+[docs/oidc.md](docs/oidc.md)
+
+### New: certificate alerts, snooze and maintenance windows
+
+- The TLS certificate behind each HTTPS domain is checked daily (hourly near
+  expiry), on a fresh connection. You hear once when it nears expiry (scaled to its lifetime: 14
+  days for a 90-day certificate), once more when it is critical, when it is
+  renewed, and when it stops being trusted. Each domain and service page shows
+  how long its certificate has left.
+- **Snooze** one app's alerts from its page: for an hour, until tomorrow, or
+  until it recovers. **Pause** every alert for a while from Settings,
+  Monitoring, or set weekly **maintenance windows** there (they may run past
+  midnight). Checks keep running and pages keep showing the real state; only
+  notifications wait, and anything still down afterwards alerts once.
+
+### New: 30 days of history, uptime and Prometheus metrics
+
+- Graphs now go back 7 and 30 days (15-minute and hourly averages), with a
+  time axis and a tooltip that says when a point is an average.
+- Each container page has an uptime card: 24 hours, 7 and 30 days, with a bar
+  per day. History is keyed by container name, so a recreate or an update keeps
+  it.
+- `GET /api/metrics` serves Prometheus text (`homeport_*`): container state,
+  health, CPU, memory, updates, uptime, and each domain's probe. It needs an API
+  token (read-only is enough) and answers 503 until the first collection.
+[docs/history-and-metrics.md](docs/history-and-metrics.md)
+
+### New: deploy git stacks on push
+
+Opt-in (`HOMEPORT_ALLOW_GIT_WEBHOOKS`). A git stack's page gives it a webhook
+URL and secret for GitHub, Gitea, Forgejo, GitLab or Bitbucket. The signature is
+checked in constant time, pushes to other branches are ignored, and a burst of
+pushes becomes one update. Or turn on auto-sync: homeport asks the remote on an
+interval you choose (2 minutes to a day) and updates only when the branch
+moved, and holds a commit whose
+update failed instead of retrying it every time. homeport's own stack is never
+deployed this way. [docs/git-webhooks.md](docs/git-webhooks.md)
+
+### New: ask an AI assistant (MCP)
+
+A read-only Model Context Protocol server at `/api/mcp` lets Claude and other
+assistants answer questions from live data: what serves a domain, what is
+unhealthy, what needs updating, what is reachable around the proxy, recent
+alerts and logs. Settings, Security & users has a panel that makes a read-only token and
+the config to paste. It never sees environments, settings, files or backups.
+[docs/mcp.md](docs/mcp.md)
+
+### New: more domain sources
+
+Domains are now also read from Traefik's API (every router from every provider
+at once, `HOMEPORT_TRAEFIK_API_URL`), caddy-docker-proxy labels and Pangolin
+blueprint labels. Each domain says where it was read from.
+[docs/domain-sources.md](docs/domain-sources.md)
+
+### Fixes
+
+- A signed-out visitor now returns to the page they were on after signing in.
+  Before, a background check on the login page sent it to a bare `/login`,
+  which also wiped `?sso_error` and `?local=1`.
+- Settings no longer sends an extra host's NPM API password to the browser, and
+  saving the settings page no longer wipes the per-host NPM API and Caddy admin
+  fields it has no inputs for.
+
 ## v2.37.1 (2026-11-25)
 
 - **Exposure report, more precise.** On a real fleet it flagged Pelican Wings'

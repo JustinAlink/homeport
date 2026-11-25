@@ -16,7 +16,7 @@ of two roles:
 | Neither | Turned away, with "not in a group allowed into homeport" |
 
 With no groups configured, nobody gets in through SSO. Viewer accounts appear under
-Settings > Security > User accounts with an SSO badge, have no password, and are matched by the
+Settings > Security & users > User accounts with an SSO badge, have no password, and are matched by the
 provider's issuer and account id (`sub`), never by email or username, so renaming someone at the
 provider does not create a second account and a reused email cannot take over an existing one.
 Deleting a viewer account signs it out at once; it is recreated on the next SSO sign-in as long
@@ -29,7 +29,7 @@ Group names are compared without case, and a leading `/` (Keycloak's full group 
 1. At the provider, create an OpenID Connect client (confidential, authorization code flow) with
    the redirect URI `https://<homeport's address>/api/auth/oidc/callback`. The settings page
    shows the exact value with a copy button once the public URL is filled in.
-2. In homeport, open Settings > Security > Single sign-on and fill in homeport's public URL, the
+2. In homeport, open Settings > Security & users > Single sign-on and fill in homeport's public URL, the
    issuer URL, client ID and client secret. Press **Test the provider** to check discovery.
 3. Set the admin and viewer groups, tick **Offer single sign-on on the login page**, and save.
 

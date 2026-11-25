@@ -55,11 +55,13 @@ all live and builds the page for you. **Zero tiles to configure.**
 
 ### 🔎 Discover & monitor
 - **Auto-discovery** — every container appears on its own: name, image, status, health, ports.
-- **Automatic domains** — homeport reads your reverse proxy, so it already knows `webapp → app.example.com`.
+- **Automatic domains**: homeport reads your reverse proxy, so it already knows `webapp → app.example.com`: Nginx Proxy Manager, nginx, Caddy, Traefik (labels, file or API), caddy-docker-proxy and Pangolin.
 - **Live** — updates the instant a container starts, stops, or goes unhealthy (Docker events, not polling).
-- **Graphs & uptime** — per-container CPU/RAM sparklines, per-stack totals, and a fleet graph with a 1h/6h/24h range (containers vs. whole-machine, straight from procfs) — plus optional up/down pings.
+- **Graphs & uptime**: per-container CPU/RAM sparklines, per-stack totals, and a fleet graph from 1 hour to 30 days (containers vs. whole-machine, straight from procfs). Every container gets an uptime figure for 24 hours, 7 and 30 days with a bar per day, and Prometheus can scrape it all from `/api/metrics`. [Details](docs/history-and-metrics.md).
 - **Find anything fast**: <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> jumps to any container, stack or page and runs actions ("restart sonarr", "jelly logs"); <kbd>?</kbd> lists every shortcut. The dashboard filters by status, flags what needs attention, pins favourites to the top, and switches between cards and a dense list.
-- **Alerts** — down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
+- **Alerts**: down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
+  TLS certificates are watched too (expiring, renewed, no longer trusted). Snooze one app while you work on it, pause everything for an hour, or set weekly maintenance windows.
+- **Ask an AI assistant**: a built-in, read-only [MCP server](docs/mcp.md) lets Claude and other assistants answer "what serves app.example.com?" or "what needs updating?" from live data.
 
 ### 🛠️ Manage — opt-in, only what you enable
 - **A page per container** — live logs, a **web terminal**, an **env editor** (secrets stay write-only), and one-click **image updates**.
@@ -74,7 +76,7 @@ all live and builds the page for you. **Zero tiles to configure.**
   finding you meant to have can be accepted with a reason. [How it works](docs/operations.md#exposure-report).
 - **Proxy management** — create / edit / remove routes from the UI (Nginx Proxy Manager, Caddy, or Traefik).
 - **App catalog** — one-click install curated + Portainer-compatible templates, plus **Docker Hub & GitHub** tabs that auto-dockerize any image or repo — including [a reverse proxy itself](#get-your-first-service-online).
-- **Git-backed stacks** — deploy straight from a repo and update with one click when it moves.
+- **Git-backed stacks**: deploy straight from a repo and update with one click, on every push (a signed webhook from GitHub, Gitea, Forgejo, GitLab or Bitbucket) or on a schedule. [Deploy on push](docs/git-webhooks.md).
 
 _Plus real app logos, systemd services, multi-host aggregation, backup & restore, and an in-app settings page for all of it._
 
@@ -88,14 +90,14 @@ and checks how every app can actually be reached. Management is there too, off u
 
 | | **homeport** | Arcane | Dockhand | Komodo | Portainer CE | Dozzle |
 |---|---|---|---|---|---|---|
-| Domain for each container | **Read from the proxy's own config**: NPM, Caddyfile, nginx, Traefik (labels or file) | No | Traefik, Pangolin and caddy-docker-proxy labels | Typed in by hand | No | A label you add |
+| Domain for each container | **Read from the proxy's own config**: NPM, Caddyfile, nginx, Traefik (labels, file or API), caddy-docker-proxy and Pangolin labels | No | Traefik, Pangolin and caddy-docker-proxy labels | Typed in by hand | No | A label you add |
 | Create and edit proxy routes | ✅ NPM, Caddy, Traefik file | No | No | No | Kubernetes Ingress only | No |
 | Exposure report (what skips the proxy, plain HTTP, open ports) | ✅ | No | Compose check warns about open database ports | No | No | No |
 | Read-only until you opt in | ✅ tiered | No | No | No | No | ✅ actions off by default |
 | Compose stacks in the browser | ✅ | ✅ | ✅ | ✅ | ✅ | No |
 | Image updates: check and apply | ✅ | ✅ | ✅ | ✅ | Re-pull by hand (the indicator is Business-only) | ✅ |
 | Down / unhealthy alerts | ✅ | Auto-heal restarts only | ✅ | ✅ state changes | Business-only | ✅ rules you write |
-| Single sign-on | Forward-auth + TOTP | ✅ OIDC | ✅ OIDC | ✅ OIDC | Custom OAuth2 | ✅ OIDC |
+| Single sign-on | ✅ OIDC, plus forward-auth and TOTP | ✅ OIDC | ✅ OIDC | ✅ OIDC | Custom OAuth2 | ✅ OIDC |
 | Vulnerability scans | No | ✅ Trivy | ✅ Grype, Trivy | No | No | No |
 | Beyond plain Docker | No | Swarm, Podman | Podman | Swarm | Swarm, Kubernetes, Podman | Swarm, Kubernetes, Podman |
 | License | GPL-3.0 | BSD-3-Clause | BUSL-1.1 (free for personal use) | GPL-3.0 | Zlib | MIT |
@@ -110,9 +112,6 @@ Dozzle 11.5.0, from each project's own docs and code. Something out of date? Ple
 - you run **Swarm, Kubernetes or Podman**: Portainer, Arcane, Komodo or Dozzle (homeport talks to the
   Docker API only);
 - **logs** are what you mostly look at: Dozzle;
-- you want **built-in OIDC**: homeport supports **forward-auth** instead (put it behind Authelia,
-  Authentik or oauth2-proxy and it trusts their `Remote-User` header) plus **TOTP 2FA** on the admin
-  account;
 - you want to edit a container's **healthcheck** from the UI: not there yet, and the Docker Engine API
   can't change it live anyway (it needs a recreate). CPU/RAM limits, restart policy and the full compose
   file can all be edited live.
@@ -257,6 +256,10 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_COLLECTOR_INTERVAL` | `30` | Seconds between background fleet snapshots (feeds history + alerts). Min 10. |
 | `HOMEPORT_HISTORY` | `true` | Persist CPU/RAM history so graphs survive refresh/restart (stored under the data dir). |
 | `HOMEPORT_ALERTS` | `false` | Enable per-service down/unhealthy/recovered notifications (configure channels in settings). |
+| `HOMEPORT_TRAEFIK_API_URL` | _(none)_ | Read domains from Traefik's API (`http://traefik:8080`, keep it internal). `_USER` / `_PASSWORD` for basic auth. See [domain sources](docs/domain-sources.md). |
+| `HOMEPORT_ALLOW_GIT_WEBHOOKS` | `false` | `true` lets git stacks deploy on push through a per-stack, secret-checked webhook. Needs stacks on. See [deploy on push](docs/git-webhooks.md). |
+| `HOMEPORT_PUBLIC_URL` | _(none)_ | The address you open homeport at, e.g. `https://hub.example.com`. Single sign-on builds its redirect URI from it. |
+| `HOMEPORT_OIDC` | `false` | `true` offers single sign-on. With `HOMEPORT_OIDC_ISSUER`, `_CLIENT_ID` and `_CLIENT_SECRET`; groups are set in the settings page. See [single sign-on](docs/oidc.md). |
 
 > **Settings page** (the ⚙ in the header): change reverse-proxy provider, Docker connection
 > (local / remote-over-SSH), add/remove **extra hosts**, toggle remote logos, and the controls
@@ -287,6 +290,9 @@ homeport reads your reverse proxy to map domains automatically:
 | **Traefik** | Reads `traefik.*` Docker labels (zero extra config) | nothing — works from the containers it already sees |
 | **Traefik (file)** | Parses Traefik's dynamic-config file provider (YAML/TOML) | `TRAEFIK_FILE=/…/dynamic.yml` (file or dir) |
 | **Caddy** | Parses your Caddyfile | `CADDYFILE_PATH=/…/Caddyfile` |
+| **Traefik (API)** | Reads every router Traefik runs, from all its providers at once | `HOMEPORT_TRAEFIK_API_URL=http://traefik:8080` |
+| **caddy-docker-proxy** | Reads `caddy` labels | nothing: automatic when its container runs |
+| **Pangolin** | Reads `pangolin.public-resources.*` blueprint labels | nothing: automatic when a Newt or Pangolin site container runs |
 
 It **auto-detects** (NPM → Caddy → Nginx → Traefik-file → Traefik labels), or force one with
 `DOMAIN_PROVIDER=npm|nginx|traefik|traefik-file|caddy`.
@@ -404,10 +410,12 @@ A small **background collector** snapshots the fleet every `HOMEPORT_COLLECTOR_I
 seconds (default 30) — so history accrues and alerts fire even when nobody's looking at
 the page.
 
-- **History** is kept as tiny per-series JSON ring-buffers under
-  `${HOMEPORT_DATA_DIR}/stats/` (zero-dependency, self-bounding ~24h). The fleet graph
-  gains a 1h/6h/24h range that reads it back, so graphs survive a refresh or restart. Turn
-  off with `HOMEPORT_HISTORY=false`.
+- **History** is kept as small per-series JSON files under `${HOMEPORT_DATA_DIR}/stats/`:
+  1-minute points for 24 hours, 15-minute averages for 7 days and hourly averages for 30 days,
+  keyed by container name so a recreate or update keeps its history. Graphs read it back from 1
+  hour to 30 days, and each container page shows its uptime (24 h, 7 d, 30 d) with a bar per day.
+  `GET /api/metrics` serves the same in Prometheus format (any read-only API token works). Turn
+  off with `HOMEPORT_HISTORY=false`. [Details](docs/history-and-metrics.md).
 - **Alerts** detect down / unhealthy / recovered transitions, debounced over N samples to
   avoid flapping, with a re-notify cooldown. Configure on the settings page: pick which
   transitions to notify on and add **webhook channels** — Discord, Slack, ntfy, **Apprise**
@@ -424,6 +432,13 @@ the page.
   answers 5xx or nothing for the debounce count notifies, with "answers again" when it
   recovers. Checked the same way as the status dots, through the reverse proxy when the
   server can't reach its own public address from inside Docker.
+- **Certificate alerts**: the TLS certificate behind each HTTPS domain is checked daily. You hear
+  once when it nears expiry (scaled to its lifetime, so a 90-day Let's Encrypt certificate warns
+  at 14 days), once more when it is critical, when it is renewed, and when it stops being trusted.
+- **Quiet time**: snooze one app from its page (for an hour, until tomorrow, or until it
+  recovers), pause every alert for a while, or set weekly maintenance windows under Settings,
+  Monitoring. Checks keep running; only notifications wait, and anything still down afterwards
+  alerts once.
 
 > Single container, single process: one collector runs per deployment. All of this degrades
 > gracefully to in-memory if `HOMEPORT_DATA_DIR` isn't writable.
@@ -491,6 +506,7 @@ count) groups them by compose project:
   | Web terminal | `HOMEPORT_ALLOW_TERMINAL` | off | `EXEC=1 POST=1` |
   | Edit files in containers/volumes | `HOMEPORT_ALLOW_CONTAINER_FILES` | off | `CONTAINERS=1` + `PUT` on `/containers/*/archive` |
   | Proxy management | `HOMEPORT_ALLOW_PROXY_ADMIN` | off | none (talks to your proxy, not Docker) |
+  | Deploy git stacks on push | `HOMEPORT_ALLOW_GIT_WEBHOOKS` | off | same as compose stacks |
 - **Settings → Capabilities → “Probe proxy permissions”** checks what the socket proxy
   actually allows, per capability — so a toggle that would 403 at the proxy shows red
   before you ever click its button.
@@ -512,6 +528,15 @@ Turn on **Settings → Security & users → Two-factor auth** to require a 6-dig
 shows a QR code plus the raw key, and confirms with a live code before it's turned on. A set of
 one-time recovery codes is generated at enroll (and on regenerate) in case you lose the device;
 each works once. Disabling 2FA or regenerating codes both require re-entering your password.
+
+### Single sign-on (OpenID Connect)
+
+Sign in through Authentik, Authelia, Keycloak, Pocket ID, Zitadel or any OpenID Connect provider
+(Settings, Security & users, Single sign-on). Access follows the provider's groups: members of an admin
+group get full control, members of a viewer group get a read-only account created on their first
+sign-in, and everyone else is turned away even though the provider let them in. The admin
+password keeps working, and `/login?local=1` always shows it, so a broken provider can't lock you
+out. [Setup and provider notes](docs/oidc.md).
 
 ### Forward-auth (SSO via your proxy)
 
@@ -554,6 +579,8 @@ curl -H "Authorization: Bearer hp_xxx" https://homeport.example.com/api/services
   settings, container environments or files, stack files, or backups.
 - **Full** tokens can do anything the admin can, except export or restore backups (the export holds
   the secret that signs logins) and manage tokens, users or 2FA.
+- A read-only token also works for the built-in [MCP server](docs/mcp.md) at `/api/mcp`, the one
+  `POST` it may make; every tool there only reads.
 - Tokens are stored **hashed** (shown once at creation) and can be revoked any time. No token can
   mint or revoke tokens — that always needs a real login.
 
@@ -602,6 +629,12 @@ Private repositories take an access token per stack (a GitHub fine-grained PAT o
 with read-only contents access). Tokens are stored server-side under the data dir with `0600`
 permissions, sent to git as a per-invocation header (never written into `.git/config`), scrubbed
 from all streamed output, and never returned to the browser.
+
+**Deploy on push** (opt-in, `HOMEPORT_ALLOW_GIT_WEBHOOKS`): the stack page gives each git stack
+its own webhook URL and secret for GitHub, Gitea, Forgejo, GitLab or Bitbucket, checks the
+signature in constant time, ignores pushes to other branches, and folds a burst of pushes into one
+update. Or let homeport **auto-sync**: it asks the remote every few minutes and updates only when
+the branch moved. [Details](docs/git-webhooks.md).
 
 ## Backup & restore
 
