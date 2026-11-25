@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.37.1 (2026-11-25)
+
+- **Exposure report, more precise.** On a real fleet it flagged Pelican Wings'
+  SFTP port as "reachable around the proxy", while the domain goes to Wings' API
+  on another port. Only the port the proxy actually forwards to counts as a way
+  around it now; other open ports of the same app are listed as a separate way
+  in. A port published for both TCP and UDP is named once.
+
 ## v2.37.0 (2026-11-25)
 
 ### New: the exposure report
