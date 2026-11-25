@@ -107,7 +107,11 @@ function runGit(
   })
 }
 
-/** Clone a repo as a new stack (shallow, single branch). Cleans up on failure. */
+/**
+ * Clone a repo as a new stack (shallow, single branch). Cleans up on failure,
+ * but only a folder this call created: the folder is made here first (not
+ * recursive, so an existing one is refused) and git clones into it empty.
+ */
 export async function cloneGitStack(
   name: string,
   repo: string,
@@ -116,6 +120,13 @@ export async function cloneGitStack(
   emit: (line: string) => void,
 ): Promise<boolean> {
   const dir = stackPath(name)
+  try {
+    mkdirSync(stacksDir(), { recursive: true })
+    mkdirSync(dir)
+  } catch (e: any) {
+    emit(e?.code === 'EEXIST' ? `✗ a folder named "${name}" already exists in the stacks directory` : `✗ ${e?.message || e}`)
+    return false
+  }
   emit(`$ git clone --depth 1 --branch ${ref} ${repo}`)
   const res = await runGit(
     ['clone', '--depth', '1', '--branch', ref, '--single-branch', repo, dir],

@@ -1,7 +1,7 @@
 import { getConfig } from '../../utils/config'
 import { startOp } from '../../utils/ops'
-import { readStack, validateCompose, runStackOp } from '../../utils/stacks'
-import { safeStackName } from '../../utils/stacks-core'
+import { assertNewStackName, validateCompose, runStackOp, StackNameTakenError } from '../../utils/stacks'
+import { newStackName } from '../../utils/stacks-core'
 import { validateRepoUrl, validateRef } from '../../utils/git-stacks-core'
 import { cloneGitStack, cleanupFailedClone, ensureComposeFile, saveToken } from '../../utils/git-stacks'
 import { demoStackFromGit } from '../../utils/demo'
@@ -21,18 +21,21 @@ export default defineEventHandler(async (event) => {
   const ref = validateRef(String(body?.ref || 'main'))
   if (!ref) throw createError({ statusCode: 400, statusMessage: 'invalid branch/tag name' })
 
-  const fallbackName = repo.split('/').pop()?.replace(/\.git$/, '') || ''
-  const name = safeStackName(String(body?.name || fallbackName))
+  // compose project names are lowercase, and repos often aren't (FreshRSS)
+  const fallbackName = (repo.split('/').pop()?.replace(/\.git$/, '') || '').toLowerCase()
+  const name = newStackName(String(body?.name || fallbackName))
   if (!name) {
-    throw createError({ statusCode: 400, statusMessage: 'invalid stack name (use letters, digits, - and _)' })
+    throw createError({ statusCode: 400, statusMessage: 'invalid stack name (use lowercase letters, digits, - and _)' })
   }
 
   if (cfg.demo) return demoStackFromGit(name, repo, ref)
   if (!cfg.allowStacks) {
     throw createError({ statusCode: 403, statusMessage: 'Stacks are disabled (HOMEPORT_ALLOW_STACKS=true to enable).' })
   }
-  if (await readStack(name)) {
-    throw createError({ statusCode: 409, statusMessage: `a stack named "${name}" already exists` })
+  try {
+    await assertNewStackName(name)
+  } catch (e: any) {
+    throw createError({ statusCode: e instanceof StackNameTakenError ? 409 : 400, statusMessage: e?.message || 'invalid stack name' })
   }
 
   const token = String(body?.token || '').trim() || null

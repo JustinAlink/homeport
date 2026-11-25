@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   findComposeFile,
   safeStackName,
+  newStackName,
   stackStatuses,
   declaredServices,
   managedByOf,
@@ -28,6 +29,18 @@ test('safeStackName: traversal + charset guard', () => {
   assert.equal(safeStackName('.hidden'), null)
   assert.equal(safeStackName(''), null)
   assert.equal(safeStackName('x'.repeat(65)), null)
+})
+
+// compose refuses uppercase project names, so a stack created as "Media" could
+// never be started, saved or deleted; an existing odd folder must still resolve
+test('newStackName: lowercase only, while safeStackName still resolves old names', () => {
+  assert.equal(newStackName('media'), 'media')
+  assert.equal(newStackName('my_stack-2'), 'my_stack-2')
+  assert.equal(newStackName('Media'), null)
+  assert.equal(newStackName('FreshRSS'), null)
+  assert.equal(newStackName('../etc'), null)
+  assert.equal(newStackName('x'.repeat(65)), null)
+  assert.equal(safeStackName('Media'), 'Media')
 })
 
 test('stackStatuses: running/partial/stopped + unmanaged projects', () => {

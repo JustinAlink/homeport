@@ -24,6 +24,17 @@ export function safeStackName(name: string): string | null {
   return n
 }
 
+/**
+ * The stricter rule for a NEW stack's name. Compose refuses uppercase project
+ * names (`-p Media` fails), so a stack created as "Media" could be written but
+ * never started, saved or deleted. safeStackName stays case-insensitive so a
+ * folder that already has such a name can still be opened and fixed.
+ */
+export function newStackName(name: string): string | null {
+  const n = String(name || '').trim()
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(n) ? n : null
+}
+
 export type StackState = 'running' | 'partial' | 'stopped'
 
 /** A service as declared in a compose file. `optional` = behind a profile, so not started by default. */
