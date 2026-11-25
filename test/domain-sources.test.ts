@@ -296,3 +296,19 @@ test('host secrets: blank keeps the password only for the same host and the same
   const fresh = mergeHostSecrets([{ name: 'new-host', traefikApiUrl: 'http://t:8080', traefikApiPassword: '' }], stored)
   assert.equal(fresh[0].traefikApiPassword, '')
 })
+
+test('host secrets: per-host NPM API password is masked and survives a save', () => {
+  const stored = [{ id: 'a', name: 'vps', npmApiUrl: 'http://npm:81', npmApiIdentity: 'me@example.com', npmApiSecret: 'npm-pw', caddyAdminUrl: 'http://caddy:2019' }]
+  const view = maskHostSecrets(stored)
+  assert.equal(view[0].npmApiSecret, '')
+  assert.equal(view[0].npmApiSecretSet, true)
+  assert.ok(!JSON.stringify(view).includes('npm-pw'))
+  // the settings page sends rows without the per-host NPM/Caddy fields: all kept
+  const saved = mergeHostSecrets([{ id: 'a', name: 'vps' }], stored)
+  assert.deepEqual([saved[0].npmApiUrl, saved[0].npmApiIdentity, saved[0].npmApiSecret, saved[0].caddyAdminUrl], ['http://npm:81', 'me@example.com', 'npm-pw', 'http://caddy:2019'])
+  // a blank password with the same server keeps it; another server drops it
+  assert.equal(mergeHostSecrets([{ id: 'a', npmApiUrl: 'http://npm:81/', npmApiSecret: '' }], stored)[0].npmApiSecret, 'npm-pw')
+  assert.equal(mergeHostSecrets([{ id: 'a', npmApiUrl: 'http://elsewhere:81', npmApiSecret: '' }], stored)[0].npmApiSecret, '')
+  // an explicit empty URL clears it rather than keeping it
+  assert.equal(mergeHostSecrets([{ id: 'a', npmApiUrl: '' }], stored)[0].npmApiUrl, '')
+})

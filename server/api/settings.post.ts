@@ -76,10 +76,12 @@ function sanitizeHosts(input: unknown): SettingsHost[] {
         traefikApiUser: str(o.traefikApiUser),
         // blank = keep the stored one (merged below, only for the same host and server)
         traefikApiPassword: typeof o.traefikApiPassword === 'string' ? o.traefikApiPassword : '',
-        npmApiUrl: str(o.npmApiUrl),
-        npmApiIdentity: str(o.npmApiIdentity),
-        npmApiSecret: str(o.npmApiSecret),
-        caddyAdminUrl: str(o.caddyAdminUrl),
+        // absent = keep the stored value (the page has no inputs for these per host)
+        npmApiUrl: o.npmApiUrl === undefined ? undefined : str(o.npmApiUrl),
+        npmApiIdentity: o.npmApiIdentity === undefined ? undefined : str(o.npmApiIdentity),
+        // blank = keep the stored one (merged below, only for the same host and server)
+        npmApiSecret: typeof o.npmApiSecret === 'string' ? o.npmApiSecret : '',
+        caddyAdminUrl: o.caddyAdminUrl === undefined ? undefined : str(o.caddyAdminUrl),
       }
     })
     .filter((h) => h.name)
