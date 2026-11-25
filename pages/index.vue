@@ -87,15 +87,15 @@
         </div>
         <div v-if="showGraph" class="segmented segmented-sm ml-auto">
           <button
-            v-for="r in (['live', '1h', '6h', '24h'] as const)"
+            v-for="r in GRAPH_RANGES"
             :key="r"
             :aria-pressed="graphRange === r"
             @click="graphRange = r"
-          >{{ r === 'live' ? 'Live' : r }}</button>
+          >{{ rangeLabel(r) }}</button>
         </div>
       </div>
       <div v-if="showGraph" class="px-2 pb-3 sm:px-3">
-        <LineGraph :series="fleetSeries" :shared-max="100" fit :interval-sec="graphIntervalSec" :height="150" bare />
+        <LineGraph :series="fleetSeries" :shared-max="100" fit :interval-sec="graphIntervalSec" :times="graphRange === 'live' ? null : fleetTimes" :height="150" bare />
       </div>
     </section>
 
@@ -257,7 +257,7 @@ const updates = useUpdates()
 const showGraph = ref(true) // on by default; '0' in storage hides it
 
 // Fleet graph range. 'live' = the in-memory rolling buffer; ranges load history.
-const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, realPoints: fleetPoints, load: loadFleetHistory } = useHistoryRange('host', '1h')
+const { range: graphRange, intervalSec: graphIntervalSec, past: fleetPast, times: fleetTimes, realPoints: fleetPoints, load: loadFleetHistory } = useHistoryRange('host', '1h')
 const { range: sysRange, past: systemPast, load: loadSystemHistory } = useHistoryRange('host-system', '1h')
 watch(graphRange, (r) => (sysRange.value = r))
 function loadGraphHistory() {

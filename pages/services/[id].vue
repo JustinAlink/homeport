@@ -79,14 +79,16 @@
                 <span v-for="s in series" :key="s.label" class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :style="{ background: s.color }" />{{ s.label }}</span>
               </span>
               <div class="segmented segmented-sm ml-auto">
-                <button v-for="r in (['live', '1h', '6h', '24h'] as const)" :key="r" :aria-pressed="range === r" @click="range = r">{{ r === 'live' ? 'Live' : r }}</button>
+                <button v-for="r in GRAPH_RANGES" :key="r" :aria-pressed="range === r" @click="range = r">{{ rangeLabel(r) }}</button>
               </div>
             </div>
             <div class="px-2 py-3 sm:px-3">
-              <LineGraph v-if="series[0].data.length > 1" :series="series" :height="170" :interval-sec="range === 'live' ? 7 : 60" bare />
+              <LineGraph v-if="series[0].data.length > 1" :series="series" :height="170" :interval-sec="graphIntervalSec" :times="range === 'live' ? null : graphTimes" bare />
               <p v-else class="grid h-[170px] place-items-center text-xs text-slate-500">Collecting data, the graph fills in within a few seconds.</p>
             </div>
           </div>
+
+          <UptimeCard v-if="service.kind === 'container'" :id="id" />
 
           <div v-if="service.domains.length || service.ports.length || service.networks?.length" class="card">
             <div class="card-header">
@@ -765,7 +767,7 @@ const details = computed(() => {
 // Opens on the last hour of persisted history (instant), like the dashboard;
 // 'live' only fills after a minute of polling. History was never loaded on
 // mount before (only on a range change), so the graph always opened empty.
-const { range, past, realPoints, load: loadHistory } = useHistoryRange(id, '1h')
+const { range, past, times: graphTimes, intervalSec: graphIntervalSec, realPoints, load: loadHistory } = useHistoryRange(id, '1h')
 async function initHistory() {
   await loadHistory()
   // no persisted history (feature off, or a brand-new container): show live instead
