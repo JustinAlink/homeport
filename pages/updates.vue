@@ -82,7 +82,7 @@
               <ServiceIcon :name="s.displayName" :icon="s.icon" :size="28" :remote="svcData?.remoteIcons ?? true" />
               <NuxtLink :to="`/services/${encodeURIComponent(s.id)}?tab=update`" class="group min-w-0 flex-1">
                 <span class="block truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">{{ s.displayName }}</span>
-                <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
+                <span class="block truncate font-mono text-[11px] text-slate-500">{{ updates.imageNameFor(s) }}</span>
                 <span
                   class="mt-0.5 block truncate text-[11.5px]"
                   :class="kindOf(s).tone === 'caution' ? 'text-amber-300' : kindOf(s).tone === 'low' ? 'text-ok' : 'text-slate-400'"
@@ -160,7 +160,7 @@
                   <span class="block truncate text-[13.5px] font-medium text-slate-100 group-hover:text-accent-light">
                     {{ s.displayName }}<span v-if="s.project" class="font-normal text-slate-500"> · {{ s.project }}</span>
                   </span>
-                  <span class="block truncate font-mono text-[11px] text-slate-500">{{ s.image }}</span>
+                  <span class="block truncate font-mono text-[11px] text-slate-500">{{ updates.imageNameFor(s) }}</span>
                 </NuxtLink>
                 <a
                   v-if="updates.changelogUrlFor(s)"
@@ -236,7 +236,7 @@ const groups = computed<Group[]>(() => {
     .sort((a, b) => Number(b.managed) - Number(a.managed) || a.label.localeCompare(b.label))
 })
 
-const kindOf = (s: Service) => explainUpdate(s.image, updates.entryFor(s)?.tagKind)
+const kindOf = (s: Service) => explainUpdate(updates.imageNameFor(s), updates.entryFor(s)?.tagKind)
 
 // containers with a newer version tag: the safe steps first, majors last
 const BUMP_ORDER = { patch: 0, minor: 1, major: 2 } as const

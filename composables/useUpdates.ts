@@ -13,6 +13,8 @@ export interface UpdateEntry {
   newerSameMajor?: { tag: string; bump: Bump; digest?: string }
   /** a tag+digest pin whose tag was rebuilt since: same version, new digest */
   rebuilt?: { digest: string }
+  /** the name a container listed by bare image id was created from (its tag moved since) */
+  ref?: string
 }
 
 // Duplicated from server/utils/registry-core.ts (no shared/ dir in this app — server
@@ -88,9 +90,14 @@ export function useUpdates() {
     return entries.value[`${hostKeyOf(s)}|${s.image}`]
   }
 
-  function changelogUrlFor(s: Service): string | undefined {
-    return changelogUrlForImage(s.image)
+  /** The image's name: a container whose tag moved is listed by bare id, so use the name it was created from. */
+  function imageNameFor(s: Service): string {
+    return entryFor(s)?.ref ?? s.image
   }
 
-  return { enabled, entries, refresh, entryFor, changelogUrlFor }
+  function changelogUrlFor(s: Service): string | undefined {
+    return changelogUrlForImage(imageNameFor(s))
+  }
+
+  return { enabled, entries, refresh, entryFor, imageNameFor, changelogUrlFor }
 }

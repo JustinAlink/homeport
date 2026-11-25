@@ -109,28 +109,41 @@ async function versionInfo(image: string, tag: string, prev: UpdateEntry | undef
   }
 }
 
-async function checkImage(host: HostConfig, image: string, now: number, prev?: UpdateEntry): Promise<UpdateEntry> {
-  const entry = await checkDigest(host, image, now)
+/**
+ * Check one image. `createdAs` is the name a container using a bare image id was
+ * created from (see UpdateEntry.ref): the registry is asked about that name, while
+ * the local side stays the image the container actually runs.
+ */
+async function checkImage(host: HostConfig, image: string, now: number, prev?: UpdateEntry, createdAs?: string): Promise<UpdateEntry> {
+  const named = createdAs && !isBareImageId(createdAs) ? createdAs : undefined
+  const asName = named ?? image
+  const entry = await checkDigest(host, image, now, named)
+  if (named) entry.ref = named
   // a digest pin never gets a rebuild, but its TAG can still be behind (npm:2.16.0@sha256:…
   // while 2.17.0 is out): the pins that most need the newer-version check
-  const pinnedWithTag = entry.status === 'pinned' && hasExplicitTag(image)
+  const pinnedWithTag = entry.status === 'pinned' && hasExplicitTag(asName)
   if (entry.status !== 'current' && entry.status !== 'update' && !pinnedWithTag) return entry
-  return { ...entry, ...(await versionInfo(image, parseImageRef(image).tag, prev, now)) }
+  return { ...entry, ...(await versionInfo(asName, parseImageRef(asName).tag, prev, now)) }
 }
 
-async function checkDigest(host: HostConfig, image: string, now: number): Promise<UpdateEntry> {
-  const ref = parseImageRef(image)
-  if (ref.digestPinned) return { status: 'pinned', checkedAt: now }
-  if (isBareImageId(image)) return { status: 'local', checkedAt: now } // untagged image — no repo to query
+async function checkDigest(host: HostConfig, image: string, now: number, named?: string): Promise<UpdateEntry> {
+  const asName = named ?? image
+  if (parseImageRef(asName).digestPinned) return { status: 'pinned', checkedAt: now }
+  // A bare id with no name to ask the registry about: an untagged local build.
+  if (!named && isBareImageId(image)) return { status: 'local', checkedAt: now }
 
   const docker = getDockerFor(host)
   try {
-    const local: any = await docker.getImage(image).inspect()
+    // The image the container runs. For a moved tag that is the OLD image, which
+    // keeps its registry digest after losing its name, so comparing it with the
+    // registry's current digest for the name says whether a newer one exists. These
+    // containers used to read "local" and were never flagged or auto-updated.
+    const local: any = await (docker.getImage(image).inspect as any)(oneShot())
     const repoDigests: string[] = local?.RepoDigests || []
     if (!repoDigests.length) return { status: 'local', checkedAt: now } // built locally — nothing to compare
 
-    const authconfig = authForImage(image, getConfig().registryCreds)
-    const dist: any = await (docker.getImage(image) as any).distribution({ ...oneShot(), authconfig })
+    const authconfig = authForImage(asName, getConfig().registryCreds)
+    const dist: any = await (docker.getImage(asName) as any).distribution({ ...oneShot(), authconfig })
     const remoteDigest: string = dist?.Descriptor?.digest || ''
     if (!remoteDigest) return { status: 'error', checkedAt: now, error: 'registry returned no digest' }
 
@@ -163,6 +176,18 @@ function friendlyCheckError(e: any): string {
   return raw.length > 200 ? raw.slice(0, 200) + '…' : raw || 'check failed'
 }
 
+/** The image name the first container listed with this bare image id was created from (Config.Image). */
+async function createdAsName(host: HostConfig, containers: { id: string; image: string }[], image: string): Promise<string | undefined> {
+  const c = containers.find((x) => x.image === image)
+  if (!c) return undefined
+  try {
+    const inspect: any = await (getDockerFor(host).getContainer(c.id).inspect as any)(oneShot())
+    return inspect?.Config?.Image || undefined
+  } catch {
+    return undefined // gone since the listing: checked as a plain local image
+  }
+}
+
 /** One throttled sweep across all hosts (called from the collector tick + check-now). */
 export const runUpdateSweep = guard(async (force = false) => {
   const cfg = getConfig()
@@ -185,10 +210,18 @@ export const runUpdateSweep = guard(async (force = false) => {
     const cacheView: Record<string, UpdateEntry | undefined> = {}
     keys.forEach((k, i) => (cacheView[images[i]] = map[k]))
 
+    // Entries of images no container on this host uses any more (removed, or updated
+    // onto another image) would otherwise stay forever, old "check failed" errors
+    // included. Only for hosts that just listed fine, so an outage keeps its entries.
+    const inUse = new Set(images)
+    for (const k of Object.keys(map)) {
+      if (k.startsWith(`${host.id}|`) && !inUse.has(k.slice(host.id.length + 1))) delete map[k]
+    }
+
     const due = force ? images : pickDueChecks(images, cacheView, now, intervalMs, BATCH_PER_SWEEP)
     for (const image of due) {
       const key = keyOf(host.id, image)
-      const entry = await checkImage(host, image, now, map[key])
+      const entry = await checkImage(host, image, now, map[key], isBareImageId(image) ? await createdAsName(host, containers, image) : undefined)
       entry.notifiedDigest = map[key]?.notifiedDigest // survives re-checks
       map[key] = entry
       if (
@@ -206,7 +239,7 @@ export const runUpdateSweep = guard(async (force = false) => {
 
   // one notification per newly-seen digest — never repeated on later sweeps
   for (const n of notify) {
-    await dispatch({ id: n.key, name: n.names, host: n.host.name, kind: 'update', from: n.image, to: n.entry.remoteDigest!, at: now })
+    await dispatch({ id: n.key, name: n.names, host: n.host.name, kind: 'update', from: n.entry.ref ?? n.image, to: n.entry.remoteDigest!, at: now })
     n.entry.notifiedDigest = n.entry.remoteDigest
   }
 

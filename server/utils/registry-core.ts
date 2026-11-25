@@ -214,6 +214,12 @@ export interface UpdateEntry {
   /** A tag+digest pin whose tag now points at another digest: same version, rebuilt (usually security fixes). */
   rebuilt?: { digest: string }
   versionsCheckedAt?: number
+  /**
+   * The image name a container was created from, when the daemon lists it by bare
+   * image id: its tag has since moved to another image (a newer pull), so the
+   * container runs an image that no longer has a name. Checked as this name.
+   */
+  ref?: string
 }
 
 /**
