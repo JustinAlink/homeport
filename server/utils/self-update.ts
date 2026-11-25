@@ -1,7 +1,7 @@
 import { hostname } from 'node:os'
 import { getHosts } from './hosts'
 import { getDockerFor, oneShot } from './docker'
-import { HELPER_LABEL, buildHelperPayload, selfUpdatePlan } from './self-update-core'
+import { HELPER_LABEL, buildHelperPayload, selfUpdatePlan, selfIdPrefix } from './self-update-core'
 import { digestMatches } from './registry-core'
 import { log } from './log'
 
@@ -11,8 +11,8 @@ import { log } from './log'
 
 /** homeport's own container (id, image, compose project) on the primary host (null when not in Docker). */
 export async function findSelf(): Promise<{ id: string; image: string; project?: string } | null> {
-  const short = hostname()
-  if (!/^[0-9a-f]{12}$/.test(short)) return null
+  const short = selfIdPrefix(hostname())
+  if (!short) return null
   try {
     const docker = getDockerFor(getHosts()[0])
     const list = await docker.listContainers({ all: false, ...oneShot() })
@@ -69,6 +69,7 @@ export async function launchSelfUpdate(): Promise<{ ok: true; helper: string } |
     dockerHost: process.env.DOCKER_HOST || '',
     networks: plan.networks,
     service: plan.service,
+    configFiles: plan.configFiles,
   })
   try {
     const helper = await docker.createContainer(payload as any)

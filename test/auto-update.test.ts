@@ -81,3 +81,23 @@ test('plan: homeport itself is skipped even when opted in', () => {
   assert.equal(p.directs.length, 0)
   assert.deepEqual(p.skipped, [{ name: 'homeport', reason: 'self' }])
 })
+
+// The rest of homeport's own project (the docker-socket-proxy in the standard
+// deployment) must not be recreated unattended: compose and the swap both talk
+// to the daemon THROUGH it, so recreating it cuts homeport off mid-run.
+test('plan: siblings in homeport\'s own project are skipped, managed or not', () => {
+  const proxy = c({ id: 'aaaaaaaaaaaa1', name: 'docker-socket-proxy', project: 'homeport', labels: { 'hub.autoupdate': 'true' } })
+  const other = c({ id: 'bbbbbbbbbbbb1', name: 'jellyfin', project: 'media' })
+  const managed = planAutoUpdate({
+    candidates: [proxy, other],
+    targets: ['media'],
+    managedStacks: ['homeport', 'media'],
+    selfIdPrefix: 'deadbeef1234',
+    selfProject: 'homeport',
+  })
+  assert.deepEqual(managed.stacks, ['media'])
+  assert.deepEqual(managed.skipped, [{ name: 'docker-socket-proxy', reason: 'self-project' }])
+  const unmanaged = planAutoUpdate({ candidates: [proxy], targets: [], managedStacks: [], selfProject: 'homeport' })
+  assert.equal(unmanaged.directs.length, 0)
+  assert.deepEqual(unmanaged.skipped, [{ name: 'docker-socket-proxy', reason: 'self-project' }])
+})

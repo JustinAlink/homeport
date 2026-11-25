@@ -60,12 +60,24 @@ function dropIfEmpty(parent: YAMLMap, key: string) {
  * Limits go where the file already keeps them: `deploy.resources.limits` when
  * that block exists, otherwise the service-level `cpus` / `mem_limit` keys.
  * Writing one place clears the other (compose rejects two different values).
+ *
+ * `project` is the compose project the stack runs as (homeport passes the stack
+ * name as `-p`); without it a file with no top-level `name:` can't map docker's
+ * `<project>_<key>` network names back to their keys. The input comes back
+ * unchanged, byte for byte, when the patch changes nothing compose would read:
+ * a re-serialised file is not a change worth saving or reporting.
  */
-export function patchComposeService(content: string, service: string, patch: ServiceSettingsPatch): string {
+export function patchComposeService(content: string, service: string, patch: ServiceSettingsPatch, project?: string): string {
   const doc = parseDocument(content)
   if (doc.errors.length) throw new Error(`the compose file has YAML errors: ${doc.errors[0].message}`)
   const svc = doc.getIn(['services', service], true)
   if (!isMap(svc)) throw new Error(`service "${service}" was not found in the compose file`)
+  const before = JSON.stringify(doc.toJS())
+  applyPatch(doc, svc, service, patch, project)
+  return JSON.stringify(doc.toJS()) === before ? content : doc.toString()
+}
+
+function applyPatch(doc: Document, svc: YAMLMap, service: string, patch: ServiceSettingsPatch, project: string | undefined): void {
 
   if (patch.restart !== undefined) {
     if (!POLICIES.includes(patch.restart)) throw new Error(`unknown restart policy "${patch.restart}"`)
@@ -76,11 +88,12 @@ export function patchComposeService(content: string, service: string, patch: Ser
   }
 
   if (patch.tag !== undefined) setImageTag(svc, service, patch.tag, patch.digest)
-  if (patch.addNetwork) addNetwork(doc, svc, service, patch.addNetwork)
-  if (patch.removeNetwork) removeNetwork(doc, svc, patch.removeNetwork)
+  const projects = projectNames(doc, project)
+  if (patch.addNetwork) addNetwork(doc, svc, service, patch.addNetwork, projects)
+  if (patch.removeNetwork) removeNetwork(doc, svc, patch.removeNetwork, projects)
 
   const touchesLimits = patch.cpus !== undefined || patch.memory !== undefined
-  if (!touchesLimits) return doc.toString()
+  if (!touchesLimits) return
 
   const limits = doc.getIn(['services', service, 'deploy', 'resources', 'limits'], true)
   const inDeploy = isMap(limits)
@@ -118,7 +131,6 @@ export function patchComposeService(content: string, service: string, patch: Ser
     dropIfEmpty(deploy, 'resources')
     dropIfEmpty(svc, 'deploy')
   }
-  return doc.toString()
 }
 
 // --- networks ---------------------------------------------------------------
@@ -129,8 +141,17 @@ export function patchComposeService(content: string, service: string, patch: Ser
 
 const NET_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/
 
+/**
+ * Project names a network key may be prefixed with: the file's own `name:` and
+ * the project the stack runs as (they differ when `-p` overrides `name:`).
+ */
+function projectNames(doc: Document, project: string | undefined): string[] {
+  const named = doc.get('name')
+  return [...new Set([typeof named === 'string' ? named : '', project ?? ''].filter(Boolean))]
+}
+
 /** Top-level networks key that refers to this docker network, if any. */
-function networkKeyFor(doc: Document, project: string | null, dockerName: string): string | null {
+function networkKeyFor(doc: Document, projects: string[], dockerName: string): string | null {
   const nets = doc.get('networks', true)
   if (!isMap(nets)) return null
   for (const item of nets.items) {
@@ -138,7 +159,7 @@ function networkKeyFor(doc: Document, project: string | null, dockerName: string
     const def = item.value as any
     const explicit = isMap(def) ? def.get('name') : undefined
     if (explicit === dockerName) return key
-    if (!explicit && (key === dockerName || (project && `${project}_${key}` === dockerName))) return key
+    if (!explicit && (key === dockerName || projects.some((p) => `${p}_${key}` === dockerName))) return key
   }
   return null
 }
@@ -150,12 +171,12 @@ function serviceNetworkKeys(svc: YAMLMap): string[] {
   return []
 }
 
-function addNetwork(doc: Document, svc: YAMLMap, service: string, dockerName: string) {
+function addNetwork(doc: Document, svc: YAMLMap, service: string, dockerName: string, projects: string[]) {
   if (!NET_NAME.test(dockerName)) throw new Error(`"${dockerName}" is not a valid network name`)
   if (svc.has('network_mode')) throw new Error(`service "${service}" uses network_mode, so it can't join other networks`)
-  const project = typeof doc.get('name') === 'string' ? (doc.get('name') as string) : null
-  // the stack may already declare it (its own network, or an external one)
-  let key = networkKeyFor(doc, project, dockerName)
+  // the stack may already declare it (its own network, or an external one),
+  // or it is the implicit `<project>_default` no file declares
+  let key = networkKeyFor(doc, projects, dockerName) ?? (projects.some((p) => `${p}_default` === dockerName) ? 'default' : null)
   if (!key) {
     if (!doc.has('networks')) doc.set('networks', new YAMLMap())
     const nets = doc.get('networks', true) as YAMLMap
@@ -177,9 +198,8 @@ function addNetwork(doc: Document, svc: YAMLMap, service: string, dockerName: st
   }
 }
 
-function removeNetwork(doc: Document, svc: YAMLMap, dockerName: string) {
-  const project = typeof doc.get('name') === 'string' ? (doc.get('name') as string) : null
-  const key = networkKeyFor(doc, project, dockerName) ?? (dockerName.endsWith('_default') ? 'default' : dockerName)
+function removeNetwork(doc: Document, svc: YAMLMap, dockerName: string, projects: string[]) {
+  const key = networkKeyFor(doc, projects, dockerName) ?? (dockerName.endsWith('_default') ? 'default' : dockerName)
   const current = svc.get('networks', true)
   if (isMap(current)) current.delete(key)
   else if (isSeq(current)) {

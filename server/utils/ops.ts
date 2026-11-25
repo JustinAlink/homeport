@@ -1,15 +1,15 @@
 import { EventEmitter } from 'node:events'
 import { log } from './log'
+import { pushLine, type LineBuffer } from './ops-core'
 
 // Tiny in-memory registry for long-running server operations (compose up/pull,
 // image updates). POST endpoints start an op and return its id; the client then
 // streams the buffered + live output over SSE (/api/ops/[id]). Single process —
 // fits homeport's node-server model. Finished ops are kept briefly for late readers.
 
-export interface Op {
+export interface Op extends LineBuffer {
   id: string
   title: string
-  lines: string[]
   done: boolean
   ok: boolean | null
   /** Last failure message (survives even after the line buffer is trimmed). */
@@ -36,13 +36,12 @@ function prune() {
 export function startOp(title: string, run: (emit: (line: string) => void) => Promise<boolean>): string {
   prune()
   const id = `op${++counter}-${Date.now().toString(36)}`
-  const op: Op = { id, title, lines: [], done: false, ok: null, startedAt: Date.now(), finishedAt: 0, emitter: new EventEmitter() }
+  const op: Op = { id, title, lines: [], trimmed: 0, done: false, ok: null, startedAt: Date.now(), finishedAt: 0, emitter: new EventEmitter() }
   op.emitter.setMaxListeners(20)
   ops.set(id, op)
 
   const emit = (line: string) => {
-    op.lines.push(line)
-    if (op.lines.length > 2000) op.lines.splice(0, op.lines.length - 2000)
+    pushLine(op, line)
     op.emitter.emit('line', line)
   }
 

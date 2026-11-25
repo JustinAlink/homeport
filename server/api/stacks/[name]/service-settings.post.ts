@@ -53,7 +53,9 @@ export default defineEventHandler(async (event) => {
 
   let next: string
   try {
-    next = patchComposeService(current.content, service, patch)
+    // the stack's name is the project it runs as (`compose -p`), which is how
+    // a file without a top-level `name:` maps `<project>_<key>` networks back
+    next = patchComposeService(current.content, service, patch, current.name)
   } catch (e: any) {
     throw createError({ statusCode: 400, statusMessage: e?.message || 'could not edit the compose file' })
   }

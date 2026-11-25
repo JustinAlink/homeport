@@ -55,6 +55,18 @@ test('parseHeadLog: unit-separator format round-trip', () => {
   assert.equal(parseHeadLog('garbage'), null)
 })
 
+// `ls-remote origin v1 v1^{}` on an annotated tag lists the tag object first:
+// comparing that to the checked-out commit reported a pinned stack as behind forever
+test('parseLsRemote: a tag resolves to its peeled commit, exact names beat suffix matches', () => {
+  const tag = 'a'.repeat(40)
+  const commit = 'b'.repeat(40)
+  const other = 'c'.repeat(40)
+  assert.equal(parseLsRemote(`${tag}\trefs/tags/v1\n${commit}\trefs/tags/v1^{}\n`, 'v1'), commit)
+  assert.equal(parseLsRemote(`${commit}\trefs/tags/v1\n`, 'v1'), commit) // lightweight tag: no peeled line
+  assert.equal(parseLsRemote(`${other}\trefs/heads/release/main\n${commit}\trefs/heads/main\n`, 'main'), commit)
+  assert.equal(parseLsRemote(`${commit}\tHEAD\n`, 'HEAD'), commit)
+})
+
 test('parseLsRemote: extracts the sha', () => {
   assert.equal(parseLsRemote('e5f6a7b8c9d0e5f6a7b8c9d0e5f6a7b8c9d0e5f6\trefs/heads/main\n'), 'e5f6a7b8c9d0e5f6a7b8c9d0e5f6a7b8c9d0e5f6')
   assert.equal(parseLsRemote(''), null)

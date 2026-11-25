@@ -24,6 +24,17 @@ export function safeStackName(name: string): string | null {
   return n
 }
 
+/**
+ * The stricter rule for a NEW stack's name. Compose refuses uppercase project
+ * names (`-p Media` fails), so a stack created as "Media" could be written but
+ * never started, saved or deleted. safeStackName stays case-insensitive so a
+ * folder that already has such a name can still be opened and fixed.
+ */
+export function newStackName(name: string): string | null {
+  const n = String(name || '').trim()
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(n) ? n : null
+}
+
 export type StackState = 'running' | 'partial' | 'stopped'
 
 /** A service as declared in a compose file. `optional` = behind a profile, so not started by default. */
@@ -187,6 +198,17 @@ export function projectNameFromDir(dirName: string): string | null {
 export function composeProjectNameFromContent(content: string): string | null {
   const m = /^name:\s*["']?([a-z0-9][a-z0-9_-]*)["']?\s*(#.*)?$/m.exec(content)
   return m ? m[1] : null
+}
+
+/**
+ * `-f` flags for a stack's compose files. Every file is passed: a project
+ * started with `-f docker-compose.yml -f docker-compose.prod.yml` loses the
+ * overlay otherwise, and `up --remove-orphans` then deletes the services that
+ * only the overlay defines. No list (stacks dir, compose roots) leaves file
+ * discovery to compose, which also loads the override file.
+ */
+export function composeFileArgs(files: string[] | undefined): string[] {
+  return (files ?? []).flatMap((f) => ['-f', f])
 }
 
 export type StackOp = 'up' | 'down' | 'restart' | 'pull'

@@ -84,7 +84,11 @@ export function writeStackFile(stack: ResolvedStack, rel: string, content: strin
     }
   }
   const tmp = join(dirname(abs), `.${basename(abs)}.tmp`)
-  writeFileSync(tmp, content)
+  // the tmp name is not checked by resolveInStack: if it is a symlink (a git
+  // repo can ship one), a plain write would follow it out of the stack. Remove
+  // it (rm takes the link, not its target) and create the file fresh.
+  rmSync(tmp, { force: true })
+  writeFileSync(tmp, content, { flag: 'wx' })
   renameSync(tmp, abs)
 }
 

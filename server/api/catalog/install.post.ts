@@ -1,10 +1,8 @@
-import { rmSync } from 'node:fs'
-import { join } from 'node:path'
 import { getConfig } from '../../utils/config'
 import { findApp } from '../../utils/catalog'
 import { composeForInstall } from '../../utils/catalog-core'
-import { safeStackName } from '../../utils/stacks-core'
-import { readStack, saveStack, validateCompose, runStackOp } from '../../utils/stacks'
+import { newStackName } from '../../utils/stacks-core'
+import { saveStackValidated, runStackOp, ComposeValidationError, StackNameTakenError } from '../../utils/stacks'
 import { startOp } from '../../utils/ops'
 import { demoCatalogInstall } from '../../utils/demo'
 
@@ -20,9 +18,9 @@ export default defineEventHandler(async (event) => {
   const app = await findApp(slug)
   if (!app) throw createError({ statusCode: 404, statusMessage: 'unknown catalog app' })
 
-  const stackName = safeStackName(String(body?.name || app.slug))
+  const stackName = newStackName(String(body?.name || app.slug))
   if (!stackName) {
-    throw createError({ statusCode: 400, statusMessage: 'invalid stack name (use letters, digits, - and _)' })
+    throw createError({ statusCode: 400, statusMessage: 'invalid stack name (use lowercase letters, digits, - and _)' })
   }
 
   const gen = composeForInstall(app, inputs)
@@ -33,20 +31,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Installing needs stacks enabled (HOMEPORT_ALLOW_STACKS=true).' })
   }
 
-  if (await readStack(stackName)) {
-    throw createError({ statusCode: 409, statusMessage: `a stack named "${stackName}" already exists` })
-  }
-
-  await saveStack(stackName, gen.content, true)
-  const check = await validateCompose(stackName)
-  if (!check.ok) {
-    // fresh install — remove the just-created dir so a corrected retry starts clean
-    try {
-      rmSync(join(cfg.stacksDir, stackName), { recursive: true, force: true })
-    } catch {
-      // best-effort cleanup
+  // create-only: refuses a name already in use (including a compose project
+  // homeport can't read), and removes only the folder it created when the
+  // generated file fails validation
+  try {
+    await saveStackValidated(stackName, gen.content, true)
+  } catch (e: any) {
+    if (e instanceof ComposeValidationError) {
+      throw createError({ statusCode: 400, statusMessage: `generated compose failed validation:\n${e.output}` })
     }
-    throw createError({ statusCode: 400, statusMessage: `generated compose failed validation:\n${check.output || 'unknown error'}` })
+    throw createError({ statusCode: e instanceof StackNameTakenError ? 409 : 400, statusMessage: e?.message || 'install failed' })
   }
 
   const opId = startOp(`install ${stackName}`, (emit) => runStackOp(stackName, 'up', emit))

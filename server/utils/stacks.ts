@@ -9,7 +9,9 @@ import { listNetworksFor } from './networks'
 import {
   findComposeFile,
   safeStackName,
+  newStackName,
   composeArgs,
+  composeFileArgs,
   externalProjectFromLabels,
   projectNameFromDir,
   composeProjectNameFromContent,
@@ -21,6 +23,7 @@ import {
 } from './stacks-core'
 import { detectNetworkError, findSubnetConflicts, subnetsFromComposeConfig } from './networks-core'
 import { dockerConfigJson, pullInterruptedByPrune, PRUNE_INTERRUPTED_HINT } from './registry-core'
+import { selfIdPrefix } from './self-update-core'
 
 // Compose stacks come from three places, in resolution priority order:
 //   1. HOMEPORT_STACKS_DIR subdirs (dirname = project name) — homeport's own,
@@ -180,13 +183,46 @@ export async function resolveStack(name: string): Promise<ResolvedStack | null> 
 
 /** Compose project of homeport's own container (null when not containerized). */
 export async function selfProject(): Promise<string | null> {
+  const short = selfIdPrefix(hostname())
+  if (!short) return null
   try {
-    const short = hostname()
     const containers = await listContainersFor(getHosts()[0])
     return containers.find((c) => c.id.startsWith(short))?.project ?? null
   } catch {
     return null
   }
+}
+
+/** A new stack's name is already in use (HTTP 409). */
+export class StackNameTakenError extends Error {}
+
+/**
+ * Check that a NEW stack can take this name. `compose -p <name> up` adopts any
+ * project of that name: it recreates the containers from the new file and
+ * removes the project's other services as orphans. homeport only lists stacks
+ * whose compose file it can read, so the stacks folder and the live
+ * `com.docker.compose.project` labels are checked as well. Fails closed when
+ * the daemon can't be asked: a takeover is not something to risk on a guess.
+ */
+export async function assertNewStackName(name: string): Promise<string> {
+  const safe = newStackName(name)
+  if (!safe) throw new Error('invalid stack name (use lowercase letters, digits, - and _)')
+  if (existsSync(join(stacksDir(), safe))) {
+    throw new StackNameTakenError(`a folder named "${safe}" already exists in the stacks directory`)
+  }
+  let containers: { project: string | null; labels: Record<string, string> }[]
+  try {
+    containers = await listContainersFor(getHosts()[0])
+  } catch (e: any) {
+    throw new Error(`could not check whether a compose project named "${safe}" already exists: ${e?.message || e}`)
+  }
+  if (containers.some((c) => c.project === safe)) {
+    throw new StackNameTakenError(`a compose project named "${safe}" already has containers on this host (started outside homeport): pick another name`)
+  }
+  if (listAllStacks(containers).some((s) => s.name === safe)) {
+    throw new StackNameTakenError(`a stack named "${safe}" already exists`)
+  }
+  return safe
 }
 
 /** Remove a stack's directory entirely (after compose down). Stacks-dir only. */
@@ -206,13 +242,23 @@ export async function saveStackValidated(name: string, content: string, createNe
   const saved = await saveStack(name, content, createNew)
   const check = await validateCompose(saved.name)
   if (!check.ok) {
-    // restore the previous good version from .bak; backup:false so the rejected
-    // content doesn't overwrite that good .bak
-    try {
-      const good = readFileSync(`${saved.dir}/${saved.file}.bak`, 'utf8')
-      await saveStack(saved.name, good, false, false)
-    } catch {
-      // no backup (new stack): leave the invalid file for the user to fix
+    if (createNew) {
+      // saveStack created this folder in this call, so it is ours to remove; a
+      // half-made stack left behind would make the corrected retry a 409
+      try {
+        rmSync(saved.dir, { recursive: true, force: true })
+      } catch {
+        // best-effort: the validation error is what the caller needs to see
+      }
+    } else {
+      // restore the previous good version from .bak; backup:false so the rejected
+      // content doesn't overwrite that good .bak
+      try {
+        const good = readFileSync(`${saved.dir}/${saved.file}.bak`, 'utf8')
+        await saveStack(saved.name, good, false, false)
+      } catch {
+        // no backup: leave the file for the user to fix
+      }
     }
     throw new ComposeValidationError(check.output || 'unknown error')
   }
@@ -255,27 +301,37 @@ export async function readStack(name: string): Promise<StackFile | null> {
 
 /**
  * Atomic save (tmp + rename) keeping a single .bak of the previous version.
- * New stacks are always created under the stacks dir; existing ones (including
- * external/adopted) are edited in place. Pass backup=false when restoring a
- * known-good version (so the rejected content doesn't overwrite the good .bak).
+ * createNew only ever creates: a new stack goes under the stacks dir, and a
+ * name already in use throws StackNameTakenError instead of overwriting.
+ * Existing stacks (including external/adopted) are edited in place. Pass
+ * backup=false when restoring a known-good version (so the rejected content
+ * doesn't overwrite the good .bak).
  */
 export async function saveStack(name: string, content: string, createNew = false, backup = true): Promise<StackFile> {
-  const safe = safeStackName(name)
+  const safe = createNew ? await assertNewStackName(name) : safeStackName(name)
   if (!safe) throw new Error('invalid stack name (use letters, digits, - and _)')
 
   let dir: string
   let file: string
   let source: StackSource = 'stacks'
-  const existing = await resolveStack(safe)
-  if (existing) {
+  if (createNew) {
+    dir = join(stacksDir(), safe)
+    mkdirSync(stacksDir(), { recursive: true })
+    try {
+      // not recursive: EEXIST means a parallel request got there first, and
+      // the folder is then theirs, not ours to write into
+      mkdirSync(dir)
+    } catch (e: any) {
+      if (e?.code === 'EEXIST') throw new StackNameTakenError(`a folder named "${safe}" already exists in the stacks directory`)
+      throw e
+    }
+    file = 'compose.yaml'
+  } else {
+    const existing = await resolveStack(safe)
+    if (!existing) throw new Error('stack not found')
     dir = existing.dir
     file = existing.file
     source = existing.source
-  } else {
-    if (!createNew) throw new Error('stack not found')
-    dir = join(stacksDir(), safe)
-    mkdirSync(dir, { recursive: true })
-    file = 'compose.yaml'
   }
 
   const target = join(dir, file)
@@ -287,7 +343,12 @@ export async function saveStack(name: string, content: string, createNew = false
     }
   }
   const tmp = join(dir, `.${file}.tmp`)
-  writeFileSync(tmp, content)
+  // a stale tmp may be a symlink a git repo shipped: writing through it would
+  // land outside the stack (e.g. on /data/settings.json). Remove it (rm takes
+  // the link, not its target) and create the file fresh, failing if anything
+  // reappears in between.
+  rmSync(tmp, { force: true })
+  writeFileSync(tmp, content, { flag: 'wx' })
   renameSync(tmp, target)
   return { name: safe, file, content, source, dir }
 }
@@ -333,14 +394,17 @@ export async function runCompose(
 
   const env = composeEnv()
 
-  // adopted stacks with nonstandard filenames need explicit -f flags; standard
-  // names are left to compose's own discovery (which also picks up overrides)
-  const fileArgs = stack.files?.length && !['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml'].includes(stack.file)
-    ? stack.files.flatMap((f) => ['-f', f])
-    : []
+  // adopted stacks carry the files their project was started with
+  const fileArgs = composeFileArgs(stack.files)
 
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['compose', '-p', stack.name, ...fileArgs, ...args], { cwd: stack.dir, env })
+    // stdin closed: compose can ask "Recreate (data will be lost)?" without a
+    // trailing newline, and with an open stdin it would wait for an answer forever
+    const child = spawn('docker', ['compose', '-p', stack.name, ...fileArgs, ...args], {
+      cwd: stack.dir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
     let buf = ''
     const onChunk = (chunk: Buffer) => {
       buf += chunk.toString()

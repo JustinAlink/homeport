@@ -85,8 +85,25 @@ export function parseHeadLog(out: string): { commit: string; subject: string; co
   return { commit: parts[0], subject: parts[1], committedAt: parts[2] }
 }
 
-/** Parse `git ls-remote origin <ref>` → the remote head sha (null if absent). */
-export function parseLsRemote(out: string): string | null {
-  const sha = out.trim().split(/\s+/)[0]
-  return /^[0-9a-f]{40}$/.test(sha || '') ? sha : null
+/**
+ * Parse `git ls-remote origin <ref> <ref>^{}` → the commit `ref` points at on
+ * the remote (null if absent). ls-remote matches by suffix, so `main` can also list
+ * `refs/heads/release/main`, and an annotated tag lists both the tag object
+ * (`refs/tags/v1`) and its commit (`refs/tags/v1^{}`): the tag object never
+ * equals the checked-out commit, so a stack pinned to a tag read as "behind"
+ * forever. Exact names win, a tag's peeled commit before the tag object.
+ */
+export function parseLsRemote(out: string, ref?: string): string | null {
+  const rows = out
+    .split('\n')
+    .map((l) => l.trim().split(/\s+/))
+    .filter(([sha]) => /^[0-9a-f]{40}$/.test(sha || ''))
+  if (!rows.length) return null
+  if (ref) {
+    for (const want of [ref, `refs/heads/${ref}`, `refs/tags/${ref}^{}`, `refs/tags/${ref}`]) {
+      const hit = rows.find(([, name]) => name === want)
+      if (hit) return hit[0]
+    }
+  }
+  return rows[0][0]
 }

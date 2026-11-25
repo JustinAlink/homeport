@@ -99,6 +99,30 @@ export function listingFromTarEntries(entries: TarEntryHeader[], archiveBase: st
   return [...byName.values()].sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'dir' ? -1 : 1))
 }
 
+export interface WriteHeader {
+  mode: number
+  uid: number
+  gid: number
+}
+
+/**
+ * Mode and owner for a file written back into a container. The daemon extracts
+ * the uploaded tar with the header's mode and uid/gid, so a fixed 0644 root:root
+ * turned an app's 0600 config owned by uid 1000 into one the app could no longer
+ * write (and everyone could read). An existing regular file keeps its own; a new
+ * file (or anything that isn't a regular file) gets 0644 root:root as before.
+ */
+export function writeHeaderFor(existing: { type?: string; mode?: number; uid?: number; gid?: number } | null): WriteHeader {
+  const fallback: WriteHeader = { mode: 0o644, uid: 0, gid: 0 }
+  if (!existing || existing.type !== 'file') return fallback
+  const id = (v: unknown) => (Number.isInteger(v) && (v as number) >= 0 ? (v as number) : 0)
+  return {
+    mode: Number.isInteger(existing.mode) ? (existing.mode as number) & 0o7777 : fallback.mode,
+    uid: id(existing.uid),
+    gid: id(existing.gid),
+  }
+}
+
 // Go's os.FileMode bits, as they arrive in the base64 X-Docker-Container-Path-Stat
 // header. Only the two we care about.
 const MODE_DIR = 0x80000000 // 1<<31
