@@ -478,10 +478,21 @@ type Tab = 'overview' | 'logs' | 'terminal' | 'env' | 'domains' | 'update'
 // "update" badge lands on the right one
 const router = useRouter()
 const TABS: Tab[] = ['overview', 'logs', 'terminal', 'env', 'domains', 'update']
-const tab = ref<Tab>(TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'overview')
+const tabFromQuery = (): Tab => (TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'overview')
+const tab = ref<Tab>(tabFromQuery())
 watch(tab, (t) => {
   router.replace({ query: { ...route.query, tab: t === 'overview' ? undefined : t } })
 })
+// A query-only navigation keeps this page mounted (its key is the path), so
+// "Logs: X" from the command palette while on X's page only changes the URL:
+// follow it.
+watch(
+  () => route.query.tab,
+  () => {
+    const t = tabFromQuery()
+    if (t !== tab.value) tab.value = t
+  },
+)
 const tabs = computed(() => [
   { key: 'overview' as Tab, label: 'Overview', icon: 'dashboard' },
   ...(caps.value.logs ? [{ key: 'logs' as Tab, label: 'Logs', icon: 'file-text' }] : []),

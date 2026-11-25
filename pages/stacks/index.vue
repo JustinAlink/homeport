@@ -268,11 +268,23 @@ const dotCls = (s: string) => (s === 'running' ? 'bg-ok' : s === 'partial' ? 'bg
 const stateText = (s: string) => (s === 'running' ? 'text-ok' : s === 'partial' ? 'text-amber-300' : 'text-slate-400')
 const stateLabel = (s: string) => (s === 'running' ? 'Running' : s === 'partial' ? 'Partly running' : 'Stopped')
 
+// "New stack" from the command palette is ?new=1. It is watched (the palette can
+// fire it while this page is already open) and then dropped from the URL, or
+// the next "New stack" would be a navigation to the same URL, which does nothing.
+const route = useRoute()
+const router = useRouter()
+function openFromQuery() {
+  if (!route.query.new) return
+  creating.value = true
+  router.replace({ query: { ...route.query, new: undefined } })
+}
+watch(() => route.query.new, openFromQuery)
+
 let poll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
-  // arriving from the catalog's GitHub tab — open the from-git form prefilled
-  const q = useRoute().query
-  if (q.new) creating.value = true // "New stack" from the command palette
+  openFromQuery()
+  // arriving from the catalog's GitHub tab: open the from-git form prefilled
+  const q = route.query
   if (q.git) {
     creating.value = true
     createMode.value = 'git'
