@@ -6,6 +6,9 @@ import type { AlertEvent, WebhookChannel } from './types'
 
 const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovered: '🟢', update: '🔵', 'domain-down': '🔴', 'domain-recovered': '🟢', 'cert-expiring': '🟠', 'cert-renewed': '🟢', 'cert-invalid': '🔴', silence: '🔕' }
 
+// `from` of an 'updated' event raised by a git stack update (git-webhooks.ts)
+const GIT_SOURCES: Record<string, string> = { 'git push': 'on push', 'auto-sync': 'auto-sync' }
+
 const render = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
 
@@ -37,8 +40,12 @@ export function eventText(e: AlertEvent): string {
   if (e.kind === 'cert-renewed') return `🟢 Certificate for ${e.name} renewed, ${e.to}${where}`
   if (e.kind === 'cert-invalid') return `🔴 Certificate for ${e.name} is no longer trusted: ${e.to}${where}`
   if (e.kind === 'silence') return `🔕 ${e.name}: ${e.to}`
-  if (e.kind === 'updated')
+  if (e.kind === 'updated') {
+    // deploy on push and auto-sync of git stacks report through the same kind
+    const git = GIT_SOURCES[e.from]
+    if (git) return e.to ? `🔴 ${e.name}: update from git (${git}) failed: ${e.to}${where}` : `🟢 ${e.name} updated from git (${git})${where}`
     return e.to ? `🔴 ${e.name} auto-update failed — ${e.to}${where}` : `🟢 ${e.name} auto-updated${where}`
+  }
   const verb = e.kind === 'down' ? 'is down' : 'is unhealthy'
   return `${ICON[e.kind] || '⚠️'} ${e.name} ${verb} (${e.from} → ${e.to})${where}`
 }

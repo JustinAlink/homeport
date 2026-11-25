@@ -6,6 +6,7 @@ import { evaluateAlerts, evaluateDomainAlerts } from './alerts'
 import { runUpdateSweep } from './updates'
 import { maybeAutoUpdate } from './auto-update'
 import { runCertChecks } from './certs'
+import { maybeAutoSync } from './git-webhooks'
 import { guard } from './guard'
 import { log } from './log'
 
@@ -72,6 +73,9 @@ const tick = guard(async () => {
   // until it finished. Both are guarded on their own, so a chain started while
   // the previous one runs is a no-op.
   void updateChain()
+  // auto-sync of git stacks: beside the update chain, not in it, so the nightly
+  // auto-update's pulls never delay a stack that follows a branch (guarded too)
+  void stage('git-auto-sync', () => maybeAutoSync())
   return snap
 })
 

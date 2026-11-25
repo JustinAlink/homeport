@@ -6,6 +6,7 @@ import { listNetworksFor, removeNetworkFor } from '../../../utils/networks'
 import { leftoverProjectNetworks } from '../../../utils/networks-core'
 import { deleteRoutesForUpstreams } from '../../../utils/proxy-admin/cleanup'
 import { deleteToken } from '../../../utils/git-stacks'
+import { forgetStack } from '../../../utils/git-webhooks'
 import { startOp } from '../../../utils/ops'
 import { safeStackName } from '../../../utils/stacks-core'
 import { demoStackDelete } from '../../../utils/demo'
@@ -83,6 +84,7 @@ export default defineEventHandler(async (event) => {
 
     deleteStackDir(name)
     deleteToken(name)
+    forgetStack(name) // its webhook URL must not come back with a new stack of the same name
     emit(`removed stack directory for "${name}"${opts.volumes ? '' : ' (named volumes kept)'}`)
     return true
   })

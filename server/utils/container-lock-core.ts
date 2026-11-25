@@ -31,5 +31,7 @@ export function createContainerLock() {
       }
     },
     isBusy: (key: string) => held.has(key),
+    /** What holds the key (the label passed to run), for a "busy" message raised before calling run. */
+    holder: (key: string) => held.get(key),
   }
 }

@@ -97,6 +97,13 @@ function eventRowBase(e: AlertRow): Row {
     case 'update':
       return { at: e.at, icon: 'arrow-up', cls: 'text-sky-300', text: `update available for ${e.name} (${e.from})`, host: e.host, group: 'updates' }
     case 'updated':
+      // a git stack updated by a push or by auto-sync (git-webhooks.ts)
+      if (e.from === 'git push' || e.from === 'auto-sync') {
+        const how = e.from === 'git push' ? 'on push' : 'auto-sync'
+        return e.to
+          ? { at: e.at, icon: 'x', cls: 'text-red-400', text: `update of ${e.name} from git (${how}) failed: ${e.to}`, host: e.host, group: 'updates' }
+          : { at: e.at, icon: 'git-branch', cls: 'text-ok', text: `${e.name} updated from git (${how})`, host: e.host, group: 'updates' }
+      }
       return e.to
         ? { at: e.at, icon: 'x', cls: 'text-red-400', text: `auto-update of ${e.name} failed — ${e.to}`, host: e.host, group: 'updates' }
         : { at: e.at, icon: 'arrow-up', cls: 'text-ok', text: `${e.name} auto-updated`, host: e.host, group: 'updates' }

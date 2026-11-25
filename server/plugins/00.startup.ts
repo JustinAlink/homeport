@@ -31,6 +31,7 @@ export default defineNitroPlugin(() => {
   if (cfg.updateCheckEnabled) caps.push('update-check')
   if (cfg.allowUpdates) caps.push('updates')
   if (cfg.allowStacks) caps.push('stacks')
+  if (cfg.allowStacks && cfg.allowGitWebhooks) caps.push('git-webhooks (public /api/hooks/git/)')
   if (cfg.allowTerminal) caps.push('terminal')
   if (cfg.allowProxyAdmin) caps.push('proxy-admin')
   if (cfg.autoUpdateEnabled) caps.push(`auto-update@${cfg.autoUpdateHour}h`)

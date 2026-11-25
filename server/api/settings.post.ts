@@ -175,6 +175,7 @@ export default defineEventHandler(async (event) => {
         return u
       })
   }
+  if (body.allowGitWebhooks !== undefined) patch.allowGitWebhooks = !!body.allowGitWebhooks
   if (body.allowTerminal !== undefined) patch.allowTerminal = !!body.allowTerminal
   if (body.allowContainerFiles !== undefined) patch.allowContainerFiles = !!body.allowContainerFiles
   if (body.allowProxyAdmin !== undefined) patch.allowProxyAdmin = !!body.allowProxyAdmin

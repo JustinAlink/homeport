@@ -78,7 +78,9 @@ const READ_DENY = [
 // the same secrets /api/env keeps from read-only callers for running containers.
 // Juniper's call (2026-11-25): viewers see stacks, status, mounts and logs, not files.
 // Patterns, not prefixes: /api/stacks, /mounts and /git stay readable.
-const READ_DENY_PATTERNS = [/^\/api\/stacks\/[^/]+\/?$/, /^\/api\/stacks\/[^/]+\/files?\/?$/]
+// A stack's deploy-on-push settings carry its webhook URL, half of what a sender
+// needs (the other half, the secret, is never readable at all).
+const READ_DENY_PATTERNS = [/^\/api\/stacks\/[^/]+\/?$/, /^\/api\/stacks\/[^/]+\/files?\/?$/, /^\/api\/stacks\/[^/]+\/webhook\/?$/]
 
 // The MCP endpoint is the one POST a read-only caller may make: the protocol sends
 // every question as a POST, and its tools (server/utils/mcp-tools-core.ts) only read
