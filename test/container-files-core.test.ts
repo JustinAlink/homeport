@@ -8,6 +8,7 @@ import {
   withinRoot,
   listingFromTarEntries,
   parsePathStat,
+  writeHeaderFor,
 } from '../server/utils/container-files-core.ts'
 
 test('normContainerPath: collapses . and .., rejects escapes and bad input', () => {
@@ -94,4 +95,13 @@ test('parsePathStat: decodes base64 JSON and reads the directory/symlink mode bi
 
   assert.equal(parsePathStat(null), null)
   assert.equal(parsePathStat('not-base64-json!!!'), null)
+})
+
+// The daemon extracts with the tar header's mode and uid/gid: a fixed 0644
+// root:root broke an app's own 0600 config file on every save.
+test('writeHeaderFor: an existing file keeps its mode and owner, a new one gets 0644 root', () => {
+  assert.deepEqual(writeHeaderFor({ type: 'file', mode: 0o600, uid: 1000, gid: 1000 }), { mode: 0o600, uid: 1000, gid: 1000 })
+  assert.deepEqual(writeHeaderFor({ type: 'file', mode: 0o104755, uid: 33, gid: 33 }), { mode: 0o4755, uid: 33, gid: 33 })
+  assert.deepEqual(writeHeaderFor(null), { mode: 0o644, uid: 0, gid: 0 })
+  assert.deepEqual(writeHeaderFor({ type: 'symlink', mode: 0o777, uid: 5, gid: 5 }), { mode: 0o644, uid: 0, gid: 0 })
 })

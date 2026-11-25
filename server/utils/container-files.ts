@@ -1,9 +1,9 @@
-import tarStream from 'tar-stream'
+import tarStream, { type Header as TarHeader } from 'tar-stream'
 import { getHosts } from './hosts'
 import { getDockerFor } from './docker'
 import { splitServiceId } from './service-id'
 import { MAX_EDIT_BYTES, type FileEntry } from './files-core'
-import { baseName, parentPath, listingFromTarEntries, type TarEntryHeader } from './container-files-core'
+import { baseName, parentPath, listingFromTarEntries, writeHeaderFor, type TarEntryHeader, type WriteHeader } from './container-files-core'
 
 // Read + write files INSIDE a container (or a named volume mounted into it) via
 // the Docker archive endpoints — `docker cp` under the hood. No shell in the
@@ -134,7 +134,7 @@ export async function readContainerFile(id: string, path: string): Promise<Conta
 }
 
 /** Build a one-file tar in memory (what putArchive extracts into a directory). */
-function packOneFile(name: string, content: Buffer): Promise<Buffer> {
+function packOneFile(name: string, content: Buffer, header: WriteHeader): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const pack = tarStream.pack()
     const chunks: Buffer[] = []
@@ -143,16 +143,51 @@ function packOneFile(name: string, content: Buffer): Promise<Buffer> {
     })
     pack.on('end', () => resolve(Buffer.concat(chunks)))
     pack.on('error', reject)
-    pack.entry({ name, size: content.length, mode: 0o644, mtime: new Date() }, content, (err?: Error | null) => {
+    pack.entry({ name, size: content.length, mode: header.mode, uid: header.uid, gid: header.gid, mtime: new Date() }, content, (err?: Error | null) => {
       if (err) return reject(err)
       pack.finalize()
     })
   })
 }
 
+/**
+ * The tar header of what is at `path` now: only the first entry is read, then
+ * the transfer is cut. null when there is nothing there (a new file) or it
+ * can't be read, which keeps the old 0644 root:root (fail-open: the write itself
+ * is what the user asked for).
+ */
+async function currentHeader(container: ReturnType<typeof containerFor>, path: string): Promise<TarHeader | null> {
+  let stream: NodeJS.ReadableStream
+  try {
+    stream = (await container.getArchive({ path })) as unknown as NodeJS.ReadableStream
+  } catch {
+    return null
+  }
+  return new Promise((resolve) => {
+    const extract = tarStream.extract()
+    let done = false
+    const finish = (h: TarHeader | null) => {
+      if (done) return
+      done = true
+      resolve(h)
+      ;(stream as any).destroy?.()
+    }
+    extract.on('entry', (header, content, next) => {
+      finish(header)
+      content.resume()
+      next()
+    })
+    extract.on('finish', () => finish(null))
+    extract.on('error', () => finish(null))
+    stream.on('error', () => finish(null))
+    stream.pipe(extract)
+  })
+}
+
 /** Write (create or overwrite) a file inside a container at an absolute path. */
 export async function writeContainerFile(id: string, path: string, content: Buffer): Promise<void> {
   const container = containerFor(id)
-  const tar = await packOneFile(baseName(path), content)
+  const header = writeHeaderFor(await currentHeader(container, path))
+  const tar = await packOneFile(baseName(path), content, header)
   await container.putArchive(tar, { path: parentPath(path) })
 }
