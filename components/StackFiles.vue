@@ -145,6 +145,8 @@
 
 <script setup lang="ts">
 const props = defineProps<{ stack: string; composeFile?: string; readOnly?: boolean; git?: { tracked?: string[]; branch?: string } | null; managedBy?: string | null }>()
+// tells the stack page a file changed on disk (it reloads its own compose editor)
+const emit = defineEmits<{ saved: [path: string] }>()
 const gitTracked = useExternalSource(() => ({ git: props.git, managedBy: props.managedBy }))
 
 interface Entry {
@@ -286,19 +288,21 @@ async function closeEditor() {
 }
 
 async function saveFile() {
-  if (editing.value === null) return
-  if (!(await gitTracked.confirmSave(editing.value))) return
+  const path = editing.value
+  if (path === null) return
+  if (!(await gitTracked.confirmSave(path))) return
   fileSaving.value = true
   fileMsg.value = ''
   try {
     await $fetch(`/api/stacks/${encodeURIComponent(props.stack)}/file`, {
       method: 'PUT',
-      body: { path: editing.value, content: fileView.state.doc.toString() },
+      body: { path, content: fileView.state.doc.toString() },
     })
     fileBaseline = fileView.state.doc.toString()
     fileDirty.value = false
     fileOk.value = true
     fileMsg.value = 'Saved.'
+    emit('saved', path)
     load()
   } catch (e: any) {
     fileOk.value = false

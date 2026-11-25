@@ -33,10 +33,22 @@
         <form v-if="createMode === 'empty'" class="flex flex-wrap items-end gap-3 p-4 sm:p-5" @submit.prevent="createStack">
           <div class="min-w-[220px] flex-1">
             <label class="field-label" for="new-stack">Name</label>
-            <input id="new-stack" v-model="newName" class="input" placeholder="e.g. media" spellcheck="false" autofocus />
-            <p class="field-hint">Becomes the directory and the compose project name. You write the compose file next.</p>
+            <input
+              id="new-stack"
+              v-model="newName"
+              class="input"
+              placeholder="e.g. media"
+              spellcheck="false"
+              autocapitalize="off"
+              aria-describedby="new-stack-hint"
+              :aria-invalid="!!nameError || undefined"
+              autofocus
+            />
+            <p id="new-stack-hint" class="field-hint" :class="nameError ? '!text-red-400' : ''">
+              {{ nameError || 'Becomes the directory and the compose project name. You write the compose file next.' }}
+            </p>
           </div>
-          <button type="submit" class="btn btn-primary mb-[26px]" :disabled="!newName.trim()">Create</button>
+          <button type="submit" class="btn btn-primary mb-[26px]" :disabled="!newName.trim() || !!nameError">Create</button>
         </form>
 
         <form v-else class="space-y-3 p-4 sm:p-5" @submit.prevent="createFromGit">
@@ -210,9 +222,17 @@ async function load() {
   }
 }
 
+// Checked before the editor opens: the editor creates with ?create=1, and an
+// existing name there used to overwrite that stack's compose file.
+const nameError = computed(() =>
+  data.value
+    ? newStackNameError(newName.value, { managed: data.value.stacks.map((s) => s.name), unmanaged: data.value.unmanaged.map((u) => u.name) })
+    : '',
+)
+
 function createStack() {
   const name = newName.value.trim()
-  if (!name) return
+  if (!name || nameError.value) return
   navigateTo(`/stacks/${encodeURIComponent(name)}?new=1`)
 }
 
