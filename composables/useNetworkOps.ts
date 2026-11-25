@@ -23,7 +23,8 @@ export function useNetworkOps() {
       })
       return r.changed ? ` and saved to ${stack}'s ${r.file}` : ''
     } catch (e: any) {
-      toast.error(`Connected live, but not saved to the compose file: ${errMsg(e, 'write failed')}`)
+      // the live change already happened; name it, a disconnect included
+      toast.error(`${patch.addNetwork ? 'Connected' : 'Disconnected'} live, but not saved to the compose file: ${errMsg(e, 'write failed')}`)
       return ''
     }
   }
