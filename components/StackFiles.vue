@@ -273,7 +273,8 @@ function onModalKey(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
     if (!props.readOnly && !fileSaving.value) saveFile()
-  } else if (e.key === 'Escape') {
+  } else if (e.key === 'Escape' && !e.defaultPrevented) {
+    // defaultPrevented: the editor used this Escape itself (closing its search panel)
     e.preventDefault()
     closeEditor()
   }

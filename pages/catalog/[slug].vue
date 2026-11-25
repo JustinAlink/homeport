@@ -50,7 +50,7 @@
               :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
             />
             <p class="field-hint" :class="attempted && !stackNameValid ? '!text-red-400' : ''">
-              {{ attempted && !stackNameValid ? 'letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
+              {{ attempted && !stackNameValid ? 'lowercase letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
             </p>
           </div>
 
@@ -222,7 +222,8 @@ function portClash(input: AppInputRow): string {
 
 // --- inline validation (mirrors the server's checks, but before the round-trip) ---
 const attempted = ref(false)
-const stackNameValid = computed(() => /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(stackName.value.trim()))
+// lowercase only: compose rejects capitals in a project name (STACK_NAME_RE)
+const stackNameValid = computed(() => STACK_NAME_RE.test(stackName.value.trim()))
 const isMissing = (input: AppInputRow) =>
   !!input.required && !input.select && !String(values[input.name] ?? '').trim() && !input.default
 const formValid = computed(() => stackNameValid.value && !visibleInputs.value.some(isMissing))

@@ -38,7 +38,7 @@
               :class="attempted && !stackNameValid ? '!border-red-400/60' : ''"
             />
             <p class="field-hint" :class="attempted && !stackNameValid ? '!text-red-400' : ''">
-              {{ attempted && !stackNameValid ? 'letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
+              {{ attempted && !stackNameValid ? 'lowercase letters, digits, - and _ only (must start with a letter or digit)' : 'Becomes the directory + compose project name.' }}
             </p>
           </div>
 
@@ -191,7 +191,7 @@ async function load() {
   try {
     const r = await $fetch<InspectResponse>('/api/hub/inspect', { query: { image: repo } })
     inspected.value = r
-    stackName.value = r.service
+    stackName.value = r.service.toLowerCase() // a repo like FreshRSS: compose wants lowercase
     portRows.value = r.ports.map((p) => ({ container: p, host: p, on: true, detected: true }))
     volRows.value = r.volumes.map((path) => ({ path, on: true }))
   } catch (e: any) {
@@ -212,7 +212,8 @@ async function load() {
 const clashName = (host: number | null) => (host ? publishedPorts.value.get(host) ?? '' : '')
 
 const attempted = ref(false)
-const stackNameValid = computed(() => /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(stackName.value.trim()))
+// lowercase only: compose rejects capitals in a project name (STACK_NAME_RE)
+const stackNameValid = computed(() => STACK_NAME_RE.test(stackName.value.trim()))
 
 // --- install + op streaming (same flow as the template catalog) ---
 const installing = ref(false)
