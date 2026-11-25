@@ -80,10 +80,17 @@ const READ_DENY = [
 // Patterns, not prefixes: /api/stacks, /mounts and /git stay readable.
 const READ_DENY_PATTERNS = [/^\/api\/stacks\/[^/]+\/?$/, /^\/api\/stacks\/[^/]+\/files?\/?$/]
 
+// The MCP endpoint is the one POST a read-only caller may make: the protocol sends
+// every question as a POST, and its tools (server/utils/mcp-tools-core.ts) only read
+// what GET already serves a read token. Exactly this path and only POST: a read token
+// still cannot POST, PUT or DELETE anywhere else, /api/mcp/<anything> included.
+export const MCP_PATH = '/api/mcp'
+
 /** May a token of this scope perform (method, path)? full = everything. */
 export function scopeAllows(scope: TokenScope, method: string, path: string): boolean {
   if (scope === 'full') return true
   const m = (method || '').toUpperCase()
+  if (m === 'POST' && path === MCP_PATH) return true
   if (m !== 'GET' && m !== 'HEAD') return false // read tokens are read-only
   if (READ_DENY_PATTERNS.some((re) => re.test(path))) return false
   return !READ_DENY.some((p) => path === p || path.startsWith(`${p}/`))
