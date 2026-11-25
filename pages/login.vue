@@ -67,8 +67,18 @@
           <button type="submit" :disabled="busy" class="btn btn-primary btn-lg w-full">{{ busy ? 'Creating…' : 'Create password' }}</button>
         </form>
 
+        <!-- single sign-on first when it is set up; the password form stays below
+             unless the admin hid it (/login?local=1 always brings it back) -->
+        <div v-if="sso && !needsSetup && !awaitingTotp" class="space-y-4" :class="showPassword ? 'mb-5' : ''">
+          <a :href="ssoHref" class="btn btn-primary btn-lg w-full"><Icon name="shield" /> {{ sso.label }}</a>
+          <div v-if="showPassword" class="flex items-center gap-3 text-[11px] uppercase tracking-wide text-slate-500" aria-hidden="true">
+            <span class="h-px flex-1 bg-white/[0.08]" />or with a password<span class="h-px flex-1 bg-white/[0.08]" />
+          </div>
+          <p v-else class="text-center text-xs text-slate-500"><a href="/login?local=1" class="link">Use a password instead</a></p>
+        </div>
+
         <!-- normal sign-in -->
-        <form v-else-if="!awaitingTotp" class="space-y-4" @submit.prevent="submit">
+        <form v-if="!needsSetup && !awaitingTotp && showPassword" class="space-y-4" @submit.prevent="submit">
           <div>
             <label class="field-label flex items-baseline justify-between" for="username">
               Username
@@ -84,7 +94,7 @@
         </form>
 
         <!-- 2FA step -->
-        <form v-else class="space-y-4" @submit.prevent="submitTotp">
+        <form v-if="awaitingTotp" class="space-y-4" @submit.prevent="submitTotp">
           <input
             v-if="!useRecovery"
             v-model="totpCode"
@@ -132,6 +142,20 @@ const pwEl = ref<HTMLInputElement | null>(null)
 const logCommand = 'docker logs homeport 2>&1 | grep "setup code"'
 
 const awaitingTotp = ref(false)
+
+// single sign-on (only what the public setup status offers: whether, and how)
+const route = useRoute()
+const sso = ref<{ label: string; autoRedirect: boolean; hidePassword: boolean } | null>(null)
+const forceLocal = computed(() => String(route.query.local || '') === '1')
+const showPassword = computed(() => !sso.value || !sso.value.hidePassword || forceLocal.value)
+const ssoHref = computed(() => `/api/auth/oidc/start${route.query.returnTo ? `?returnTo=${encodeURIComponent(String(route.query.returnTo))}` : ''}`)
+const SSO_ERRORS: Record<string, string> = {
+  state: 'The sign-in took too long or was started in another browser. Please try again.',
+  denied: 'Your account signed in, but it is not in a group allowed into homeport. Ask the admin to add you to one.',
+  provider: 'The identity provider refused or cancelled the sign-in.',
+  exchange: 'homeport could not complete the sign-in with the identity provider. The admin can check the client secret and redirect URI.',
+  config: 'Single sign-on is not set up completely. Use a password, or ask the admin.',
+}
 const pendingToken = ref('')
 const totpCode = ref('')
 const recoveryCode = ref('')
@@ -139,8 +163,17 @@ const useRecovery = ref(false)
 
 onMounted(async () => {
   try {
-    const s = await $fetch<{ needsSetup: boolean; open: boolean; writable?: boolean; minPasswordLength?: number }>('/api/setup')
+    const s = await $fetch<{ needsSetup: boolean; open: boolean; writable?: boolean; minPasswordLength?: number; sso?: { label: string; autoRedirect: boolean; hidePassword: boolean } | null }>('/api/setup')
     if (s.open) return navigateTo('/') // no auth → straight in
+    sso.value = s.sso ?? null
+    const ssoErr = String(route.query.sso_error || '')
+    if (ssoErr) err.value = SSO_ERRORS[ssoErr] ?? 'Single sign-on failed.'
+    // Auto-redirect only on a plain visit: never after a failed attempt, a logout or
+    // an explicit ?local=1, or a broken provider would loop the browser forever.
+    if (sso.value?.autoRedirect && !ssoErr && !forceLocal.value && !route.query.loggedout) {
+      window.location.href = ssoHref.value
+      return
+    }
     needsSetup.value = s.needsSetup
     if (typeof s.writable === 'boolean') writable.value = s.writable
     if (typeof s.minPasswordLength === 'number') minLen.value = s.minPasswordLength
@@ -174,7 +207,7 @@ async function submit() {
       awaitingTotp.value = true
       return
     }
-    await navigateTo('/')
+    await navigateTo(safeReturnTo(route.query.returnTo))
   } catch (e: any) {
     err.value = errMsg(e, 'Login failed')
   } finally {
@@ -192,7 +225,7 @@ async function submitTotp() {
         ? { pending: pendingToken.value, recovery: recoveryCode.value }
         : { pending: pendingToken.value, code: totpCode.value },
     })
-    await navigateTo('/')
+    await navigateTo(safeReturnTo(route.query.returnTo))
   } catch (e: any) {
     err.value = errMsg(e, useRecovery.value ? 'Incorrect recovery code' : 'Incorrect code')
   } finally {

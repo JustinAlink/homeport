@@ -17,7 +17,7 @@ export function useServices() {
     } catch (e: any) {
       const status = e?.statusCode ?? e?.response?.status
       if (status === 401) {
-        await navigateTo('/login')
+        await toLogin()
         return
       }
       error.value = errMsg(e, 'Failed to load services')

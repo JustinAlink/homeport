@@ -30,7 +30,7 @@ export function useExposure(id?: () => string | undefined) {
       data.value = r
       error.value = ''
     } catch (e: any) {
-      if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+      if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
       error.value = errMsg(e, 'Could not build the exposure report')
     } finally {
       if (opts.probe) probing.value = false

@@ -3,6 +3,7 @@
 // container start (env) AND via the in-app settings page (when env doesn't lock it).
 
 import { readSettings, type PersistedSettings } from './settings'
+import { normalizePublicUrl, parseGroupList } from './oidc-core'
 import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
@@ -117,6 +118,20 @@ export interface HomeportConfig {
   alertCooldownSec: number
   /** Outbound webhook channels. */
   alertChannels: WebhookChannel[]
+  /** Public origin (HOMEPORT_PUBLIC_URL), '' when unknown. */
+  publicUrl: string
+  /** OpenID Connect sign-in (see server/utils/oidc.ts). */
+  oidcEnabled: boolean
+  oidcIssuer: string
+  oidcClientId: string
+  oidcClientSecret: string
+  oidcScopes: string
+  oidcGroupsClaim: string
+  oidcAdminGroups: string[]
+  oidcViewerGroups: string[]
+  oidcButtonLabel: string
+  oidcAutoRedirect: boolean
+  oidcHidePassword: boolean
 }
 
 /**
@@ -309,6 +324,18 @@ export function getConfig(): HomeportConfig {
     alertDebounceSamples: Math.max(1, s.alertDebounceSamples ?? 3),
     alertCooldownSec: Math.max(0, s.alertCooldownSec ?? 3600),
     alertChannels: s.alertChannels ?? [],
+    publicUrl: normalizePublicUrl(envStr('HOMEPORT_PUBLIC_URL') ?? s.publicUrl) ?? '',
+    oidcEnabled: envStr('HOMEPORT_OIDC') !== undefined ? process.env.HOMEPORT_OIDC === 'true' : !!s.oidcEnabled,
+    oidcIssuer: (envStr('HOMEPORT_OIDC_ISSUER') ?? s.oidcIssuer ?? '').trim(),
+    oidcClientId: (envStr('HOMEPORT_OIDC_CLIENT_ID') ?? s.oidcClientId ?? '').trim(),
+    oidcClientSecret: envStr('HOMEPORT_OIDC_CLIENT_SECRET') ?? s.oidcClientSecret ?? '',
+    oidcScopes: (s.oidcScopes ?? 'openid profile email groups').trim() || 'openid profile email',
+    oidcGroupsClaim: (s.oidcGroupsClaim ?? 'groups').trim() || 'groups',
+    oidcAdminGroups: parseGroupList(s.oidcAdminGroups),
+    oidcViewerGroups: parseGroupList(s.oidcViewerGroups),
+    oidcButtonLabel: (s.oidcButtonLabel ?? '').trim() || 'Sign in with SSO',
+    oidcAutoRedirect: !!s.oidcAutoRedirect,
+    oidcHidePassword: !!s.oidcHidePassword,
   }
 }
 
@@ -345,6 +372,11 @@ export function getEnvLocks() {
     collectorInterval: envNum('HOMEPORT_COLLECTOR_INTERVAL') !== undefined,
     historyEnabled: envStr('HOMEPORT_HISTORY') !== undefined,
     alerts: envStr('HOMEPORT_ALERTS') !== undefined,
+    publicUrl: envStr('HOMEPORT_PUBLIC_URL') !== undefined,
+    oidc: envStr('HOMEPORT_OIDC') !== undefined,
+    oidcIssuer: envStr('HOMEPORT_OIDC_ISSUER') !== undefined,
+    oidcClientId: envStr('HOMEPORT_OIDC_CLIENT_ID') !== undefined,
+    oidcClientSecret: envStr('HOMEPORT_OIDC_CLIENT_SECRET') !== undefined,
   }
 }
 
@@ -353,6 +385,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
   dockerMode: 'local' | 'ssh'
   npmApiSecretSet: boolean
   smtpPassSet: boolean
+  oidcClientSecretSet: boolean
   registryCreds: { registry: string; username: string; token: string; tokenSet: boolean }[]
 } {
   const s = readSettings()
@@ -413,5 +446,19 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     alertDebounceSamples: s.alertDebounceSamples ?? 3,
     alertCooldownSec: s.alertCooldownSec ?? 3600,
     alertChannels: s.alertChannels ?? [],
+    publicUrl: s.publicUrl ?? '',
+    oidcEnabled: !!s.oidcEnabled,
+    oidcIssuer: s.oidcIssuer ?? '',
+    oidcClientId: s.oidcClientId ?? '',
+    // a secret: never sent to the browser, only whether one is stored (env or saved)
+    oidcClientSecret: '',
+    oidcClientSecretSet: !!(s.oidcClientSecret || process.env.HOMEPORT_OIDC_CLIENT_SECRET),
+    oidcScopes: s.oidcScopes ?? 'openid profile email groups',
+    oidcGroupsClaim: s.oidcGroupsClaim ?? 'groups',
+    oidcAdminGroups: s.oidcAdminGroups ?? [],
+    oidcViewerGroups: s.oidcViewerGroups ?? [],
+    oidcButtonLabel: s.oidcButtonLabel ?? '',
+    oidcAutoRedirect: !!s.oidcAutoRedirect,
+    oidcHidePassword: !!s.oidcHidePassword,
   }, getConfig(), getEnvLocks())
 }

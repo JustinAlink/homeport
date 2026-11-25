@@ -4,6 +4,7 @@ import { withoutLocked } from '../utils/settings-locks-core'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
+import { normalizePublicUrl, parseGroupList } from '../utils/oidc-core'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']
@@ -173,6 +174,39 @@ export default defineEventHandler(async (event) => {
   }
   // smtpPass is a secret (masked on read): a blank value keeps the stored one.
   if (body.smtpPass !== undefined && String(body.smtpPass).trim() !== '') patch.smtpPass = String(body.smtpPass).trim()
+
+  // ---- public URL and single sign-on ----
+  if (body.publicUrl !== undefined) {
+    const raw = String(body.publicUrl ?? '').trim()
+    const url = normalizePublicUrl(raw)
+    if (raw && !url) throw createError({ statusCode: 400, statusMessage: 'Public URL must be like https://hub.example.com' })
+    patch.publicUrl = url ?? ''
+  }
+  if (body.oidcEnabled !== undefined) patch.oidcEnabled = !!body.oidcEnabled
+  if (body.oidcIssuer !== undefined) {
+    const v = String(body.oidcIssuer ?? '').trim()
+    if (v && !/^https?:\/\/[^\s]+$/.test(v)) throw createError({ statusCode: 400, statusMessage: 'Issuer must be an http(s) URL' })
+    patch.oidcIssuer = v
+  }
+  if (body.oidcClientId !== undefined) patch.oidcClientId = String(body.oidcClientId ?? '').trim().slice(0, 200)
+  // a secret like smtpPass: blank keeps the stored one; the env var, when set, owns it
+  if (body.oidcClientSecret !== undefined && String(body.oidcClientSecret).trim() !== '' && !process.env.HOMEPORT_OIDC_CLIENT_SECRET)
+    patch.oidcClientSecret = String(body.oidcClientSecret).trim()
+  if (body.oidcScopes !== undefined) {
+    const scopes = String(body.oidcScopes ?? '').split(/\s+/).filter(Boolean)
+    // openid is what makes it OpenID Connect: without it there is no ID token to check
+    patch.oidcScopes = [...new Set(['openid', ...scopes])].join(' ')
+  }
+  if (body.oidcGroupsClaim !== undefined) {
+    const v = String(body.oidcGroupsClaim ?? '').trim()
+    if (v && !/^[\w.:/-]{1,120}$/.test(v)) throw createError({ statusCode: 400, statusMessage: 'Groups claim may contain letters, digits and . : / - _' })
+    patch.oidcGroupsClaim = v || 'groups'
+  }
+  if (body.oidcAdminGroups !== undefined) patch.oidcAdminGroups = parseGroupList(body.oidcAdminGroups)
+  if (body.oidcViewerGroups !== undefined) patch.oidcViewerGroups = parseGroupList(body.oidcViewerGroups)
+  if (body.oidcButtonLabel !== undefined) patch.oidcButtonLabel = String(body.oidcButtonLabel ?? '').trim().slice(0, 40)
+  if (body.oidcAutoRedirect !== undefined) patch.oidcAutoRedirect = !!body.oidcAutoRedirect
+  if (body.oidcHidePassword !== undefined) patch.oidcHidePassword = !!body.oidcHidePassword
   if (body.smtpPort !== undefined) {
     const p2 = Math.floor(Number(body.smtpPort))
     if (!Number.isFinite(p2) || p2 < 1 || p2 > 65535) throw createError({ statusCode: 400, statusMessage: 'smtpPort must be 1-65535' })

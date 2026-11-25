@@ -9,9 +9,12 @@ import { randomBytes } from 'node:crypto'
 export interface UserRecord {
   id: string
   username: string
+  /** empty for accounts that sign in through SSO only: no password can ever match */
   hash: string
   createdAt: number
   lastLoginAt?: number
+  /** created by a single sign-on login: the provider's issuer and subject */
+  sso?: { iss: string; sub: string }
 }
 
 export const MIN_USERNAME_LENGTH = 3

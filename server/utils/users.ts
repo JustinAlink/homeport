@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { hashPassword, verifyHash, MIN_PASSWORD_LENGTH } from './auth-core'
 import { mintUser, normalizeUsername, validateUsername, type UserRecord } from './users-core'
+import { usernameFromClaims, uniqueUsername } from './oidc-core'
 
 // A fixed decoy hash so a nonexistent username still pays the same scrypt
 // cost as a real one below — otherwise the lookup miss short-circuits well
@@ -77,12 +78,34 @@ export function deleteUser(id: string): boolean {
   return true
 }
 
+/**
+ * The viewer account of an SSO identity, created on its first sign-in. Matched by
+ * issuer and subject only, never by email or name: those can be changed or reused
+ * at the provider, and linking on them would let one person take over another's
+ * account. The account has no password, so it can only come in through SSO.
+ */
+export function findOrCreateSsoUser(iss: string, sub: string, claims: Record<string, unknown>): Omit<UserRecord, 'hash'> {
+  const all = read()
+  const found = all.find((u) => u.sso?.iss === iss && u.sso?.sub === sub)
+  if (found) {
+    found.lastLoginAt = Date.now()
+    persist(all)
+    const { hash, ...meta } = found
+    return meta
+  }
+  const username = uniqueUsername(usernameFromClaims(claims), (u) => all.some((x) => x.username === u))
+  const record: UserRecord = { ...mintUser(username, '', Date.now()), sso: { iss, sub }, lastLoginAt: Date.now() }
+  persist([...all, record])
+  const { hash, ...meta } = record
+  return meta
+}
+
 /** Verify a viewer login → account metadata, or null. Stamps lastLoginAt. */
 export function verifyUserLogin(username: string, password: string): Omit<UserRecord, 'hash'> | null {
   const norm = normalizeUsername(username)
   const rec = read().find((u) => u.username === norm)
-  const ok = verifyHash(password, rec?.hash ?? DECOY_HASH)
-  if (!rec || !ok) return null
+  const ok = verifyHash(password, rec?.hash || DECOY_HASH)
+  if (!rec || !rec.hash || !ok) return null
   rec.lastLoginAt = Date.now()
   persist(read())
   const { hash, ...meta } = rec
