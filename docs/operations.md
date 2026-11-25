@@ -89,8 +89,9 @@ retry. Pool-exhaustion errors (too many networks) get the same treatment.
 
 `GET /healthz` answers `200 {"status":"ok"}` while homeport can reach at least one Docker
 host, and `503` when it can't (`docker-unreachable`) or its background collector has not
-produced a snapshot for a long time (`collector-stalled`, at least 30 minutes, so a slow
-auto-update never trips it). It sits outside `/api/`, so it needs no login or token, and it
+produced a snapshot for a while (`collector-stalled`, 10 minutes or ten collector
+intervals, whichever is longer; update checks and auto-updates run beside the collector,
+so a slow pull never trips it). It sits outside `/api/`, so it needs no login or token, and it
 reveals nothing beyond that one word. The image's `HEALTHCHECK` uses it, which makes a
 homeport that lost its Docker connection show as `unhealthy` in `docker ps`; point Uptime
 Kuma or any other monitor at the same URL. It reads the collector's last result rather than

@@ -16,10 +16,10 @@ export interface HealthVerdict {
   status: HealthStatus
 }
 
-/** How long a snapshot may age before the collector counts as stalled. Generous on
- *  purpose: a tick that runs an auto-update holds the guard for the whole pull, and a
- *  slow update must not read as a dead homeport. */
-export const staleAfterMs = (intervalMs: number) => Math.max(10 * intervalMs, 30 * 60_000)
+/** How long a snapshot may age before the collector counts as stalled. Update work
+ *  runs beside the tick (collector.ts), so a long pull no longer freezes the snapshot;
+ *  the margin covers slow pings and a daemon that answers late. */
+export const staleAfterMs = (intervalMs: number) => Math.max(10 * intervalMs, 10 * 60_000)
 
 /** Grace before the first snapshot exists (boot, or a first tick that failed). */
 export const startupGraceMs = (intervalMs: number) => Math.max(3 * intervalMs, 120_000)

@@ -38,8 +38,8 @@ test('health: a snapshot older than the stale window is collector-stalled, even 
   assert.deepEqual(healthOf(snap, T0 + staleAfterMs(I) + 1, I, T0 - 3600_000), { ok: false, status: 'collector-stalled' })
 })
 
-test('health: a 20-minute auto-update tick does not read as stalled', () => {
-  // The guard skips ticks while one runs, so a long pull freezes the snapshot age.
+test('health: a few slow ticks do not read as stalled, ten minutes without one does', () => {
   const snap = { at: T0, hostsOnline: { default: true } }
-  assert.equal(healthOf(snap, T0 + 20 * 60_000, I, T0 - 3600_000).ok, true)
+  assert.equal(healthOf(snap, T0 + 5 * 60_000, I, T0 - 3600_000).ok, true)
+  assert.equal(healthOf(snap, T0 + 11 * 60_000, I, T0 - 3600_000).ok, false)
 })

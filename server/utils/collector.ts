@@ -65,12 +65,21 @@ const tick = guard(async () => {
   await stage('history', () => recordHistory(snap))
   await stage('alerts', () => evaluateAlerts(snap))
   await stage('domain-alerts', () => evaluateDomainAlerts(snap))
+  // Update work runs beside the tick, not inside it: a multi-GB pull at the
+  // auto-update hour (or a registry that hangs) used to hold the tick's guard, so
+  // every tick in the meantime was skipped and there were no alerts or history
+  // until it finished. Both are guarded on their own, so a chain started while
+  // the previous one runs is a no-op.
+  void updateChain()
+  return snap
+})
+
+async function updateChain(): Promise<void> {
   // self-throttled (per-image interval) + no-op unless updateCheckEnabled
   await stage('update-sweep', () => runUpdateSweep(false))
   // once per day in its configured hour + no-op unless autoUpdateEnabled
   await stage('auto-update', () => maybeAutoUpdate())
-  return snap
-})
+}
 
 /** Guarded single tick used by the background plugin. A collectOnce failure rejects (logged by the caller). */
 export async function runCollectorTick(): Promise<void> {
