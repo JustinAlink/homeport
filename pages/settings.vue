@@ -452,8 +452,8 @@
           :class="locked.historyEnabled ? 'is-locked' : ''"
         >
           <input v-model="form.historyEnabled" type="checkbox" />
-          Keep CPU/RAM history
-          <span class="text-[11px] text-slate-500">(graphs survive refresh/restart; stored under the data dir)</span>
+          Keep CPU/RAM and uptime history
+          <span class="text-[11px] text-slate-500">(30 days: by the minute for a day, 15 min averages for a week, hourly for a month; stored under the data dir)</span>
         </label>
       </section>
 

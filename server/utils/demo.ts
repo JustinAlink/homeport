@@ -10,6 +10,7 @@ import { PROXY_IMAGES, imageRepoOf } from './ping-core'
 import { exposureOf, exposureInput, sortExposure, exposureSummary, type DomainProbe } from '../../shared/utils/exposure.ts'
 import { certLevel, certLeftText, DAY as CERT_DAY } from '../../shared/utils/certs.ts'
 import { readAcks } from './exposure'
+import { type Store, type Uptime, createStore, readStore, uptimeFor, uptimeDays, dayEdges } from './history-core'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -150,29 +151,169 @@ export function demoStats(): StatsResponse {
   }
 }
 
-/** Synthetic CPU/mem history so the graphs look alive in demo mode (no Docker). */
-export function demoHistory(id: string, fromMs: number, toMs: number, res: number) {
-  const isHost = id === 'host' || id === 'host-system'
-  const sysBoost = id === 'host-system' ? 14 : 0
-  let h = 0
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 997
-  const step = res * 1000
-  const start = Math.floor(fromMs / step) * step
-  const end = Math.floor(toMs / step) * step
-  const t: number[] = []
-  const cpu: (number | null)[] = []
-  const mem: (number | null)[] = []
-  for (let slot = start; slot <= end; slot += step) {
-    const x = slot / 60000 // minutes
-    t.push(slot)
-    cpu.push(Math.max(0, Math.round((20 + sysBoost / 2 + Math.sin(x / 15 + h) * 12 + Math.sin(x / 3 + h) * 4) * 10) / 10))
-    mem.push(
-      isHost
-        ? Math.max(5, Math.round((45 + sysBoost + Math.sin(x / 40 + h) * 15) * 10) / 10) // percent
-        : Math.max(20, Math.round(120 + (h % 500) + Math.sin(x / 20 + h) * 40)), // MiB
-    )
+// ---- demo history + uptime ----
+// Synthetic 30-day stores built bucket by bucket and read through the real core
+// (tier choice, gaps, uptime maths), so the demo shows exactly what a real
+// install would: a daily rhythm, the odd spike, memory that creeps up and drops
+// at a restart, and a few believable outages.
+
+interface Incident {
+  agoH: number // started this many hours ago
+  min: number // lasted this many minutes (capped at now)
+  kind: 'down' | 'unhealthy'
+}
+
+// By container name. Most apps never went down; a few had an update, a VPN drop
+// or a failing health check; watchtower is restarting right now (its status says so).
+const DEMO_INCIDENTS: Record<string, Incident[]> = {
+  jellyfin: [{ agoH: 6 * 24 + 3, min: 40, kind: 'down' }],
+  sonarr: [{ agoH: 11 * 24 + 5, min: 6, kind: 'down' }],
+  ghost: [{ agoH: 14 * 24 + 2, min: 3, kind: 'down' }],
+  umami: [{ agoH: 2 * 24 + 20, min: 18, kind: 'down' }, { agoH: 21 * 24, min: 9, kind: 'down' }],
+  traefik: [{ agoH: 18 * 24 + 4, min: 2, kind: 'down' }],
+  portainer: [{ agoH: 9 * 24, min: 12, kind: 'down' }],
+  qbittorrent: [{ agoH: 3 * 24 + 7, min: 95, kind: 'down' }, { agoH: 16 * 24 + 1, min: 30, kind: 'down' }],
+  gluetun: [{ agoH: 4 * 24 + 11, min: 140, kind: 'unhealthy' }, { agoH: 25 * 24, min: 20, kind: 'unhealthy' }],
+  watchtower: [{ agoH: 3, min: 4 * 60, kind: 'down' }, { agoH: 8 * 24, min: 50, kind: 'down' }, { agoH: 19 * 24, min: 25, kind: 'down' }],
+}
+// a nightly one-shot job: up 25 minutes a day, the last run ended two hours ago
+const DEMO_JOBS: Record<string, { min: number; endedAgoMin: number }> = { 'restic-backup': { min: 25, endedAgoMin: 120 } }
+// a young container: homeport has only watched it for 12 days
+const DEMO_SINCE_H: Record<string, number> = { speedtest: 12 * 24 }
+const DEMO_SAMPLE_SEC = 30 // the default collector interval
+
+function rnd(a: number, b: number): number {
+  let x = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) | 0
+  x = Math.imul(x ^ (x >>> 13), 1274126177)
+  return ((x ^ (x >>> 16)) >>> 0) / 4294967296
+}
+
+/** Fraction of [from, to) the container was stopped, and running-but-unhealthy. */
+function demoOutage(name: string, from: number, to: number, now: number): { down: number; unhealthy: number } {
+  const span = Math.max(1, to - from)
+  const overlap = (a: number, b: number) => Math.max(0, Math.min(b, to) - Math.max(a, from))
+  const job = DEMO_JOBS[name]
+  if (job) {
+    let upMs = 0
+    const lastEnd = now - job.endedAgoMin * 60_000
+    for (let k = 0; k <= 31; k++) upMs += overlap(lastEnd - k * DAY - job.min * 60_000, lastEnd - k * DAY)
+    return { down: 1 - upMs / span, unhealthy: 0 }
   }
-  return { res, t, cpu, mem }
+  let down = 0
+  let unhealthy = 0
+  for (const inc of DEMO_INCIDENTS[name] ?? []) {
+    const start = now - inc.agoH * 3_600_000
+    const o = overlap(start, Math.min(now, start + inc.min * 60_000)) / span
+    if (inc.kind === 'down') down += o
+    else unhealthy += o
+  }
+  return { down: Math.min(1, down), unhealthy: Math.min(1 - Math.min(1, down), unhealthy) }
+}
+
+/**
+ * Where a series' synthetic history centres: the same levels demoStats shows live,
+ * so switching the graph from Live to 30d does not jump to another container's numbers.
+ */
+function demoBase(key: string, h: number): { cpu: number; mem: number } {
+  if (key === 'host' || key === 'host-system') {
+    const host = demoStats().host!
+    return key === 'host' ? { cpu: host.cpuPercent, mem: host.memPercent } : { cpu: host.system!.cpuPercent, mem: host.system!.memPercent }
+  }
+  const i = seeds.findIndex((s) => s.name === key.slice(key.indexOf('|') + 1))
+  return i >= 0 ? { cpu: ((i * 7) % 38) + 4, mem: 40 + ((i * 53) % 620) } : { cpu: 2 + (h % 19), mem: 60 + (h % 520) }
+}
+
+/** CPU % and memory (MiB, or % for the host series) at an instant. */
+function demoValueAt(key: string, h: number, base: { cpu: number; mem: number }, t: number, now: number): { cpu: number; mem: number } {
+  const isHost = key === 'host' || key === 'host-system'
+  const hourOfDay = (t / 3_600_000) % 24
+  const day = Math.sin((2 * Math.PI * (hourOfDay - 9)) / 24) // busiest mid-afternoon (UTC)
+  const spike = rnd(h, Math.floor(t / 600_000)) < 0.025 ? base.cpu * 2.2 : 0 // a scan, a transcode, a backup
+  // a daily rhythm, a slow drift and a little 5-minute noise (which averages out in the long ranges)
+  const drift = 0.08 * Math.sin(t / 5_200_000 + h) + 0.16 * (rnd(h + 1, Math.floor(t / 300_000)) - 0.5)
+  const cpu = Math.max(0, base.cpu * (1 + (isHost ? 0.12 : 0.3) * day + drift) + (isHost ? 0 : spike))
+  if (isHost) return { cpu: Math.round(cpu * 10) / 10, mem: Math.round((base.mem * (1 + 0.08 * day) + Math.sin(t / 7_200_000 + h) * 2) * 10) / 10 }
+  // memory creeps up while it runs and drops back at a restart or update
+  const name = key.slice(key.indexOf('|') + 1)
+  let since = now - 31 * DAY
+  for (const inc of DEMO_INCIDENTS[name] ?? []) {
+    const end = now - inc.agoH * 3_600_000 + inc.min * 60_000
+    if (inc.kind === 'down' && end <= t && end > since) since = end
+  }
+  // centred on today's level: older days sit lower (less crept) unless a restart came between
+  const creep = Math.min(0.3, ((t - since) / DAY) * 0.01) - Math.min(0.3, ((now - since) / DAY) * 0.01)
+  return { cpu: Math.round(cpu * 10) / 10, mem: Math.max(10, Math.round(base.mem * (1 + creep + Math.sin(t / 5_400_000 + h) * 0.03))) }
+}
+
+const demoStores = new Map<string, { hour: number; store: Store }>()
+
+/** A deterministic 30-day store for a series key, rebuilt once an hour. */
+export function demoStore(key: string): Store {
+  const now = Date.now()
+  const hour = Math.floor(now / 3_600_000)
+  const hit = demoStores.get(key)
+  if (hit && hit.hour === hour) return hit.store
+  let h = 0
+  for (const c of key) h = (h * 31 + c.charCodeAt(0)) % 997
+  const isHost = key === 'host' || key === 'host-system'
+  const name = key.slice(key.indexOf('|') + 1)
+  const base = demoBase(key, h)
+  const firstMs = now - (DEMO_SINCE_H[name] ?? 31 * 24) * 3_600_000
+  const cfg = getConfig()
+  const store = createStore(cfg.historyResolution, Math.ceil((cfg.historyRetentionHours * 3600) / cfg.historyResolution))
+
+  // fine tier: one point per slot while it ran
+  const fine = store.fine
+  const fStep = fine.res * 1000
+  for (let t = Math.floor((now - fine.cap * fStep) / fStep) * fStep + fStep; t <= now; t += fStep) {
+    if (t < firstMs || (!isHost && demoOutage(name, t, t + fStep, now).down > 0.5)) continue
+    const v = demoValueAt(key, h, base, t, now)
+    fine.t.push(t)
+    fine.cpu.push(v.cpu)
+    fine.mem.push(v.mem)
+  }
+
+  // rollups: per bucket the samples a 30 s collector would have taken
+  for (const r of store.tiers) {
+    const step = r.res * 1000
+    const newest = Math.floor(now / step) * step
+    for (let t = newest - (r.cap - 1) * step; t <= newest; t += step) {
+      const end = Math.min(t + step, now)
+      if (end <= firstMs) continue
+      const from = Math.max(t, firstMs)
+      const samples = Math.max(1, Math.round((end - from) / 1000 / DEMO_SAMPLE_SEC))
+      const o = isHost ? { down: 0, unhealthy: 0 } : demoOutage(name, from, end, now)
+      const running = Math.round(samples * (1 - o.down))
+      let cpu = 0
+      let mem = 0
+      for (let k = 0; k < 4; k++) {
+        const v = demoValueAt(key, h, base, from + ((k + 0.5) / 4) * (end - from), now)
+        cpu += v.cpu / 4
+        mem += v.mem / 4
+      }
+      r.t.push(t)
+      r.cpu.push(running ? cpu : 0)
+      r.mem.push(running ? mem : 0)
+      r.w.push(running)
+      r.n.push(isHost ? 0 : samples)
+      r.up.push(isHost ? 0 : Math.round(samples * (1 - o.down - o.unhealthy)))
+    }
+  }
+  demoStores.set(key, { hour, store })
+  return store
+}
+
+/** Synthetic CPU/mem history so the graphs look alive in demo mode (no Docker). */
+export function demoHistory(key: string, fromMs: number, toMs: number) {
+  return readStore(demoStore(key), fromMs, toMs)
+}
+
+export function demoUptime(key: string, rangeMs: number): Uptime {
+  return uptimeFor(demoStore(key), rangeMs, Date.now(), DEMO_SAMPLE_SEC * 1000)
+}
+
+export function demoUptimeDays(key: string, days: number, tzOffsetMin: number) {
+  return uptimeDays(demoStore(key), dayEdges(Date.now(), days, tzOffsetMin), DEMO_SAMPLE_SEC * 1000)
 }
 
 // Demo update statuses — jellyfin + vaultwarden start with updates available;

@@ -99,6 +99,22 @@ export async function pingWithFallback(url: string, proxyHost: string | null, no
 }
 
 /**
+ * What earlier checks found, without sending anything: results younger than
+ * maxAgeMs. `due` says whether any url is missing or older than refreshMs, so a
+ * caller that must answer fast (a Prometheus scrape) can refresh in the background.
+ */
+export function cachedPings(urls: string[], now: number, maxAgeMs: number, refreshMs: number): { results: Record<string, PingResult>; due: boolean } {
+  const results: Record<string, PingResult> = {}
+  let due = false
+  for (const url of urls) {
+    const c = cache.get(url)
+    if (c && now - c.at <= maxAgeMs) results[url] = c.result
+    if (!c || now - c.at > refreshMs) due = true
+  }
+  return { results, due }
+}
+
+/**
  * Ping many URLs (bounded concurrency, TTL-cached). Returns a map keyed by url.
  * `proxyHost`: the reverse proxy's container name, for the fallback route.
  */

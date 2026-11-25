@@ -12,6 +12,7 @@
           <line v-for="p in [0, 25, 50, 75, 100]" :key="p" x1="0" :x2="w" :y1="y(scaleMax, (p / 100) * scaleMax)" :y2="y(scaleMax, (p / 100) * scaleMax)" stroke="currentColor" class="text-white/[0.06]" stroke-width="1" :stroke-dasharray="p === 0 ? '' : '2 4'" />
           <text v-for="p in [50, 100]" :key="'t' + p" x="2" :y="y(scaleMax, (p / 100) * scaleMax) + 11" fill="currentColor" class="text-slate-600" font-size="10">{{ Math.round((p / 100) * scaleMax * 10) / 10 }}%</text>
         </template>
+        <line v-for="tk in ticks" :key="'x' + tk.at" :x1="tk.x" :x2="tk.x" y1="0" :y2="H" stroke="currentColor" class="text-white/[0.05]" stroke-width="1" />
         <defs>
           <linearGradient v-for="(s, i) in series" :id="`lg-${uid}-${i}`" :key="'g' + s.label" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" :stop-color="s.color" stop-opacity="0.1" />
@@ -37,6 +38,10 @@
 
       <p v-if="n < 2" class="absolute inset-0 grid place-items-center text-xs text-slate-600">collecting data…</p>
     </div>
+    <!-- time axis for history ranges: a few round local times, so a week or a month can be read -->
+    <div v-if="ticks.length" class="relative h-4 text-[10.5px] text-slate-500" aria-hidden="true">
+      <span v-for="tk in ticks" :key="'l' + tk.at" class="absolute top-0.5 -translate-x-1/2 whitespace-nowrap tabular-nums" :style="{ left: `${tk.x}px` }">{{ tk.label }}</span>
+    </div>
   </div>
 </template>
 
@@ -48,7 +53,7 @@ interface Series {
   unit?: string
 }
 const props = withDefaults(
-  defineProps<{ series: Series[]; sharedMax?: number; height?: number; intervalSec?: number; bare?: boolean; fit?: boolean }>(),
+  defineProps<{ series: Series[]; sharedMax?: number; height?: number; intervalSec?: number; bare?: boolean; fit?: boolean; times?: number[] | null }>(),
   { height: 140, intervalSec: 7, bare: false, fit: false },
 )
 
@@ -89,11 +94,29 @@ function onMove(e: MouseEvent) {
 }
 const ago = computed(() => {
   if (hi.value == null) return ''
+  // Week and month points are averages over 15 min or 1 h: name the bucket and say
+  // so, since "312 h ago" reads badly and a flat stretch is an average, not a gap.
+  const at = props.times?.[hi.value]
+  if (at != null && props.intervalSec >= 900) {
+    const when = new Date(at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    return `${when} · ${props.intervalSec >= 3600 ? '1 h' : `${Math.round(props.intervalSec / 60)} min`} average`
+  }
   const sec = (n.value - 1 - hi.value) * props.intervalSec
   if (sec === 0) return 'now'
   if (sec < 120) return `${sec}s ago`
   if (sec < 7200) return `${Math.round(sec / 60)} min ago`
   return `${Math.round(sec / 360) / 10} h ago`
+})
+// time-axis ticks (history only): positioned by time, labelled by the local clock
+const ticks = computed(() => {
+  const t = props.times
+  if (!t || t.length < 2 || n.value < 2) return []
+  const step = props.intervalSec * 1000
+  const { at, daily } = timeTicks(t[0], t[t.length - 1], new Date().getTimezoneOffset(), Math.max(2, Math.min(8, Math.floor(w.value / 90))))
+  const fmt: Intl.DateTimeFormatOptions = daily ? { day: 'numeric', month: 'short' } : { hour: '2-digit', minute: '2-digit' }
+  return at
+    .map((a) => ({ at: a, x: xAt((a - t[0]) / step), label: new Date(a).toLocaleString(undefined, fmt) }))
+    .filter((tk) => tk.x >= 18 && tk.x <= w.value - 18) // a label cut off at the edge helps nobody
 })
 const tip = computed(() => (hx.value > w.value * 0.6 ? { right: `${Math.max(0, w.value - hx.value + 10)}px` } : { left: `${hx.value + 10}px` }))
 const fmt = (s: Series, i: number) => `${s.data[i] ?? 0}${s.unit ? (s.unit === '%' ? '%' : ' ' + s.unit) : ''}`
