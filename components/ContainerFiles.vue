@@ -245,9 +245,10 @@ async function requestClose() {
 const panelEl = ref<HTMLElement | null>(null)
 useFocusTrap(panelEl, () => true)
 function onPanelKey(e: KeyboardEvent) {
-  // defaultPrevented: the editor used this Escape itself (closing its search panel)
-  if (e.key === 'Escape' && !e.defaultPrevented) {
+  if (e.key === 'Escape' && !inEditorPanel(e)) {
     e.preventDefault()
+    // the discard confirm listens for Escape on window: don't let this key cancel it
+    e.stopPropagation()
     requestClose()
   }
 }

@@ -273,9 +273,11 @@ function onModalKey(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
     if (!props.readOnly && !fileSaving.value) saveFile()
-  } else if (e.key === 'Escape' && !e.defaultPrevented) {
-    // defaultPrevented: the editor used this Escape itself (closing its search panel)
+  } else if (e.key === 'Escape' && !inEditorPanel(e)) {
     e.preventDefault()
+    // This keypress opens the discard confirm, which listens for Escape on window:
+    // left to bubble, the same key cancelled it at once and Escape looked dead.
+    e.stopPropagation()
     closeEditor()
   }
 }
