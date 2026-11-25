@@ -14,10 +14,12 @@ export interface ServiceDomain {
   domain: string
   url: string
   ssl: boolean
-  /** how the proxy reaches the container: by container name (needs a shared network) or a host IP + published port */
+  /** how the proxy reaches the container: over a shared network (by name, or the container's own IP) or a host IP + published port */
   via?: 'name' | 'ip'
   /** the port the proxy forwards to: the container port (via name) or the host port (via ip) */
   port?: number
+  /** where homeport read this domain, e.g. "Traefik (API)" or "Pangolin" */
+  source?: string
 }
 
 export interface Service {
@@ -88,6 +90,8 @@ export interface UnmatchedRoute {
   domains: string[]
   upstream: string // host:port
   ssl: boolean
+  /** where homeport read this route */
+  source?: string
 }
 
 export interface ServicesResponse {

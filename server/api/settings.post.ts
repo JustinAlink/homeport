@@ -4,8 +4,16 @@ import { withoutLocked } from '../utils/settings-locks-core'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
+import { DOMAIN_PROVIDER_IDS } from '../utils/providers/sources-core'
+import { keptPassword, mergeHostSecrets } from '../utils/host-secrets-core'
 
-const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
+const PROVIDERS: readonly string[] = DOMAIN_PROVIDER_IDS
+
+function traefikApiUrlOf(v: unknown): string {
+  const url = typeof v === 'string' ? v.trim() : ''
+  if (url && !/^https?:\/\//.test(url)) throw createError({ statusCode: 400, statusMessage: 'traefikApiUrl must be http(s)://' })
+  return url
+}
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']
 
 function sanitizeChannels(input: unknown): WebhookChannel[] {
@@ -62,6 +70,10 @@ function sanitizeHosts(input: unknown): SettingsHost[] {
         caddyfilePath: str(o.caddyfilePath),
         nginxConfDir: str(o.nginxConfDir),
         traefikFilePath: str(o.traefikFilePath),
+        traefikApiUrl: traefikApiUrlOf(o.traefikApiUrl),
+        traefikApiUser: str(o.traefikApiUser),
+        // blank = keep the stored one (merged below, only for the same host and server)
+        traefikApiPassword: typeof o.traefikApiPassword === 'string' ? o.traefikApiPassword : '',
         npmApiUrl: str(o.npmApiUrl),
         npmApiIdentity: str(o.npmApiIdentity),
         npmApiSecret: str(o.npmApiSecret),
@@ -104,6 +116,18 @@ export default defineEventHandler(async (event) => {
   if (body.caddyfilePath !== undefined) patch.caddyfilePath = body.caddyfilePath.trim()
   if (body.nginxConfDir !== undefined) patch.nginxConfDir = body.nginxConfDir.trim()
   if (body.traefikFilePath !== undefined) patch.traefikFilePath = body.traefikFilePath.trim()
+  if (body.traefikApiUrl !== undefined) patch.traefikApiUrl = traefikApiUrlOf(body.traefikApiUrl)
+  if (body.traefikApiUser !== undefined) patch.traefikApiUser = String(body.traefikApiUser ?? '').trim()
+  // Secret, masked on read: blank keeps the stored password, but only while the URL
+  // still points at the same server (host-secrets-core.ts).
+  if (body.traefikApiPassword !== undefined || body.traefikApiUrl !== undefined) {
+    patch.traefikApiPassword = keptPassword(
+      body.traefikApiPassword ? String(body.traefikApiPassword) : '',
+      existing.traefikApiPassword,
+      patch.traefikApiUrl ?? existing.traefikApiUrl,
+      existing.traefikApiUrl,
+    )
+  }
   if (body.npmApiUrl !== undefined) {
     const v = body.npmApiUrl.trim()
     if (v && !/^https?:\/\//.test(v)) throw createError({ statusCode: 400, statusMessage: 'npmApiUrl must be http(s)://' })
@@ -156,7 +180,7 @@ export default defineEventHandler(async (event) => {
   if (body.pingEnabled !== undefined) patch.pingEnabled = !!body.pingEnabled
   if (body.systemdEnabled !== undefined) patch.systemdEnabled = !!body.systemdEnabled
   if (body.remoteIcons !== undefined) patch.remoteIcons = !!body.remoteIcons
-  if (body.hosts !== undefined) patch.hosts = sanitizeHosts(body.hosts)
+  if (body.hosts !== undefined) patch.hosts = mergeHostSecrets(sanitizeHosts(body.hosts), existing.hosts ?? [])
   if (body.collectorInterval !== undefined) {
     const n = Number(body.collectorInterval)
     if (!Number.isFinite(n) || n < 10)

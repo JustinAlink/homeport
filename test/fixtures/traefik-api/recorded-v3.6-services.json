@@ -1,0 +1,72 @@
+[
+  {
+    "status": "enabled",
+    "usedBy": [
+      "api@internal"
+    ],
+    "name": "api@internal",
+    "provider": "internal"
+  },
+  {
+    "status": "enabled",
+    "usedBy": [
+      "dashboard@internal"
+    ],
+    "name": "dashboard@internal",
+    "provider": "internal"
+  },
+  {
+    "loadBalancer": {
+      "servers": [
+        {
+          "url": "http://172.23.0.3:80"
+        }
+      ],
+      "strategy": "wrr",
+      "passHostHeader": true,
+      "responseForwarding": {
+        "flushInterval": "100ms"
+      }
+    },
+    "status": "enabled",
+    "usedBy": [
+      "whoami-http@docker",
+      "whoami@docker"
+    ],
+    "name": "hp-domains-whoami1@docker",
+    "provider": "docker",
+    "type": "loadbalancer",
+    "serverStatus": {
+      "http://172.23.0.3:80": "UP"
+    }
+  },
+  {
+    "loadBalancer": {
+      "servers": [
+        {
+          "url": "http://172.23.0.4:80"
+        }
+      ],
+      "strategy": "wrr",
+      "passHostHeader": true,
+      "responseForwarding": {
+        "flushInterval": "100ms"
+      }
+    },
+    "status": "enabled",
+    "usedBy": [
+      "multi@docker"
+    ],
+    "name": "multi@docker",
+    "provider": "docker",
+    "type": "loadbalancer",
+    "serverStatus": {
+      "http://172.23.0.4:80": "UP"
+    }
+  },
+  {
+    "status": "enabled",
+    "name": "noop@internal",
+    "provider": "internal"
+  }
+]

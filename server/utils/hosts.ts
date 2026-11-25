@@ -13,6 +13,9 @@ export interface HostConfig {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  traefikApiUrl?: string
+  traefikApiUser?: string
+  traefikApiPassword?: string
   // proxy admin (write side) credentials
   npmApiUrl?: string
   npmApiIdentity?: string
@@ -37,6 +40,9 @@ function normalize(h: SettingsHost, i: number): HostConfig {
     caddyfilePath: h.caddyfilePath || '',
     nginxConfDir: h.nginxConfDir || '',
     traefikFilePath: h.traefikFilePath || '',
+    traefikApiUrl: h.traefikApiUrl || '',
+    traefikApiUser: h.traefikApiUser || '',
+    traefikApiPassword: h.traefikApiPassword || '',
     npmApiUrl: h.npmApiUrl || '',
     npmApiIdentity: h.npmApiIdentity || '',
     npmApiSecret: h.npmApiSecret || '',
@@ -79,6 +85,9 @@ export function getHosts(): HostConfig[] {
       caddyfilePath: c.caddyfilePath,
       nginxConfDir: c.nginxConfDir,
       traefikFilePath: c.traefikFilePath,
+      traefikApiUrl: c.traefikApiUrl,
+      traefikApiUser: c.traefikApiUser,
+      traefikApiPassword: c.traefikApiPassword,
       npmApiUrl: c.npmApiUrl,
       npmApiIdentity: c.npmApiIdentity,
       npmApiSecret: c.npmApiSecret,

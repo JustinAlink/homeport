@@ -73,6 +73,10 @@ export interface RawContainer {
   networks: string[]
   labels: Record<string, string>
   dockerSocket: boolean
+  /** addresses on its networks: the Traefik API names upstreams by container IP */
+  ips: string[]
+  /** the command it runs (`caddy docker-proxy`, `newt`): finds label proxies in custom images */
+  command: string
 }
 
 function parseHealth(status: string): HealthState {
@@ -127,6 +131,8 @@ function mapContainer(c: Docker.ContainerInfo): RawContainer {
     labels,
     // the list already carries mounts, so this costs no extra call
     dockerSocket: (c.Mounts || []).some((m) => /(^|\/)docker\.sock$/.test(m.Source || '') || /(^|\/)docker\.sock$/.test(m.Destination || '')),
+    ips: Object.values(c.NetworkSettings?.Networks || {}).flatMap((n: any) => [n?.IPAddress, n?.GlobalIPv6Address]).filter((ip): ip is string => !!ip),
+    command: c.Command || '',
   }
 }
 

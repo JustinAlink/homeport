@@ -6,6 +6,7 @@ import { readSettings, type PersistedSettings } from './settings'
 import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
+import { maskHostSecrets, type MaskedHost } from './host-secrets-core'
 
 export interface AlertTransitions {
   down: boolean
@@ -28,7 +29,7 @@ export interface HomeportConfig {
   dockerSshPassphrase: string
   /** Optional SHA256:… fingerprint to pin the remote host key for ssh:// DOCKER_HOST. */
   dockerSshFingerprint: string
-  /** Explicit reverse-proxy provider: 'npm' | 'traefik' | 'caddy'. Empty = auto-detect. */
+  /** Explicit domain source (providers/sources-core.ts DOMAIN_PROVIDER_IDS). Empty = auto-detect. */
   domainProvider: string
   /** Directory of Nginx Proxy Manager generated proxy-host confs. */
   npmConfDir: string
@@ -38,6 +39,11 @@ export interface HomeportConfig {
   nginxConfDir: string
   /** Path to a Traefik dynamic-config file/dir (YAML/TOML) for the file provider. */
   traefikFilePath: string
+  /** Traefik API base URL (read-only domain source), e.g. http://traefik:8080 */
+  traefikApiUrl: string
+  /** Optional basic-auth login for the Traefik API. */
+  traefikApiUser: string
+  traefikApiPassword: string
   /** Proxy-admin (write) credentials for the single host. */
   npmApiUrl: string
   npmApiIdentity: string
@@ -201,6 +207,9 @@ export function getConfig(): HomeportConfig {
     caddyfilePath: envStr('CADDYFILE_PATH') ?? s.caddyfilePath ?? '',
     nginxConfDir: envStr('NGINX_CONF_DIR') ?? s.nginxConfDir ?? '',
     traefikFilePath: envStr('TRAEFIK_FILE') ?? s.traefikFilePath ?? '',
+    traefikApiUrl: envStr('HOMEPORT_TRAEFIK_API_URL') ?? s.traefikApiUrl ?? '',
+    traefikApiUser: envStr('HOMEPORT_TRAEFIK_API_USER') ?? s.traefikApiUser ?? '',
+    traefikApiPassword: envStr('HOMEPORT_TRAEFIK_API_PASSWORD') ?? s.traefikApiPassword ?? '',
     npmApiUrl: envStr('HOMEPORT_NPM_API_URL') ?? s.npmApiUrl ?? '',
     npmApiIdentity: envStr('HOMEPORT_NPM_API_IDENTITY') ?? s.npmApiIdentity ?? '',
     npmApiSecret: envStr('HOMEPORT_NPM_API_SECRET') ?? s.npmApiSecret ?? '',
@@ -323,6 +332,9 @@ export function getEnvLocks() {
     caddyfilePath: envStr('CADDYFILE_PATH') !== undefined,
     nginxConfDir: envStr('NGINX_CONF_DIR') !== undefined,
     traefikFilePath: envStr('TRAEFIK_FILE') !== undefined,
+    traefikApiUrl: envStr('HOMEPORT_TRAEFIK_API_URL') !== undefined,
+    traefikApiUser: envStr('HOMEPORT_TRAEFIK_API_USER') !== undefined,
+    traefikApiPassword: envStr('HOMEPORT_TRAEFIK_API_PASSWORD') !== undefined,
     npmApiUrl: envStr('HOMEPORT_NPM_API_URL') !== undefined,
     npmApiIdentity: envStr('HOMEPORT_NPM_API_IDENTITY') !== undefined,
     npmApiSecret: envStr('HOMEPORT_NPM_API_SECRET') !== undefined,
@@ -349,10 +361,12 @@ export function getEnvLocks() {
 }
 
 /** Current persisted (UI) settings with sensible defaults filled in. */
-export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
+export function getSettingsView(): Omit<PersistedSettings, 'registryCreds' | 'hosts'> & {
   dockerMode: 'local' | 'ssh'
   npmApiSecretSet: boolean
+  traefikApiPasswordSet: boolean
   smtpPassSet: boolean
+  hosts: MaskedHost[]
   registryCreds: { registry: string; username: string; token: string; tokenSet: boolean }[]
 } {
   const s = readSettings()
@@ -367,6 +381,10 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     caddyfilePath: s.caddyfilePath || '',
     nginxConfDir: s.nginxConfDir || '',
     traefikFilePath: s.traefikFilePath || '',
+    traefikApiUrl: s.traefikApiUrl || '',
+    traefikApiUser: s.traefikApiUser || '',
+    traefikApiPassword: '',
+    traefikApiPasswordSet: !!s.traefikApiPassword,
     npmApiUrl: s.npmApiUrl || '',
     npmApiIdentity: s.npmApiIdentity || '',
     // Secrets are masked out of the view (never sent to the browser). A companion
@@ -388,7 +406,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     pingEnabled: s.pingEnabled ?? true,
     systemdEnabled: !!s.systemdEnabled,
     remoteIcons: s.remoteIcons ?? true,
-    hosts: s.hosts ?? [],
+    hosts: maskHostSecrets(s.hosts ?? []),
     collectorInterval: s.collectorInterval ?? 30,
     historyEnabled: s.historyEnabled ?? true,
     alertsEnabled: s.alertsEnabled ?? false,
