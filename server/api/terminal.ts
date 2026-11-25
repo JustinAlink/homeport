@@ -15,13 +15,58 @@ import { parseClientFrame, SHELL_CMD, demoShellRespond, demoPrompt } from '../ut
 // IMPORTANT: WebSocket upgrades bypass the h3 auth middleware — auth is enforced
 // here, explicitly, in the upgrade hook.
 
+// How a terminal was let in, so it can be asked again while the shell is open.
+type TermAuth = { kind: 'open' } | { kind: 'forward' } | { kind: 'cookie'; cookie: string }
+
 interface TermSession {
   stream?: NodeJS.ReadWriteStream
   exec?: any
   demo?: { name: string; buf: string }
+  auth?: TermAuth
+  peer?: { send(data: unknown): void; close(): void }
 }
 
 const sessions = new Map<string, TermSession>()
+
+/** The same decision as the upgrade hook, remembered for later re-checks (null = not allowed). */
+function authOf(get: (name: string) => string | null): TermAuth | null {
+  const th = trustedAuthHeader()
+  if (th && forwardAuthUser(th, get)) return { kind: 'forward' }
+  if (authMode() === 'open') return { kind: 'open' }
+  const cookie = get('cookie')
+  const session = decodeCookieHeader(cookie)
+  if (!session || session.uid) return null
+  return { kind: 'cookie', cookie: cookie! }
+}
+
+/**
+ * Is an open terminal still allowed? Auth used to be checked only at the upgrade, so
+ * a shell stayed open after logout, a password change or the terminal capability
+ * being switched off. Logout and password changes bump the session generation, which
+ * makes the stored cookie fail here. Forward-auth is the upstream proxy's to end.
+ */
+function stillAllowed(a: TermAuth): boolean {
+  if (!getConfig().allowTerminal) return false
+  if (a.kind === 'open') return authMode() === 'open'
+  if (a.kind === 'forward') return !!trustedAuthHeader()
+  const session = decodeCookieHeader(a.cookie)
+  return !!session && !session.uid
+}
+
+function endSession(sess: TermSession) {
+  sess.peer?.send('\r\n\x1b[90msession ended: signed out or terminal access turned off\x1b[0m\r\n')
+  sess.peer?.close()
+}
+
+// Output-only shells (a `tail -f`) send no keystrokes to re-check on, so sweep.
+let sweep: ReturnType<typeof setInterval> | null = null
+function ensureSweep() {
+  if (sweep) return
+  sweep = setInterval(() => {
+    for (const sess of sessions.values()) if (sess.auth && !stillAllowed(sess.auth)) endSession(sess)
+  }, 15_000)
+  if (typeof sweep.unref === 'function') sweep.unref()
+}
 
 export default defineWebSocketHandler({
   upgrade(req) {
@@ -59,6 +104,12 @@ export default defineWebSocketHandler({
       return
     }
 
+    const auth = authOf((n) => peer.request?.headers.get(n) ?? null)
+    if (!auth) {
+      peer.close()
+      return
+    }
+
     const { hostId, containerId } = splitServiceId(id)
     const host = getHosts().find((h) => h.id === hostId)
     if (!host) {
@@ -77,7 +128,8 @@ export default defineWebSocketHandler({
         Cmd: SHELL_CMD,
       })
       const stream = (await exec.start({ hijack: true, stdin: true, Tty: true })) as unknown as NodeJS.ReadWriteStream
-      sessions.set(peer.id, { stream, exec })
+      sessions.set(peer.id, { stream, exec, auth, peer })
+      ensureSweep()
 
       stream.on('data', (chunk: Buffer) => peer.send(chunk))
       stream.on('end', () => peer.close())
@@ -124,7 +176,8 @@ export default defineWebSocketHandler({
       return
     }
 
-    // real exec
+    // real exec: every keystroke re-checks the session, so a logout ends it at once
+    if (sess.auth && !stillAllowed(sess.auth)) return endSession(sess)
     if (frame.type === 'input') sess.stream?.write(frame.data)
     else if (frame.type === 'resize') sess.exec?.resize({ w: frame.cols, h: frame.rows }).catch(() => {})
   },
