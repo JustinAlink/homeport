@@ -73,7 +73,12 @@
             <span v-if="isActive(item.to)" class="absolute -left-3 top-2 h-5 w-[3px] rounded-r-full bg-accent" />
             <Icon :name="item.icon" class="h-[18px] w-[18px] shrink-0" :class="isActive(item.to) ? 'text-accent-light' : 'text-slate-500 group-hover:text-slate-300'" />
             {{ item.label }}
-            <span v-if="item.badge" class="ml-auto rounded-full bg-sky-400/15 px-1.5 py-px text-[10.5px] font-semibold tabular-nums text-sky-300">{{ item.badge }}</span>
+            <span
+              v-if="item.badge"
+              class="ml-auto rounded-full px-1.5 py-px text-[10.5px] font-semibold tabular-nums"
+              :class="item.tone === 'danger' ? 'bg-red-500/15 text-red-300' : 'bg-sky-400/15 text-sky-300'"
+              :aria-label="item.badgeLabel"
+            >{{ item.badge }}</span>
             <span v-else-if="item.off" class="ml-auto text-[10.5px] font-medium uppercase tracking-wide text-slate-600">off</span>
           </NuxtLink>
         </div>
@@ -177,6 +182,7 @@ const confirmState = useConfirmState()
 const bare = computed(() => route.path === '/login')
 watch(() => route.fullPath, () => (drawer.value = false))
 
+const exposureRisk = useExposureBadge()
 const updateCount = computed(
   () => Object.values(updates.entries.value).filter((e) => e.status === 'update').length,
 )
@@ -205,6 +211,15 @@ const sections = computed(() => {
     { to: '/catalog', label: 'App catalog', icon: 'catalog' },
   ]
   const infra = [
+    // read-only and always useful, so never gated; the badge counts what needs attention
+    {
+      to: '/exposure',
+      label: 'Exposure',
+      icon: 'shield',
+      badge: exposureRisk.value || undefined,
+      tone: 'danger' as const,
+      badgeLabel: exposureRisk.value ? `${exposureRisk.value} need${exposureRisk.value === 1 ? 's' : ''} attention` : undefined,
+    },
     ...gated(c.proxyAdmin, { to: '/domains', label: 'Domains', icon: 'globe' }),
     ...gated(c.stacks, { to: '/networks', label: 'Networks', icon: 'network' }),
     ...gated(c.stacks, { to: '/storage', label: 'Storage', icon: 'database' }),
@@ -220,7 +235,7 @@ const sections = computed(() => {
     { label: 'Manage', items: manage },
     ...(infra.length ? [{ label: 'Infrastructure', items: infra }] : []),
     ...(c.viewer ? [] : [{ label: 'System', items: [{ to: '/settings', label: 'Settings', icon: 'sliders' }] }]),
-  ] as { label: string; items: { to: string; label: string; icon: string; badge?: number; off?: boolean }[] }[]
+  ] as { label: string; items: { to: string; label: string; icon: string; badge?: number; off?: boolean; tone?: 'danger'; badgeLabel?: string }[] }[]
 })
 
 onMounted(() => {

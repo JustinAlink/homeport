@@ -89,7 +89,15 @@
           </div>
 
           <div v-if="service.domains.length || service.ports.length || service.networks?.length" class="card">
-            <div class="card-header"><span class="card-title">Access</span></div>
+            <div class="card-header">
+              <span class="card-title">Access</span>
+              <NuxtLink
+                v-if="myExposure"
+                :to="`/exposure?level=${myExposure.level}`"
+                class="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-200"
+                :title="EXPOSURE_META[myExposure.level].hint"
+              ><span class="dot h-1.5 w-1.5" :class="EXPOSURE_META[myExposure.level].dot" />{{ EXPOSURE_META[myExposure.level].label }}</NuxtLink>
+            </div>
             <div v-if="service.domains.length" class="px-4 pt-3 empty:hidden sm:px-5"><ProxyReachWarning :service="service" compact /></div>
             <div class="row-list">
               <div v-for="d in service.domains" :key="d.domain" class="flex items-center gap-3 px-4 py-2.5 sm:px-5">
@@ -117,7 +125,7 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="chip font-mono text-[11.5px]"
-                  :title="`host ${p.hostPort} → container ${p.containerPort}/${p.type}`"
+                  :title="`host ${p.hostPort} → container ${p.containerPort}/${p.type}${p.addrs?.length ? ` · listens on ${p.addrs.map((a) => a || '0.0.0.0').join(', ')}` : ''}`"
                 >:{{ p.hostPort }}<span class="text-slate-500">→{{ p.containerPort }}</span></a>
               </div>
               <div v-if="service.networks?.length" class="flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5">
@@ -131,6 +139,15 @@
                 >{{ n }}</NuxtLink>
               </div>
             </div>
+          </div>
+
+          <!-- exposure findings for this container (the Access card above already lists its ways in) -->
+          <div v-if="myExposure && (myExposure.findings.length || myExposure.accepted.length)" class="card">
+            <div class="card-header">
+              <span class="card-title">Exposure</span>
+              <NuxtLink to="/exposure" class="ml-auto text-xs text-slate-500 hover:text-slate-200">All apps</NuxtLink>
+            </div>
+            <ExposureItem :e="myExposure" findings-only compact :probing="exposure.probing.value" :can-accept="!caps.viewer" @changed="exposure.load({ probe: true })" />
           </div>
         </div>
 
@@ -513,6 +530,9 @@ const crumbs = computed(() => {
 })
 
 const pings = usePings()
+// this container's exposure (findings and the level shown on the Access card)
+const exposure = useExposure(() => id)
+const myExposure = computed(() => exposure.data.value?.services.find((e) => e.id === id) ?? null)
 function pingClass(url: string) {
   const p = pings.pings.value[url]
   if (!p) return ''
@@ -1059,6 +1079,7 @@ onMounted(() => {
   pings.start()
   loadCaps()
   updates.refresh()
+  exposure.refresh()
 })
 onBeforeUnmount(() => {
   stop()

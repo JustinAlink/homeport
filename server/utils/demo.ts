@@ -6,6 +6,9 @@ import { safeNetworkName, parseCidr, findSubnetConflicts, type NetworkInfo } fro
 import { safeRelPath, type FileEntry } from './files-core'
 import { tagKindOf, withTag } from './versions-core'
 import { ownerOf } from './stacks-core'
+import { PROXY_IMAGES, imageRepoOf } from './ping-core'
+import { exposureOf, exposureInput, sortExposure, exposureSummary, type DomainProbe } from '../../shared/utils/exposure.ts'
+import { readAcks } from './exposure'
 
 // A synthetic fleet for HOMEPORT_DEMO=true — lets people try homeport (and grab
 // screenshots) without wiring up Docker. Generic example.com data only.
@@ -21,23 +24,28 @@ interface Seed {
   statusText: string
   domains?: { domain: string; ssl?: boolean }[]
   ports?: number[]
+  /** Address the ports are published on (default: every interface, Docker's default). */
+  bind?: string
+  dockerSocket?: boolean
+  /** What an anonymous visitor gets from the first domain (exposure report). */
+  probe?: DomainProbe
 }
 
 const seeds: Seed[] = [
   // media
-  { name: 'jellyfin', image: 'jellyfin/jellyfin:10.9.6', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'jellyfin.example.com', ssl: true }], ports: [8096] },
-  { name: 'sonarr', image: 'lscr.io/linuxserver/sonarr:4.0.9', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'sonarr.example.com', ssl: true }], ports: [8989] },
-  { name: 'radarr', image: 'lscr.io/linuxserver/radarr:5.11.0', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'radarr.example.com', ssl: true }], ports: [7878] },
+  { name: 'jellyfin', image: 'jellyfin/jellyfin:10.9.6', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'jellyfin.example.com', ssl: true }], ports: [8096], bind: '127.0.0.1', probe: { status: 302, location: '/web/index.html', http: { status: 301, location: 'https://jellyfin.example.com/' } } },
+  { name: 'sonarr', image: 'lscr.io/linuxserver/sonarr:4.0.9', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'sonarr.example.com', ssl: true }], ports: [8989], bind: '127.0.0.1', probe: { status: 302, location: 'https://auth.example.com/?rd=https://sonarr.example.com/', http: { status: 301, location: 'https://sonarr.example.com/' } } },
+  { name: 'radarr', image: 'lscr.io/linuxserver/radarr:5.11.0', group: 'media', statusText: 'Up 5 days', domains: [{ domain: 'radarr.example.com', ssl: true }], ports: [7878], bind: '127.0.0.1', probe: { status: 302, location: 'https://auth.example.com/?rd=https://radarr.example.com/', http: { status: 301, location: 'https://radarr.example.com/' } } },
   // web
-  { name: 'ghost', image: 'ghost:5-alpine', group: 'web', statusText: 'Up 2 weeks', domains: [{ domain: 'blog.example.com', ssl: true }], ports: [2368] },
-  { name: 'umami', image: 'ghcr.io/umami-software/umami:postgresql-latest', group: 'web', statusText: 'Up 2 weeks', domains: [{ domain: 'analytics.example.com', ssl: true }] },
+  { name: 'ghost', image: 'ghost:5-alpine', group: 'web', statusText: 'Up 2 weeks', domains: [{ domain: 'blog.example.com', ssl: true }], ports: [2368], bind: '127.0.0.1', probe: { status: 200, http: { status: 200 } } },
+  { name: 'umami', image: 'ghcr.io/umami-software/umami:postgresql-latest', group: 'web', statusText: 'Up 2 weeks', domains: [{ domain: 'analytics.example.com', ssl: true }], probe: { status: 302, location: '/login', http: { status: 301, location: 'https://analytics.example.com/' } } },
   { name: 'umami-db', image: 'postgres:16-alpine', group: 'web', health: 'healthy', statusText: 'Up 2 weeks (healthy)', ports: [5432] },
   // infra
   { name: 'traefik', image: 'traefik:v3.1', group: 'infra', statusText: 'Up 3 weeks', ports: [80, 443, 8080] },
-  { name: 'portainer', image: 'portainer/portainer-ce:2.21.0', group: 'infra', statusText: 'Up 3 weeks', domains: [{ domain: 'portainer.example.com', ssl: true }], ports: [9443] },
-  { name: 'vaultwarden', image: 'vaultwarden/server:1.32.0', group: 'infra', health: 'healthy', statusText: 'Up 3 weeks (healthy)', domains: [{ domain: 'vault.example.com', ssl: true }] },
+  { name: 'portainer', image: 'portainer/portainer-ce:2.21.0', group: 'infra', statusText: 'Up 3 weeks', domains: [{ domain: 'portainer.example.com', ssl: true }], ports: [9443], dockerSocket: true, probe: { status: 200, http: { status: 301, location: 'https://portainer.example.com/' } } },
+  { name: 'vaultwarden', image: 'vaultwarden/server:1.32.0', group: 'infra', health: 'healthy', statusText: 'Up 3 weeks (healthy)', domains: [{ domain: 'vault.example.com', ssl: true }], probe: { status: 200, http: { status: 301, location: 'https://vault.example.com/' } } },
   // downloads
-  { name: 'qbittorrent', image: 'lscr.io/linuxserver/qbittorrent:5.0.0@sha256:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f', group: 'downloads', statusText: 'Up 6 days', domains: [{ domain: 'qbit.example.com', ssl: true }], ports: [8090] },
+  { name: 'qbittorrent', image: 'lscr.io/linuxserver/qbittorrent:5.0.0@sha256:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f', group: 'downloads', statusText: 'Up 6 days', domains: [{ domain: 'qbit.example.com', ssl: true }], ports: [8090], probe: { status: 401, http: { status: 301, location: 'https://qbit.example.com/' } } },
   { name: 'gluetun', image: 'qmcgaw/gluetun:v3.39.0', group: 'downloads', health: 'healthy', statusText: 'Up 6 days (healthy)' },
   { name: 'watchtower', image: 'containrrr/watchtower:1.7.1@sha256:5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b', group: 'downloads', state: 'restarting', statusText: 'Restarting (1) 4 seconds ago' },
   // backups
@@ -78,7 +86,7 @@ function toService(s: Seed, i: number): Service {
     statusText,
     health: s.health ?? null,
     createdAt: Date.now() - (i + 1) * DAY,
-    ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp' })),
+    ports: (s.ports || []).map((p) => ({ hostPort: p, containerPort: p, type: 'tcp', addrs: s.bind ? [s.bind] : ['0.0.0.0', '::'] })),
     internalPorts: (s.ports || []).slice(),
     // from the demo network table, so connect/disconnect show up on the container too
     networks: demoNetworks().filter((n) => n.attached?.some((c) => c.id === `demo-${i}`)).map((n) => n.name),
@@ -94,6 +102,7 @@ function toService(s: Seed, i: number): Service {
     })),
     hidden: false,
     noalert: false,
+    dockerSocket: !!s.dockerSocket,
   }
 }
 
@@ -335,7 +344,7 @@ function synthCompose(group: string): string {
       `  ${s.name}:`,
       `    image: ${s.image}`,
       `    restart: unless-stopped`,
-      ...(s.ports?.length ? [`    ports:`, ...s.ports.map((p) => `      - "${p}:${p}"`)] : []),
+      ...(s.ports?.length ? [`    ports:`, ...s.ports.map((p) => `      - "${s.bind ? `${s.bind}:` : ''}${p}:${p}"`)] : []),
     ].join('\n')
   // the adopted demo stack is owned by another tool, so the "managed by" guard is demoable
   const owner = group === DEMO_EXTERNAL_STACK ? `x-homeport:\n  managed-by: ansible playbook\n  url: https://github.com/example/infra\n\n` : ''
@@ -1006,4 +1015,18 @@ export function demoServices(): ServicesResponse {
     hosts: hosts.map((h) => ({ id: h.id, name: h.name, online: true, error: null })),
     generatedAt: Date.now(),
   }
+}
+
+// Exposure report in demo mode: the same rules over the demo fleet, with canned
+// probe answers (a sign-in portal, an app login, a page that opens for anyone).
+export function demoExposure(opts: { probe: boolean; id?: string }) {
+  const running = demoServices().services.filter((sv) => sv.kind === 'container' && sv.state === 'running')
+  const services = opts.id ? running.filter((sv) => sv.id === opts.id) : running
+  const probes: Record<string, DomainProbe> = {}
+  if (opts.probe) {
+    for (const seed of seeds) if (seed.probe && seed.domains?.[0]) probes[`${seed.domains[0].ssl ? 'https' : 'http'}://${seed.domains[0].domain}`] = seed.probe
+  }
+  const acks = readAcks()
+  const list = sortExposure(services.map((sv) => exposureOf(exposureInput(sv, PROXY_IMAGES.includes(imageRepoOf(sv.image))), probes, acks)))
+  return { services: list, summary: exposureSummary(list), probed: opts.probe, pingEnabled: true, at: Date.now() }
 }

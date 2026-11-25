@@ -56,6 +56,7 @@ const PAGES = [
   ['/catalog/uptime-kuma', 'install'],
   ['/catalog/hub/jellyfin/jellyfin', 'install'],
   ['/domains', 'domain'],
+  ['/exposure', 'reachable around the proxy'],
   ['/settings', 'capabilities'],
   ['/services/demo-0', 'jellyfin'],
   ['/services/demo-13', 'legacy-app'],

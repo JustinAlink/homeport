@@ -119,6 +119,7 @@ const pages = computed<Item[]>(() => {
     { key: 'p:/', label: 'Dashboard', icon: 'dashboard', to: '/', group: 'Pages', keywords: 'fleet home overview' },
     { key: 'p:/activity', label: 'Activity', icon: 'pulse', to: '/activity', group: 'Pages', keywords: 'events alerts history' },
     { key: 'p:/catalog', label: 'App catalog', icon: 'catalog', to: '/catalog', group: 'Pages', keywords: 'install apps templates' },
+    { key: 'p:/exposure', label: 'Exposure', icon: 'shield', to: '/exposure', group: 'Pages', keywords: 'security ports open reachable firewall https login' },
   ]
   if (c.stacks) p.push({ key: 'p:/stacks', label: 'Stacks', icon: 'stacks', to: '/stacks', group: 'Pages', keywords: 'compose projects' })
   if (c.updateCheck || c.updates) p.push({ key: 'p:/updates', label: 'Updates', icon: 'arrow-up', to: '/updates', group: 'Pages', keywords: 'images pull' })

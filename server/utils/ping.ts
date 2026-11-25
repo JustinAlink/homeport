@@ -26,7 +26,9 @@ export function pingUrl(url: string, timeoutMs = 6000, via?: { host: string; por
     const opts = { method: 'GET', timeout: timeoutMs, rejectUnauthorized: false, headers: { 'user-agent': 'homeport' } as Record<string, string> }
     const onResponse = (res: http.IncomingMessage) => {
       res.resume() // drain
-      resolve({ status: res.statusCode || 0, ms: Date.now() - start })
+      const status = res.statusCode || 0
+      const location = status >= 300 && status < 400 && typeof res.headers.location === 'string' ? res.headers.location : undefined
+      resolve({ status, ms: Date.now() - start, ...(location ? { location } : {}) })
     }
     // one options object for the proxy route (a URL can't carry another host's address)
     const req = via
@@ -60,10 +62,10 @@ const publicDown = new Map<string, number>()
 const PUBLIC_RETRY_MS = 10 * 60_000
 
 /** Public route first, then (when known) straight through the proxy container. */
-async function pingWithFallback(url: string, proxyHost: string | null, now: number): Promise<PingResult> {
+export async function pingWithFallback(url: string, proxyHost: string | null, now: number, timeoutMs = 6000): Promise<PingResult> {
   let last: PingResult = { status: 0, ms: 0 }
   for (const route of routeOrder(publicDown.get(url), now, !!proxyHost)) {
-    const r = route === 'proxy' ? await pingUrl(url, 6000, { host: proxyHost! }) : await pingUrl(url)
+    const r = route === 'proxy' ? await pingUrl(url, timeoutMs, { host: proxyHost! }) : await pingUrl(url, timeoutMs)
     if (r.status) {
       if (route === 'proxy') publicDown.set(url, now + PUBLIC_RETRY_MS)
       else publicDown.delete(url)

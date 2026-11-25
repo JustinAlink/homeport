@@ -2,7 +2,7 @@
 
 Deeper homeport topics, split out of the main [README](../README.md#compose-stacks) to keep it lean:
 the file browser, adopting projects started outside homeport, the networks and storage managers,
-complete deletes, "Pool overlaps" troubleshooting, and the health check.
+complete deletes, "Pool overlaps" troubleshooting, the health check, and the exposure report.
 
 ## File browser
 
@@ -96,3 +96,32 @@ reveals nothing beyond that one word. The image's `HEALTHCHECK` uses it, which m
 homeport that lost its Docker connection show as `unhealthy` in `docker ps`; point Uptime
 Kuma or any other monitor at the same URL. It reads the collector's last result rather than
 calling Docker, so frequent probes cost nothing.
+
+## Exposure report
+
+**Exposure** (sidebar, or <kbd>G</kbd> <kbd>X</kbd>) shows how each running app can be reached: by its
+domain through the reverse proxy, and directly through any port published on the machine. Ports and
+their listen addresses come from Docker, domains from the proxy's config. For the login and the HTTP
+redirect, homeport fetches each domain's front page as an anonymous visitor would, and once more over
+`http://`, through the same proxy fallback as the domain checks (so it works on servers that can't
+reach their own public address from inside Docker).
+
+| Finding | Level | When |
+|---|---|---|
+| Reachable around the proxy | needs attention | the app has a domain, and also a port published on every interface: `http://<host>:<port>` skips the proxy's HTTPS and any login in front of it |
+| Controls Docker and is reachable | needs attention | it mounts the Docker socket and has a domain or an open port |
+| The proxy's admin port is open | worth a look (Caddy's admin API: needs attention) | the proxy publishes its admin UI or API (NPM 81, Traefik 8080, Caddy 2019) on every interface |
+| A database is open on every interface | worth a look | Postgres, MySQL/MariaDB, Mongo, Redis and similar, published with no domain |
+| Served without HTTPS / plain HTTP still works | worth a look | a route without a certificate, or `http://` serving the app instead of redirecting |
+| Open on every interface | open ports | anything else published on every interface without a domain (often intended: a game server) |
+
+"Every interface" means every network interface of the machine. Whether that includes the internet
+depends on your router or cloud firewall, which homeport can't see, but note that Docker's published
+ports skip ufw and firewalld. An app whose page opens for anyone may still have its own login; homeport
+shows that as a fact and doesn't flag it.
+
+**Accept** marks a finding as intended, with a reason (for example a media server's LAN port next to
+its domain). It stays listed as accepted and stops counting, survives a container recreate (it is
+stored by container name and rule in `exposure.json` in the data dir), and a different finding on the
+same container still shows. Nothing in your setup changes. Viewers and read-only tokens can see the
+report but not accept findings.

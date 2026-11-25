@@ -33,6 +33,7 @@ function toService(host: HostConfig, c: RawContainer, domains: ServiceDomain[], 
     domains,
     hidden: l['hub.hide'] === 'true',
     noalert: l['hub.noalert'] === 'true',
+    dockerSocket: c.dockerSocket,
   }
 }
 

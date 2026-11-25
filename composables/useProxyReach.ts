@@ -19,6 +19,9 @@ const PROXY_IMAGES = [
 ]
 const NO_DNS = new Set(['bridge', 'host', 'none'])
 
+/** Is this image a reverse proxy homeport knows? (Server-side twin: ping-core's PROXY_IMAGES.) */
+export const isProxyImage = (image: string) => PROXY_IMAGES.includes(imageRepo(image))
+
 export interface Reach {
   /** true: shares a network; false: can't reach by name; null: can't tell */
   ok: boolean | null

@@ -5,6 +5,7 @@ export const GOTO: { key: string; label: string; to: string }[] = [
   { key: 's', label: 'Stacks', to: '/stacks' },
   { key: 'u', label: 'Updates', to: '/updates' },
   { key: 'c', label: 'App catalog', to: '/catalog' },
+  { key: 'x', label: 'Exposure', to: '/exposure' },
   { key: 'o', label: 'Domains', to: '/domains' },
   { key: 'n', label: 'Networks', to: '/networks' },
   { key: 'v', label: 'Storage (volumes)', to: '/storage' },

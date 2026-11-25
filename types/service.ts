@@ -6,6 +6,8 @@ export interface ServicePort {
   hostPort: number
   containerPort: number
   type: string // tcp | udp
+  /** Host addresses it is published on: '0.0.0.0' / '::' mean every interface, 127.0.0.1 local only. */
+  addrs?: string[]
 }
 
 export interface ServiceDomain {
@@ -37,6 +39,8 @@ export interface Service {
   domains: ServiceDomain[]
   hidden: boolean // hub.hide label
   noalert: boolean // hub.noalert label — exclude from alerting
+  /** Mounts the Docker socket: whoever controls this container controls Docker (and so the host). */
+  dockerSocket?: boolean
 }
 
 export interface ContainerStats {
@@ -73,6 +77,8 @@ export interface PingResult {
   ms: number
   /** 'proxy': the public address didn't answer from inside Docker, so this came straight from the reverse proxy */
   via?: 'proxy'
+  /** Where a redirect (3xx) points: tells a sign-in portal from the app's own pages */
+  location?: string
 }
 export type PingMap = Record<string, PingResult>
 

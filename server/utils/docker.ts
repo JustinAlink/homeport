@@ -72,6 +72,7 @@ export interface RawContainer {
   service: string | null
   networks: string[]
   labels: Record<string, string>
+  dockerSocket: boolean
 }
 
 function parseHealth(status: string): HealthState {
@@ -82,16 +83,19 @@ function parseHealth(status: string): HealthState {
 }
 
 function publishedPorts(ports: Docker.Port[] | undefined): ServicePort[] {
-  const seen = new Set<string>()
-  const out: ServicePort[] = []
+  // One entry per host port, with every address it is bound on (Docker lists
+  // 0.0.0.0 and :: separately): whether a port is open to every interface or only
+  // to 127.0.0.1 is what the exposure report turns on.
+  const byKey = new Map<string, ServicePort>()
   for (const p of ports || []) {
     if (!p.PublicPort) continue
     const key = `${p.PublicPort}/${p.Type}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push({ hostPort: p.PublicPort, containerPort: p.PrivatePort, type: p.Type })
+    const entry = byKey.get(key) ?? { hostPort: p.PublicPort, containerPort: p.PrivatePort, type: p.Type, addrs: [] }
+    const ip = p.IP ?? ''
+    if (!entry.addrs!.includes(ip)) entry.addrs!.push(ip)
+    byKey.set(key, entry)
   }
-  return out.sort((a, b) => a.hostPort - b.hostPort)
+  return [...byKey.values()].sort((a, b) => a.hostPort - b.hostPort)
 }
 
 // Every distinct container-internal port, including ones only EXPOSEd (not host-published).
@@ -121,6 +125,8 @@ function mapContainer(c: Docker.ContainerInfo): RawContainer {
     service: labels['com.docker.compose.service'] || null,
     networks: Object.keys(c.NetworkSettings?.Networks || {}),
     labels,
+    // the list already carries mounts, so this costs no extra call
+    dockerSocket: (c.Mounts || []).some((m) => /(^|\/)docker\.sock$/.test(m.Source || '') || /(^|\/)docker\.sock$/.test(m.Destination || '')),
   }
 }
 
