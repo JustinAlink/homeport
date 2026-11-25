@@ -9,6 +9,7 @@ import {
   parseHeadLog,
   parseLsRemote,
   redactSecrets,
+  validateRef,
   type GitStackMeta,
 } from './git-stacks-core'
 
@@ -137,7 +138,29 @@ export async function cloneGitStack(
     cleanupFailedClone(name)
     return false
   }
+  // Remember what the stack follows. A tag clone leaves HEAD detached, and
+  // `rev-parse --abbrev-ref HEAD` then answers "HEAD": updates fetched the
+  // remote's default branch and moved a pinned stack off its tag.
+  const rec = await runGit(['config', 'homeport.ref', ref], { cwd: dir, repoUrl: '', token: null })
+  if (rec.code !== 0) emit(`⚠ could not record the ref "${ref}" in the clone: updates will follow its checked-out branch`)
   return true
+}
+
+/**
+ * The branch or tag a git stack follows: the ref recorded at clone time, else
+ * the checked-out branch, else (a tag clone made before the ref was recorded)
+ * a tag pointing at HEAD. "HEAD" only when none of those is known.
+ */
+async function followedRef(cwd: string): Promise<string> {
+  const noAuth = { repoUrl: '', token: null as string | null }
+  const recorded = await runGit(['config', '--get', 'homeport.ref'], { cwd, ...noAuth })
+  // read back from .git/config and passed to git as an argument: re-validated
+  const ref = recorded.code === 0 ? validateRef(recorded.out.trim()) : null
+  if (ref) return ref
+  const branch = (await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, ...noAuth })).out.trim()
+  if (branch && branch !== 'HEAD') return branch
+  const tag = await runGit(['describe', '--tags', '--exact-match', 'HEAD'], { cwd, ...noAuth })
+  return (tag.code === 0 && validateRef(tag.out.trim())) || 'HEAD'
 }
 
 /**
@@ -194,7 +217,7 @@ export async function gitStackMeta(name: string): Promise<GitStackMeta | null> {
   const noAuth = { repoUrl: '', token: null as string | null }
 
   const remote = await runGit(['remote', 'get-url', 'origin'], { cwd, ...noAuth })
-  const branch = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, ...noAuth })
+  const branch = await followedRef(cwd)
   const head = await runGit(['log', '-1', '--format=%h%x1f%s%x1f%cI'], { cwd, ...noAuth })
   const parsed = parseHeadLog(head.out)
   if (remote.code !== 0 || !parsed) return null
@@ -203,7 +226,7 @@ export async function gitStackMeta(name: string): Promise<GitStackMeta | null> {
 
   return {
     repo: remote.out.trim(),
-    branch: branch.out.trim() || 'HEAD',
+    branch,
     ...parsed,
     behind: null,
     ...(files.code === 0 ? { tracked: files.out.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 5000) } : {}),
@@ -214,7 +237,7 @@ export async function gitStackMeta(name: string): Promise<GitStackMeta | null> {
 const behindCache = new Map<string, { at: number; behind: boolean | null; remoteCommit?: string }>()
 const BEHIND_TTL_MS = 60_000
 
-/** Compare local HEAD against the remote branch head (cached ~60s). */
+/** Compare local HEAD against the commit the followed branch or tag points at remotely (cached ~60s). */
 export async function checkBehind(
   name: string,
   force = false,
@@ -230,8 +253,10 @@ export async function checkBehind(
   const token = readToken(safe)
 
   const local = await runGit(['rev-parse', 'HEAD'], { cwd, repoUrl: '', token: null })
-  const remote = await runGit(['ls-remote', 'origin', meta.branch], { cwd, repoUrl: meta.repo, token })
-  const remoteSha = parseLsRemote(remote.out)
+  // the `^{}` pattern is what lists an annotated tag's commit: ls-remote's
+  // pattern match leaves the peeled line out for a bare tag name
+  const remote = await runGit(['ls-remote', 'origin', meta.branch, `${meta.branch}^{}`], { cwd, repoUrl: meta.repo, token })
+  const remoteSha = parseLsRemote(remote.out, meta.branch)
   const result = {
     at: Date.now(),
     behind: remoteSha ? remoteSha !== local.out.trim() : null,
@@ -241,7 +266,7 @@ export async function checkBehind(
   return result
 }
 
-/** Update a git stack to the remote branch head (overwrites local edits). */
+/** Update a git stack to its followed branch or tag on the remote (overwrites local edits). */
 export async function updateGitStack(name: string, emit: (line: string) => void): Promise<boolean> {
   const safe = safeStackName(name)
   if (!safe || !isGitStack(safe)) {
