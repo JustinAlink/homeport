@@ -740,15 +740,18 @@ async function deleteStack() {
 
 // After the delete op ends, confirm the stack is really gone (it may still be
 // finishing when a stream drops), then navigate away. If it's still there after
-// a few seconds the delete failed — stay so the op log explains why.
+// a few seconds the delete failed: stay so the op log explains why. Stops once
+// the user has left this page, so it never drags them back to /stacks.
+const timers = usePageTimers()
 async function leaveWhenGone() {
   for (let i = 0; i < 12; i++) {
     try {
       await $fetch(`/api/stacks/${encodeURIComponent(name)}`)
     } catch (e: any) {
-      if ((e?.statusCode ?? e?.response?.status) === 404) return navigateTo('/stacks', { replace: true })
+      if ((e?.statusCode ?? e?.response?.status) === 404) return timers.alive() ? navigateTo('/stacks', { replace: true }) : undefined
     }
-    await new Promise((r) => setTimeout(r, 500))
+    await timers.wait(500)
+    if (!timers.alive()) return
   }
   deleting.value = false
 }

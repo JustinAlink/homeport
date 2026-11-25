@@ -111,11 +111,14 @@
         </div>
 
         <div class="mt-6 flex flex-wrap items-center gap-3">
+          <!-- stays disabled while the install runs, after it worked, and when the
+               stream dropped with the outcome unknown (a second click would install
+               it twice); only a reported failure re-enables it for a retry -->
           <button
-            :disabled="installing || !caps.stacks || caps.viewer"
+            :disabled="installing || opRunning || !!opOk || opDropped || !caps.stacks || caps.viewer"
             class="btn btn-primary"
             @click="install"
-          >{{ installing ? 'Installing…' : 'Install' }}</button>
+          >{{ installing || opRunning ? 'Installing…' : opOk ? 'Installed' : 'Install' }}</button>
           <NuxtLink :to="editorLink" class="text-[11px] text-slate-500 hover:text-slate-300 hover:underline">
             open in the stack editor instead →
           </NuxtLink>
@@ -222,21 +225,26 @@ const opDropped = ref(false)
 const following = ref(false)
 let es: EventSource | null = null
 
+// Stops once the user leaves this page: the containers can take 20 s to show
+// up, and by then they may be reading something else.
+const timers = usePageTimers()
 async function followInstall() {
   following.value = true
   for (let i = 0; i < 10; i++) {
     try {
       const svc = await $fetch<ServicesResponse>('/api/services')
+      if (!timers.alive()) return
       const mine = svc.services.filter((s) => s.project === installedAs.value)
       if (mine.length) {
         return navigateTo(mine.length === 1 ? `/services/${encodeURIComponent(mine[0].id)}` : `/stacks/${installedAs.value}`)
       }
     } catch {
-      // transient — keep polling
+      // transient: keep polling
     }
-    await new Promise((r) => setTimeout(r, 2000))
+    await timers.wait(2000)
+    if (!timers.alive()) return
   }
-  following.value = false // never showed up — leave the manual links
+  following.value = false // never showed up: leave the manual links
 }
 
 async function install() {

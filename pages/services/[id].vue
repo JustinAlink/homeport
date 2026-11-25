@@ -456,6 +456,9 @@ const toast = useToast()
 const applying = ref(false)
 const newPage = ref('') // route of the recreated container once an update lands
 const redirecting = ref(false)
+// the delayed "follow the new container" / "leave after delete" navigations die
+// with this page, so they can't pull the user back after they moved on
+const timers = usePageTimers()
 
 // While an update recreates the container it briefly vanishes from the live
 // list (old renamed away, new not up yet) — keep rendering the last-seen data
@@ -767,7 +770,7 @@ async function recreate() {
       newPage.value = `/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}`
       if (r.steps.every((s) => s.ok)) {
         redirecting.value = true
-        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+        timers.later(() => navigateTo(newPage.value, { replace: true }), 1500)
       }
     }
   } catch (e: any) {
@@ -820,7 +823,7 @@ async function deleteContainer() {
     if (r.notes?.length) {
       dangerSteps.value = r.notes.map((n) => ({ step: n, ok: !/kept:|failed|could not/i.test(n) }))
       // let the cleanup results be read before leaving the page
-      setTimeout(() => navigateTo('/', { replace: true }), 2500)
+      timers.later(() => navigateTo('/', { replace: true }), 2500)
     } else {
       await navigateTo('/', { replace: true })
     }
@@ -944,7 +947,7 @@ async function apply() {
       if (r.steps.every((s) => s.ok)) {
         // clean update — follow the container to its new id
         redirecting.value = true
-        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+        timers.later(() => navigateTo(newPage.value, { replace: true }), 1500)
       }
     }
   } catch (e: any) {
@@ -1001,7 +1004,7 @@ async function applyEnv() {
       newPage.value = `/services/${encodeURIComponent(`${hostPrefix}::${r.newId}`)}`
       if (r.steps.every((s) => s.ok)) {
         redirecting.value = true
-        setTimeout(() => navigateTo(newPage.value, { replace: true }), 1500)
+        timers.later(() => navigateTo(newPage.value, { replace: true }), 1500)
       }
     } else {
       reloadEnv() // demo / same id — re-read what's now in place
