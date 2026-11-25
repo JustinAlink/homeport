@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, renameSync, unlinkSync, constants } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { WebhookChannel } from './notifiers/types'
+import type { MaintenanceWindow } from '../../shared/utils/silence.ts'
 import type { RegistryCred } from './registry-core'
 
 // UI-configurable settings, persisted to a JSON file in HOMEPORT_DATA_DIR.
@@ -50,6 +51,8 @@ export interface PersistedSettings {
   alertTransitions?: { down?: boolean; unhealthy?: boolean; recovered?: boolean }
   alertDebounceSamples?: number
   alertCooldownSec?: number
+  /** recurring windows (server local time) when no alert is sent */
+  maintenanceWindows?: MaintenanceWindow[]
   alertChannels?: WebhookChannel[]
   /** Email (SMTP) alert channel. */
   smtpHost?: string

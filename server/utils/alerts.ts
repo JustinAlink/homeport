@@ -24,6 +24,8 @@ import { pingAll } from './ping'
 import { findProxyName, localDomainUrls } from './ping-core'
 import { getHosts } from './hosts'
 import { getNotifiers, type AlertEvent } from './notifiers'
+import { silenceFor } from './silences'
+import { serviceKey } from '../../shared/utils/silence.ts'
 
 // Effectful alerting layer: turns successive collector snapshots into debounced
 // alert events, fans them out to webhook channels, and keeps a small in-app log.
@@ -104,6 +106,9 @@ export function recentAlerts(limit = 100): AlertEvent[] {
 
 /** Dispatch an event to all configured channels; optionally record it in the log. */
 export async function dispatch(event: AlertEvent, record = true): Promise<{ name: string; ok: boolean; error?: string }[]> {
+  // A pause or a maintenance window covers every kind, including update notices.
+  // The test button (record false) always goes through: it is the user asking.
+  if (record && silenceFor(null)) return []
   if (record) {
     const log = loadLog()
     log.push(event)
@@ -151,8 +156,16 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
   }
   const events: AlertEvent[] = []
 
+  const keyOf = new Map(snap.services.map((sv) => [sv.id, serviceKey(sv.id, sv.name)]))
   for (const s of next) {
     if (s.noalert) continue
+    // Silenced (snoozed, paused, or in a maintenance window): start from scratch
+    // instead of muting, so the end of the silence neither floods nor stays quiet
+    // about something still broken (see shared/utils/silence.ts).
+    if (silenceFor(keyOf.get(s.id) ?? null, now)) {
+      state[s.id] = emptyAlertState()
+      continue
+    }
     const kind = badKind(s)
 
     const cur = state[s.id] ?? emptyAlertState()
@@ -167,8 +180,13 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
   // daemon is gone and homeport is blind, which used to page nobody: the host's
   // containers simply dropped out of the snapshot.
   const hostNames = new Map(getHosts().map((h) => [h.id, h.name]))
+  const hostsSilenced = !!silenceFor(null, now)
   for (const [hostId, online] of Object.entries(snap.hostsOnline)) {
     const key = `host:${hostId}`
+    if (hostsSilenced) {
+      state[key] = emptyAlertState()
+      continue
+    }
     const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), online ? null : 'down', rule, now)
     state[key] = nextState
     if (emit === 'down' || emit === 'recovered') {
@@ -237,6 +255,11 @@ export async function evaluateDomainAlerts(snap: Snapshot): Promise<void> {
     const r = results[t.url]
     if (!r) continue
     const key = `domain:${t.url}`
+    // a domain is silent with the app that serves it
+    if (silenceFor(t.key, snap.at)) {
+      state[key] = emptyAlertState()
+      continue
+    }
     const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), domainDown(r) ? 'down' : null, rule, snap.at)
     state[key] = nextState
     if (emit === 'down') events.push({ id: key, name: t.domain, host: t.host, kind: 'domain-down', from: t.service, to: domainLabel(r), at: snap.at })

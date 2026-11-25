@@ -4,6 +4,7 @@ import { withoutLocked } from '../utils/settings-locks-core'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
+import { validWindow, type MaintenanceWindow } from '../../shared/utils/silence.ts'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']
@@ -206,6 +207,19 @@ export default defineEventHandler(async (event) => {
     patch.alertCooldownSec = Math.round(n)
   }
   if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
+  if (body.maintenanceWindows !== undefined) {
+    if (!Array.isArray(body.maintenanceWindows)) throw createError({ statusCode: 400, statusMessage: 'maintenanceWindows must be an array' })
+    const windows = (body.maintenanceWindows as Partial<MaintenanceWindow>[]).map((w) => ({
+      id: String(w?.id || '').slice(0, 40) || Math.random().toString(36).slice(2, 10),
+      days: Array.isArray(w?.days) ? [...new Set(w.days.map(Number))].sort() : [],
+      start: String(w?.start || ''),
+      end: String(w?.end || ''),
+      ...(w?.note ? { note: String(w.note).trim().slice(0, 80) } : {}),
+    }))
+    const bad = windows.find((w) => !validWindow(w))
+    if (bad) throw createError({ statusCode: 400, statusMessage: 'a maintenance window needs at least one day and two different times (HH:MM)' })
+    patch.maintenanceWindows = windows
+  }
 
   try {
     // the environment owns locked fields: never persist the value the page mirrored

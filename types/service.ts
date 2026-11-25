@@ -81,6 +81,18 @@ export interface PingResult {
   via?: 'proxy'
   /** Where a redirect (3xx) points: tells a sign-in portal from the app's own pages */
   location?: string
+  /** The certificate an HTTPS answer came with (what the proxy serves for this name). */
+  cert?: PingCert
+}
+
+export interface PingCert {
+  /** expiry, unix ms */
+  notAfter: number
+  issuer?: string
+  /** would a normal client trust it? false for self-signed, expired, wrong name or an unknown CA */
+  trusted: boolean
+  /** Node's reason when it isn't trusted, e.g. DEPTH_ZERO_SELF_SIGNED_CERT */
+  error?: string
 }
 export type PingMap = Record<string, PingResult>
 

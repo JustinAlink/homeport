@@ -3,6 +3,7 @@
 // container start (env) AND via the in-app settings page (when env doesn't lock it).
 
 import { readSettings, type PersistedSettings } from './settings'
+import { validWindow, type MaintenanceWindow } from '../../shared/utils/silence.ts'
 import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
@@ -115,6 +116,7 @@ export interface HomeportConfig {
   alertDebounceSamples: number
   /** Min seconds between repeat notifications while a service stays bad (0 = once). */
   alertCooldownSec: number
+  maintenanceWindows: MaintenanceWindow[]
   /** Outbound webhook channels. */
   alertChannels: WebhookChannel[]
 }
@@ -308,6 +310,7 @@ export function getConfig(): HomeportConfig {
     },
     alertDebounceSamples: Math.max(1, s.alertDebounceSamples ?? 3),
     alertCooldownSec: Math.max(0, s.alertCooldownSec ?? 3600),
+    maintenanceWindows: (s.maintenanceWindows ?? []).filter(validWindow),
     alertChannels: s.alertChannels ?? [],
   }
 }
@@ -412,6 +415,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     },
     alertDebounceSamples: s.alertDebounceSamples ?? 3,
     alertCooldownSec: s.alertCooldownSec ?? 3600,
+    maintenanceWindows: s.maintenanceWindows ?? [],
     alertChannels: s.alertChannels ?? [],
   }, getConfig(), getEnvLocks())
 }

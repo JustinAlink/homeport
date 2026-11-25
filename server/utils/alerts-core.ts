@@ -176,12 +176,15 @@ export function eventLabels(
  * just repeat that). One entry per URL.
  */
 export function domainTargets(
-  services: { id: string; displayName: string; host?: string; state: string; noalert?: boolean; domains: { domain: string; url: string }[] }[],
-): { url: string; domain: string; service: string; host?: string }[] {
-  const out = new Map<string, { url: string; domain: string; service: string; host?: string }>()
+  services: { id: string; name?: string; displayName: string; host?: string; state: string; noalert?: boolean; domains: { domain: string; url: string }[] }[],
+): { url: string; domain: string; service: string; host?: string; key: string }[] {
+  const out = new Map<string, { url: string; domain: string; service: string; host?: string; key: string }>()
   for (const s of services) {
     if (s.noalert || s.state !== 'running') continue
-    for (const d of s.domains) if (!out.has(d.url)) out.set(d.url, { url: d.url, domain: d.domain, service: s.displayName, host: s.host })
+    // the owning app's stable key, so snoozing the app silences its domains too
+    const sep = s.id.indexOf('::')
+    const key = `${sep >= 0 ? s.id.slice(0, sep) : 'default'}|${s.name ?? s.displayName}`
+    for (const d of s.domains) if (!out.has(d.url)) out.set(d.url, { url: d.url, domain: d.domain, service: s.displayName, host: s.host, key })
   }
   return [...out.values()]
 }
