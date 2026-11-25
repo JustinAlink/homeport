@@ -1,4 +1,5 @@
 import { getOp } from '../../utils/ops'
+import { readLines } from '../../utils/ops-core'
 
 // SSE stream of an operation's output: replays buffered lines, follows live ones,
 // then sends a final `done` event with the ok flag and closes.
@@ -9,12 +10,13 @@ export default defineEventHandler((event) => {
 
   setHeader(event, 'X-Accel-Buffering', 'no') // don't let nginx/NPM buffer the SSE stream
   const stream = createEventStream(event)
-  let cursor = 0
+  let cursor = 0 // absolute line number: the buffer drops lines from the front
 
   const flush = () => {
-    while (cursor < op.lines.length) {
-      stream.push(JSON.stringify({ line: op.lines[cursor++] }))
-    }
+    const { lines, skipped, next } = readLines(op, cursor)
+    if (skipped) stream.push(JSON.stringify({ line: `(${skipped} earlier line${skipped === 1 ? '' : 's'} no longer kept)` }))
+    for (const line of lines) stream.push(JSON.stringify({ line }))
+    cursor = next
   }
 
   const onLine = () => flush()
