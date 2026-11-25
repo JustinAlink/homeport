@@ -4,6 +4,7 @@ import {
   findComposeFile,
   safeStackName,
   newStackName,
+  composeFileArgs,
   stackStatuses,
   declaredServices,
   managedByOf,
@@ -41,6 +42,19 @@ test('newStackName: lowercase only, while safeStackName still resolves old names
   assert.equal(newStackName('../etc'), null)
   assert.equal(newStackName('x'.repeat(65)), null)
   assert.equal(safeStackName('Media'), 'Media')
+})
+
+// a project started with `-f docker-compose.yml -f docker-compose.prod.yml` lost
+// the overlay on pull/up, and --remove-orphans then removed its services
+test('composeFileArgs: every file the project was started with, in order', () => {
+  assert.deepEqual(composeFileArgs(['docker-compose.yml', 'docker-compose.prod.yml']), [
+    '-f',
+    'docker-compose.yml',
+    '-f',
+    'docker-compose.prod.yml',
+  ])
+  assert.deepEqual(composeFileArgs(['compose.yaml']), ['-f', 'compose.yaml'])
+  assert.deepEqual(composeFileArgs(undefined), []) // no list: compose's own discovery
 })
 
 test('stackStatuses: running/partial/stopped + unmanaged projects', () => {

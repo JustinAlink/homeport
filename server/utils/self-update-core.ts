@@ -20,6 +20,8 @@ export interface SelfUpdateInput {
   networks: string[]
   /** homeport's own compose service name — limits the update to it (see below). */
   service?: string
+  /** Absolute compose files the project was started with (config_files label). */
+  configFiles?: string[]
 }
 
 export const HELPER_LABEL = 'homeport.self-updater'
@@ -48,15 +50,25 @@ export function buildHelperPayload(input: SelfUpdateInput) {
   // dies with `error during connect … EOF`, leaving the proxy stopped, a
   // half-created replacement behind, and homeport blind (hit on 2026-08-05).
   // `--no-deps` keeps compose from pulling the dependency in anyway.
-  const target = input.service ? ` ${input.service}` : ''
+  const target = input.service ? ` ${shq(input.service)}` : ''
   const noDeps = input.service ? ' --no-deps' : ''
+  // Every file the project was started with: without them compose falls back
+  // to discovery and drops an overlay (`-f a.yml -f prod.yml`), so the update
+  // would quietly change what runs.
+  const files = input.configFiles ?? []
+  const compose = `docker compose -p ${shq(input.project)}${files.map((f) => ` -f ${shq(f)}`).join('')}`
+  // a config file outside the project dir must be visible to the helper too,
+  // at the same path the label names
+  const extraBinds = files
+    .filter((f) => f !== input.projectDir && !f.startsWith(`${input.projectDir.replace(/\/+$/, '')}/`))
+    .map((f) => `${f}:${f}:ro`)
   return {
     name: `homeport-self-update-${Date.now().toString(36)}`,
     Image: input.image,
     Entrypoint: ['/bin/sh', '-c'],
     Cmd: [
       // pull first so the window where homeport is down is as short as possible
-      `cd ${input.projectDir} && docker compose -p ${input.project} pull${target} && docker compose -p ${input.project} up -d${noDeps}${target}`,
+      `cd ${shq(input.projectDir)} && ${compose} pull${target} && ${compose} up -d${noDeps}${target}`,
     ],
     Env: env,
     Labels: { [HELPER_LABEL]: 'true' },
@@ -67,7 +79,7 @@ export function buildHelperPayload(input: SelfUpdateInput) {
     // (that bug shipped in v2.3.0 and bit a real deployment).
     WorkingDir: input.projectDir,
     HostConfig: {
-      Binds: [`${input.projectDir}:${input.projectDir}`],
+      Binds: [`${input.projectDir}:${input.projectDir}`, ...extraBinds],
       // Keep the exited helper around (label-tagged) so its logs are
       // debuggable; the next self-update removes old helpers first.
       AutoRemove: false,
@@ -84,7 +96,7 @@ export function selfUpdatePlan(inspect: {
   Config?: { Image?: string; Labels?: Record<string, string> }
   NetworkSettings?: { Networks?: Record<string, unknown> }
 }):
-  | { ok: true; project: string; projectDir: string; image: string; networks: string[]; service: string }
+  | { ok: true; project: string; projectDir: string; image: string; networks: string[]; service: string; configFiles: string[] }
   | { ok: false; reason: string } {
   const labels = inspect.Config?.Labels ?? {}
   const project = labels['com.docker.compose.project'] || ''
@@ -100,5 +112,9 @@ export function selfUpdatePlan(inspect: {
   if (!image) return { ok: false, reason: 'could not determine the running image' }
   // service may be '' on a hand-created container carrying only project labels;
   // buildHelperPayload() then falls back to a whole-project update.
-  return { ok: true, project, projectDir, image, service, networks: Object.keys(inspect.NetworkSettings?.Networks ?? {}) }
+  const configFiles = (labels['com.docker.compose.project.config_files'] || '')
+    .split(',')
+    .map((f) => f.trim())
+    .filter((f) => f.startsWith('/'))
+  return { ok: true, project, projectDir, image, service, configFiles, networks: Object.keys(inspect.NetworkSettings?.Networks ?? {}) }
 }

@@ -11,6 +11,7 @@ import {
   safeStackName,
   newStackName,
   composeArgs,
+  composeFileArgs,
   externalProjectFromLabels,
   projectNameFromDir,
   composeProjectNameFromContent,
@@ -342,7 +343,12 @@ export async function saveStack(name: string, content: string, createNew = false
     }
   }
   const tmp = join(dir, `.${file}.tmp`)
-  writeFileSync(tmp, content)
+  // a stale tmp may be a symlink a git repo shipped: writing through it would
+  // land outside the stack (e.g. on /data/settings.json). Remove it (rm takes
+  // the link, not its target) and create the file fresh, failing if anything
+  // reappears in between.
+  rmSync(tmp, { force: true })
+  writeFileSync(tmp, content, { flag: 'wx' })
   renameSync(tmp, target)
   return { name: safe, file, content, source, dir }
 }
@@ -388,14 +394,17 @@ export async function runCompose(
 
   const env = composeEnv()
 
-  // adopted stacks with nonstandard filenames need explicit -f flags; standard
-  // names are left to compose's own discovery (which also picks up overrides)
-  const fileArgs = stack.files?.length && !['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml'].includes(stack.file)
-    ? stack.files.flatMap((f) => ['-f', f])
-    : []
+  // adopted stacks carry the files their project was started with
+  const fileArgs = composeFileArgs(stack.files)
 
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['compose', '-p', stack.name, ...fileArgs, ...args], { cwd: stack.dir, env })
+    // stdin closed: compose can ask "Recreate (data will be lost)?" without a
+    // trailing newline, and with an open stdin it would wait for an answer forever
+    const child = spawn('docker', ['compose', '-p', stack.name, ...fileArgs, ...args], {
+      cwd: stack.dir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
     let buf = ''
     const onChunk = (chunk: Buffer) => {
       buf += chunk.toString()

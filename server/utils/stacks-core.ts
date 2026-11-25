@@ -200,6 +200,17 @@ export function composeProjectNameFromContent(content: string): string | null {
   return m ? m[1] : null
 }
 
+/**
+ * `-f` flags for a stack's compose files. Every file is passed: a project
+ * started with `-f docker-compose.yml -f docker-compose.prod.yml` loses the
+ * overlay otherwise, and `up --remove-orphans` then deletes the services that
+ * only the overlay defines. No list (stacks dir, compose roots) leaves file
+ * discovery to compose, which also loads the override file.
+ */
+export function composeFileArgs(files: string[] | undefined): string[] {
+  return (files ?? []).flatMap((f) => ['-f', f])
+}
+
 export type StackOp = 'up' | 'down' | 'restart' | 'pull'
 
 /** docker compose argv for an operation (after `docker compose -p <name>`). */
