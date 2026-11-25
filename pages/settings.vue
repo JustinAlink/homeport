@@ -786,6 +786,12 @@
         <ApiTokens />
       </section>
 
+      <!-- MCP: how to point an AI assistant at homeport (uses the API tokens above) -->
+      <section v-show="inCategory('mcp')" :id="'mcp'" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Connect an AI assistant (MCP)</h2>
+        <McpConnect />
+      </section>
+
       <!-- About / self-update -->
       <section v-show="inCategory('about')" :id="'about'" class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">About</h2>
@@ -884,6 +890,7 @@ const CATEGORY_OF: Record<string, string> = {
   'two-factor': 'security',
   'user-accounts': 'security',
   'api-tokens': 'security',
+  mcp: 'security',
   appearance: 'system',
   backup: 'system',
   about: 'system',
@@ -934,6 +941,7 @@ const sections = computed(() =>
     { id: 'two-factor', label: 'Two-factor auth' },
     { id: 'user-accounts', label: 'User accounts' },
     { id: 'api-tokens', label: 'API tokens' },
+    { id: 'mcp', label: 'AI assistant (MCP)' },
     { id: 'about', label: 'About' },
   ],
 )

@@ -134,4 +134,6 @@ function rel(ms: number) {
 }
 
 onMounted(load)
+// the MCP panel mints a token too: show it here without a reload
+watch(useState('hp:tokens-rev', () => 0), load)
 </script>

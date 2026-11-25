@@ -72,3 +72,18 @@ test('scopeAllows: read scope cannot read stack files, but still sees stacks', (
   // admins and full tokens unaffected
   assert.equal(scopeAllows('full', 'GET', '/api/stacks/media/file'), true)
 })
+
+test('scopeAllows: read scope may POST to the MCP endpoint and nowhere else', () => {
+  // MCP sends every question as a POST; its tools only read
+  assert.equal(scopeAllows('read', 'POST', '/api/mcp'), true)
+  assert.equal(scopeAllows('read', 'post', '/api/mcp'), true)
+  // only that exact path: no sub-path, look-alike or trailing slash rides on it
+  for (const p of ['/api/mcp/', '/api/mcp/x', '/api/mcpx', '/api/mcp-admin', '/api/MCP', '/mcp'])
+    assert.equal(scopeAllows('read', 'POST', p), false, p)
+  // and only POST: no other write method reaches it
+  for (const m of ['PUT', 'PATCH', 'DELETE'])
+    assert.equal(scopeAllows('read', m, '/api/mcp'), false, m)
+  // the read-only rule still holds everywhere else
+  for (const p of ['/api/control', '/api/recreate', '/api/stacks/media', '/api/settings', '/api/env', '/api/tokens', '/api/backup', '/api/exposure/acks', '/api/services'])
+    assert.equal(scopeAllows('read', 'POST', p), false, p)
+})
