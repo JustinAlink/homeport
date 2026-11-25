@@ -12,6 +12,7 @@ import { createContainerLock, ContainerBusyError } from './container-lock-core'
 import { findNewer, tagKindOf, withTag } from './versions-core'
 import { listTags, tagDigest } from './versions'
 import { log } from './log'
+import { findSelfId } from './self-update'
 
 // Image update detection + apply.
 // Detection is DAEMON-side: GET /distribution/{image}/json (dockerode
@@ -280,6 +281,17 @@ async function swapContainer(
     )
   }
 
+  // homeport's own container: this path stops the old container before starting
+  // the new one, so it would stop homeport mid-swap and nothing would start the
+  // replacement (Docker does not restart a container stopped through the API).
+  // Self-update runs from a helper outside homeport for exactly this reason.
+  if (host.id === getHosts()[0]?.id) {
+    const selfId = await findSelfId()
+    if (selfId && inspect.Id === selfId) {
+      throw fail("This is homeport's own container: use Update homeport (sidebar or Settings → About), which updates it from outside.")
+    }
+  }
+
   const image = opts.tag ? withTag(inspect.Config?.Image, opts.tag) + (opts.digest ? `@${opts.digest}` : '') : inspect.Config?.Image
   const wasRunning = !!inspect.State?.Running
   // When the image changes (a pull or a version switch), settings that only came
@@ -350,6 +362,10 @@ async function swapContainer(
         // rollback
         let rolledBack = false
         try {
+          // A replacement that was created but failed to start still holds the
+          // name, so renaming the old one back would 409 and leave the service
+          // down. Remove it first (it never ran, so nothing of value is lost).
+          if (newId) await docker.getContainer(newId).remove({ force: true })
           await docker.getContainer(backupName).rename({ name: plan.name })
           if (wasRunning) await docker.getContainer(plan.name).start()
           steps.push({ step: 'rollback (rename back + start)', ok: true })

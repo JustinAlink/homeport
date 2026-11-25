@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, constants } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, renameSync, unlinkSync, constants } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { WebhookChannel } from './notifiers/types'
 import type { RegistryCred } from './registry-core'
@@ -98,20 +98,39 @@ export function readSettings(): PersistedSettings {
   return cache!
 }
 
-export function writeSettings(patch: PersistedSettings): PersistedSettings {
-  const next = { ...readSettings(), ...patch }
+// Write to a temp file and rename over the real one. A write that fails partway
+// (disk full) used to leave settings.json truncated, and on the next start every
+// setting (hosts, channels, credentials) silently fell back to defaults.
+// Falls back to the old in-place write where a rename can't work: a settings.json
+// bind-mounted on its own (EBUSY), or a data dir only the file itself is writable in.
+function writeSettingsFile(next: PersistedSettings): void {
   const dir = dataDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(settingsFile(), JSON.stringify(next, null, 2))
+  const text = JSON.stringify(next, null, 2)
+  const tmp = `${settingsFile()}.tmp`
+  try {
+    writeFileSync(tmp, text)
+    renameSync(tmp, settingsFile())
+  } catch {
+    try {
+      unlinkSync(tmp)
+    } catch {
+      // never created
+    }
+    writeFileSync(settingsFile(), text)
+  }
+}
+
+export function writeSettings(patch: PersistedSettings): PersistedSettings {
+  const next = { ...readSettings(), ...patch }
+  writeSettingsFile(next)
   cache = next
   return next
 }
 
 /** Replace the whole persisted settings object (backup restore) — no merge. */
 export function replaceSettings(next: PersistedSettings): void {
-  const dir = dataDir()
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(settingsFile(), JSON.stringify(next, null, 2))
+  writeSettingsFile(next)
   cache = next
 }
 

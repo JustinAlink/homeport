@@ -9,6 +9,22 @@ const ICON: Record<string, string> = { down: '🔴', unhealthy: '🟠', recovere
 const render = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
 
+// Custom templates are posted as JSON, and alert text quotes names
+// ("update failed and ROLLBACK FAILED: "web" is down"), so a raw value broke the
+// body exactly for the alerts that mattered most. Values are escaped for a JSON
+// string, which is where every placeholder sits in a working template.
+const jsonEscaped = (v: unknown) => JSON.stringify(String(v ?? '')).slice(1, -1)
+
+/**
+ * HTTP header values are bytes: Node throws on anything past Latin-1, so an emoji
+ * or CJK text in a service name meant the ntfy alert never left, and even the "·"
+ * in the title arrived as mojibake. ntfy decodes RFC 2047 encoded words (server
+ * v2.4.0+); plain ASCII is left readable.
+ */
+export function headerValue(v: string): string {
+  return /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=`
+}
+
 /** Human-readable one-liner for an alert. */
 export function eventText(e: AlertEvent): string {
   const where = e.host ? ` on ${e.host}` : ''
@@ -31,7 +47,7 @@ export function buildBody(ch: WebhookChannel, e: AlertEvent): { body: string; he
     case 'slack':
       return { body: JSON.stringify({ text }) }
     case 'ntfy':
-      return { body: text, headers: { 'content-type': 'text/plain', Title: `homeport · ${e.name}`, Tags: e.kind } }
+      return { body: text, headers: { 'content-type': 'text/plain', Title: headerValue(`homeport · ${e.name}`), Tags: e.kind } }
     case 'apprise': {
       // POST to an Apprise API server (caronc/apprise-api). One integration reaches
       // 100+ services (Gotify/Pushover/Telegram/Matrix/…). `url` is the /notify
@@ -48,7 +64,8 @@ export function buildBody(ch: WebhookChannel, e: AlertEvent): { body: string; he
     }
     case 'custom':
     default: {
-      const vars = { name: e.name, kind: e.kind, host: e.host || '', from: e.from, to: e.to, id: e.id, text }
+      const raw = { name: e.name, kind: e.kind, host: e.host || '', from: e.from, to: e.to, id: e.id, text }
+      const vars = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, jsonEscaped(v)]))
       return { body: render(ch.template || '{"text":"{{text}}"}', vars) }
     }
   }

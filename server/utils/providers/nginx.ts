@@ -99,7 +99,10 @@ export function createNginxProvider(confPath: string): DomainProvider {
         // a directory (sites-enabled / conf.d): read every file in it
         const entries = await readdir(confPath, { withFileTypes: true })
         for (const e of entries) {
-          if (e.isFile()) {
+          // sites-enabled is conventionally symlinks into sites-available, and
+          // isFile() is false for a symlink: Debian-style setups mapped no domains.
+          // A link to a directory just fails the read below and is skipped.
+          if (e.isFile() || e.isSymbolicLink()) {
             try {
               texts.push(await readFile(join(confPath, e.name), 'utf8'))
             } catch {

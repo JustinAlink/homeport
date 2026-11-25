@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildProxyHostPayload, npmRouteFrom, pickCertificate, npmAccessFrom } from '../server/utils/proxy-admin/npm-admin-core.ts'
+import { buildProxyHostPayload, buildProxyHostUpdate, npmRouteFrom, pickCertificate, npmAccessFrom } from '../server/utils/proxy-admin/npm-admin-core.ts'
 import { buildCaddyRoute, caddyRoutesFromConfig, findHttpsServer, HP_PREFIX } from '../server/utils/proxy-admin/caddy-admin-core.ts'
 import { upsertRoute, removeRoute, listRoutes } from '../server/utils/proxy-admin/traefik-admin-core.ts'
 
@@ -22,6 +22,36 @@ test('npm: payload uses cert + ssl_forced only when a cert is supplied', () => {
 
   const noSsl = buildProxyHostPayload({ ...route, ssl: false }, 7)
   assert.equal(noSsl.certificate_id, 0) // ssl off → ignore cert
+})
+
+test('npm: an edit never resets what homeport does not edit (access list, config, scheme)', () => {
+  const existing = { id: 9, domain_names: ['app.example.com'], forward_scheme: 'https', forward_host: 'app', forward_port: 8443, certificate_id: 4, ssl_forced: true, enabled: 1 }
+  const body = buildProxyHostUpdate({ ...route, upstreamPort: 9443 }, existing, 4)
+  assert.deepEqual(body, { domain_names: ['app.example.com'], forward_host: 'app', forward_port: 9443 })
+  for (const k of ['access_list_id', 'advanced_config', 'locations', 'forward_scheme', 'enabled', 'block_exploits', 'caching_enabled'])
+    assert.equal(k in body, false, `${k} must not be sent on edit`)
+})
+
+test('npm: an edit keeps TLS when no covering certificate is found', () => {
+  const existing = { id: 9, domain_names: ['app.example.com'], forward_scheme: 'http', forward_host: 'app', forward_port: 80, certificate_id: 4, ssl_forced: true, enabled: 1 }
+  const body = buildProxyHostUpdate({ ...route, domains: ['new.example.com'] }, existing, 0)
+  assert.equal('certificate_id' in body, false)
+  assert.equal('ssl_forced' in body, false)
+})
+
+test('npm: an edit changes SSL only when asked to', () => {
+  const plain = { id: 9, domain_names: ['app.example.com'], forward_scheme: 'http', forward_host: 'app', forward_port: 80, certificate_id: 0, ssl_forced: false, enabled: 1 }
+  // turning SSL on with a covering cert
+  assert.deepEqual(buildProxyHostUpdate(route, plain, 7), { domain_names: ['app.example.com'], forward_host: 'app', forward_port: 8080, certificate_id: 7, ssl_forced: true, http2_support: true })
+  // turning SSL off
+  const tls = { ...plain, certificate_id: 7, ssl_forced: true }
+  const off = buildProxyHostUpdate({ ...route, ssl: false }, tls, 0)
+  assert.equal(off.certificate_id, 0)
+  assert.equal(off.ssl_forced, false)
+  // moving to another covering cert leaves http2 as the user had it
+  const moved = buildProxyHostUpdate(route, tls, 8)
+  assert.equal(moved.certificate_id, 8)
+  assert.equal('http2_support' in moved, false)
 })
 
 test('npm: route mapping + cert picker (exact + wildcard)', () => {

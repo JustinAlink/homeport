@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
       }
     }
     if (action === 'remove' && body?.proxyRoutes && name) {
-      await deleteRoutesForUpstreams([name], (l) => notes.push(l))
+      await deleteRoutesForUpstreams([name], (l) => notes.push(l), host.id)
     }
     return { ok: true, notes }
   } catch (err: any) {

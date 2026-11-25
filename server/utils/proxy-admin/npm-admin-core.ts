@@ -39,6 +39,39 @@ export function buildProxyHostPayload(route: NewRoute, certId = 0): Record<strin
   }
 }
 
+/**
+ * Build the body for EDITING an existing proxy host: only what homeport's form
+ * edits. NPM patches a host with whatever fields arrive, and the create payload
+ * above resets everything else (access list, advanced config, custom locations,
+ * an https backend, websocket and caching switches). Sending it on edit silently
+ * stripped the login off any host behind an Access List the moment its port was
+ * changed, publishing whatever it protected.
+ *
+ * SSL is only touched when it has to change: turned off, or turned on/moved to a
+ * certificate that covers the domains. If SSL stays on and no covering certificate
+ * is found, the host keeps the one it has rather than silently losing TLS.
+ */
+export function buildProxyHostUpdate(route: NewRoute, existing: NpmProxyHost, certId = 0): Record<string, any> {
+  const body: Record<string, any> = {
+    domain_names: route.domains,
+    forward_host: route.upstreamHost,
+    forward_port: route.upstreamPort,
+  }
+  const hadCert = typeof existing.certificate_id === 'number' ? existing.certificate_id > 0 : !!existing.certificate_id && existing.certificate_id !== '0'
+  if (route.ssl && certId > 0) {
+    if (String(existing.certificate_id) !== String(certId) || !existing.ssl_forced) {
+      body.certificate_id = certId
+      body.ssl_forced = true
+      // a host gaining TLS gets what create gives it; one that had TLS keeps its own choice
+      if (!hadCert) body.http2_support = true
+    }
+  } else if (!route.ssl && (hadCert || existing.ssl_forced)) {
+    body.certificate_id = 0
+    body.ssl_forced = false
+  }
+  return body
+}
+
 export function npmRouteFrom(h: NpmProxyHost): AdminRoute {
   return {
     id: String(h.id),

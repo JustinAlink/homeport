@@ -74,7 +74,8 @@ export function createTraefikFileProvider(path: string): DomainProvider {
         // a directory of dynamic-config files
         const entries = await readdir(path, { withFileTypes: true })
         for (const e of entries) {
-          if (e.isFile() && /\.(ya?ml|toml)$/i.test(e.name)) {
+          // symlinks too: a mounted Kubernetes ConfigMap is all symlinks
+          if ((e.isFile() || e.isSymbolicLink()) && /\.(ya?ml|toml)$/i.test(e.name)) {
             try {
               files.push({ text: await readFile(join(path, e.name), 'utf8'), fmt: formatOf(e.name) })
             } catch {

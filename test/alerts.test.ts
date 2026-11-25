@@ -12,8 +12,11 @@ import {
   eventLabels,
   type ServiceState,
   type AlertRuleConfig,
+  pruneServiceStates,
+  offlineHosts,
+  onHost,
 } from '../server/utils/alerts-core.ts'
-import { eventText, buildBody } from '../server/utils/notifiers/format.ts'
+import { eventText, buildBody, headerValue } from '../server/utils/notifiers/format.ts'
 
 const svc = (over: Partial<ServiceState>): ServiceState => ({
   id: 'h::c',
@@ -129,6 +132,26 @@ test('webhook buildBody: presets shape the payload', () => {
   assert.deepEqual(JSON.parse(custom.body), { msg: 'web exited' })
 })
 
+test('webhook buildBody: a custom template stays valid JSON when the text has quotes', () => {
+  // the auto-update failure alert quotes the container name
+  const e = { id: 'h::c', name: 'web "prod"', host: 'vps', kind: 'updated' as const, from: 'nginx', to: 'update failed and ROLLBACK FAILED: "web" is down\\now', at: 0 }
+  const body = buildBody({ name: 'c', url: 'x', preset: 'custom', template: '{"text":"{{text}}","name":"{{name}}"}' }, e).body
+  const parsed = JSON.parse(body)
+  assert.equal(parsed.name, 'web "prod"')
+  assert.equal(parsed.text, eventText(e))
+})
+
+test('webhook buildBody: ntfy titles survive names past Latin-1', () => {
+  const e = { id: 'h::c', name: 'jellyfin 🎬', host: '', kind: 'down' as const, from: 'running', to: 'exited', at: 0 }
+  const title = buildBody({ name: 'n', url: 'x', preset: 'ntfy' }, e).headers!.Title
+  // Node's http client throws ERR_INVALID_CHAR on header chars above 0xFF
+  assert.match(title, /^[\x20-\x7e]+$/)
+  const m = title.match(/^=\?UTF-8\?B\?(.+)\?=$/)
+  assert.ok(m, title)
+  assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), 'homeport · jellyfin 🎬')
+  assert.equal(headerValue('plain ascii'), 'plain ascii')
+})
+
 test('webhook buildBody: apprise maps kind→type and passes stateless urls', () => {
   const base = { id: 'h::c', name: 'web', host: 'vps', from: 'running', to: 'exited', at: 0 }
   // down → failure; stateless urls included when provided
@@ -230,3 +253,30 @@ test('eventLabels: a homeport restart mid-outage still names what it recovered f
   assert.deepEqual(eventLabels(memory, up, tr, emit), { from: 'exited', to: 'running' })
 })
 
+
+test('pruneServiceStates: an offline host keeps its containers, a vanished container goes', () => {
+  const state: Record<string, unknown> = {
+    'default::gone': {},
+    'default::live': {},
+    'nas::media': {},
+    'domain:https://a.example.com': {},
+    'host:default': {},
+    'host:nas': {},
+    'host:removed': {},
+  }
+  pruneServiceStates(state, new Set(['default::live']), { default: true, nas: false })
+  assert.deepEqual(Object.keys(state).sort(), ['default::live', 'domain:https://a.example.com', 'host:default', 'host:nas', 'nas::media'])
+})
+
+test('pruneServiceStates: once the host is back, its truly gone containers are pruned', () => {
+  const state: Record<string, unknown> = { 'nas::media': {}, 'nas::old': {} }
+  pruneServiceStates(state, new Set(['nas::media']), { nas: true })
+  assert.deepEqual(Object.keys(state), ['nas::media'])
+})
+
+test('offline host helpers: bare ids belong to the default host', () => {
+  const off = offlineHosts({ default: false, nas: true })
+  assert.deepEqual([...off], ['default'])
+  assert.equal(onHost('abc123', off), true)
+  assert.equal(onHost('nas::abc', off), false)
+})

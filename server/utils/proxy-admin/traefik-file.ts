@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, renameSync, existsSync, statSync, readdirSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync, existsSync, statSync, readdirSync, unlinkSync, copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseYAML, stringifyYAML } from 'confbox/yaml'
 import { parseTOML, stringifyTOML } from 'confbox/toml'
@@ -24,11 +24,22 @@ function targetFile(path: string): string {
 }
 
 function load(file: string): any {
+  let text: string
   try {
-    const text = readFileSync(file, 'utf8')
-    return isToml(file) ? parseTOML(text) : parseYAML(text)
-  } catch {
-    return {} // missing/empty → fresh document
+    text = readFileSync(file, 'utf8')
+  } catch (e: any) {
+    if (e?.code === 'ENOENT') return {} // not created yet: a fresh document
+    throw e
+  }
+  if (!text.trim()) return {}
+  // Only a missing or empty file may count as empty. A file homeport can't parse
+  // (a typo, or Traefik's Go templating like {{ env "X" }}, which isn't YAML) used
+  // to read as {}, and the next save replaced the user's whole config with just
+  // homeport's route. Refuse instead; the error reaches the UI.
+  try {
+    return (isToml(file) ? parseTOML(text) : parseYAML(text)) ?? {}
+  } catch (e: any) {
+    throw new Error(`can't parse ${file}, so homeport won't rewrite it: ${e?.message || e}`)
   }
 }
 
@@ -49,14 +60,17 @@ function pruneBackups(file: string) {
 
 function save(file: string, doc: any, ts: number) {
   const text = isToml(file) ? stringifyTOML(doc) : stringifyYAML(doc)
-  if (existsSync(file)) {
-    try {
-      renameSync(file, `${file}.${ts}.bak`)
-      pruneBackups(file)
-    } catch {}
-  }
+  // New content first: if this write fails (disk full), the live file is untouched.
+  // The old order renamed the live file to .bak before writing, so a failed write
+  // left Traefik with no config file at all.
   const tmp = `${file}.tmp`
   writeFileSync(tmp, text)
+  if (existsSync(file)) {
+    try {
+      copyFileSync(file, `${file}.${ts}.bak`)
+      pruneBackups(file)
+    } catch {} // a backup is best-effort; it must never block the write
+  }
   renameSync(tmp, file)
 }
 

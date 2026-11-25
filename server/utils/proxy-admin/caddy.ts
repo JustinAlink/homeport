@@ -18,7 +18,12 @@ export function createCaddyAdmin(adminUrl: string): ProxyAdmin {
   }
 
   function ensureManaged(id: string) {
-    if (!id.startsWith(HP_PREFIX)) throw new Error('only homeport-created Caddy routes can be modified here')
+    // The id goes into the admin URL path. A prefix check alone let
+    // "homeport-x/../../config/" through, which the admin API normalises to
+    // DELETE /config/ (the whole Caddy config). homeport's own ids are slugs.
+    if (!id.startsWith(HP_PREFIX) || !/^[a-z0-9-]+$/i.test(id.slice(HP_PREFIX.length))) {
+      throw new Error('only homeport-created Caddy routes can be modified here')
+    }
   }
 
   return {

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, accessSync, constants } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, accessSync, readdirSync, statSync, constants } from 'node:fs'
 import { warnOnce } from './log'
 import { join, dirname } from 'node:path'
 import type { Snapshot } from './collector'
@@ -50,16 +50,18 @@ export function historyWritable(): boolean {
   return persistent
 }
 
+function readSeriesFile(key: string): Series | null {
+  try {
+    return deserialize(readFileSync(fileFor(key), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
 function loadSeries(key: string): Series {
   const cached = cache.get(key)
   if (cached) return cached
-  let s: Series | null = null
-  try {
-    s = deserialize(readFileSync(fileFor(key), 'utf8'))
-  } catch {
-    s = null
-  }
-  if (!s) s = createSeries(getConfig().historyResolution, retentionCap())
+  const s = readSeriesFile(key) ?? createSeries(getConfig().historyResolution, retentionCap())
   cache.set(key, s)
   return s
 }
@@ -118,6 +120,24 @@ export function flush(): void {
 function prune(now: number): void {
   lastPrune = now
   const graceMs = getConfig().historyRetentionHours * 3600 * 1000
+  // Files of containers that are gone since before the last restart never enter
+  // lastSeen, so the loop below can't reach them: they piled up for every recreate.
+  // An untouched file older than the retention window holds nothing readable.
+  if (historyWritable()) {
+    try {
+      for (const f of readdirSync(statsDir())) {
+        const key = f.replace(/\.json$/, '')
+        if (!f.endsWith('.json') || !key.startsWith('c_') || cache.has(key)) continue
+        try {
+          if (now - statSync(join(statsDir(), f)).mtimeMs > graceMs) unlinkSync(join(statsDir(), f))
+        } catch {
+          // raced with another delete, or unreadable: leave it
+        }
+      }
+    } catch {
+      // no stats dir yet
+    }
+  }
   for (const [key, seen] of lastSeen) {
     if (key === HOST_KEY) continue
     if (now - seen > graceMs) {
@@ -137,6 +157,10 @@ function prune(now: number): void {
 /** Read a series for an API request. id = a service id ("hostId::cid") or "host". */
 export function getHistory(id: string, fromMs: number, toMs: number) {
   const key = id === HOST_KEY ? HOST_KEY : safeKey(id)
-  const s = loadSeries(key)
+  // A read must not create state. Caching here gave every requested id (a stopped
+  // container's page, a systemd unit, or any ?id= a caller cares to send) an empty
+  // series that was flushed to disk, never pruned (it has no lastSeen) and counted
+  // against historyMaxSeries, until new containers stopped getting history at all.
+  const s = cache.get(key) ?? readSeriesFile(key) ?? createSeries(getConfig().historyResolution, retentionCap())
   return readRange(s, fromMs, toMs)
 }

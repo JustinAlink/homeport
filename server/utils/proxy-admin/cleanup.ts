@@ -4,10 +4,13 @@ import { resolveAdmin } from './resolve'
 // the "also clean up NPM" half of a full delete. Best-effort by design: a
 // missing/disabled proxy admin becomes a note, never a failed delete.
 
-export async function deleteRoutesForUpstreams(upstreams: string[], emit: (line: string) => void): Promise<void> {
+export async function deleteRoutesForUpstreams(upstreams: string[], emit: (line: string) => void, hostId?: string): Promise<void> {
   let admin: ReturnType<typeof resolveAdmin>
   try {
-    admin = resolveAdmin()
+    // The proxy of the host the container lived on. Without the id this is the
+    // first host's proxy, which on a multi-host setup deleted another machine's
+    // live routes for a container that merely shared the name.
+    admin = resolveAdmin(hostId)
   } catch (e: any) {
     emit(`proxy cleanup skipped: ${e?.message || e}`)
     return

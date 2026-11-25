@@ -194,3 +194,37 @@ export const domainLabel = (p: { status: number }) => (p.status === 0 ? 'no answ
 export function renderTemplate(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (k in vars ? vars[k] : ''))
 }
+
+/** Host part of a service id ("hostId::cid"); a bare id belongs to the default host. */
+const hostOfId = (id: string) => {
+  const i = id.indexOf('::')
+  return i >= 0 ? id.slice(0, i) : 'default'
+}
+
+/**
+ * Drop alert state for services that are gone. An unreachable host contributes no
+ * services to the snapshot, so its containers looked "gone" too: their state was
+ * wiped while it was down and, back online, they counted as brand new, so neither
+ * the outage nor anything that failed to come back with it was ever reported. They
+ * are kept while their host is offline. host:<id> keys go when the host is removed
+ * from the config; domain:<url> keys belong to the domain evaluator.
+ */
+export function pruneServiceStates(state: Record<string, unknown>, liveIds: Set<string>, hostsOnline: Record<string, boolean>): void {
+  for (const id of Object.keys(state)) {
+    if (id.startsWith('domain:')) continue
+    if (id.startsWith('host:')) {
+      if (!(id.slice(5) in hostsOnline)) delete state[id]
+      continue
+    }
+    if (liveIds.has(id)) continue
+    if (hostsOnline[hostOfId(id)] === false) continue
+    delete state[id]
+  }
+}
+
+/** Ids of the hosts the collector could not reach this tick. */
+export const offlineHosts = (hostsOnline: Record<string, boolean>) =>
+  new Set(Object.entries(hostsOnline).filter(([, on]) => !on).map(([id]) => id))
+
+/** Whether a service id lives on one of the given hosts. */
+export const onHost = (id: string, hosts: Set<string>) => hosts.has(hostOfId(id))

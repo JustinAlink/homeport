@@ -16,6 +16,9 @@ import {
   domainTargets,
   domainDown,
   domainLabel,
+  pruneServiceStates,
+  offlineHosts,
+  onHost,
 } from './alerts-core'
 import { pingAll } from './ping'
 import { findProxyName } from './ping-core'
@@ -160,11 +163,35 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
     if (emit && ev) events.push({ id: s.id, name: s.name, host: s.host, kind: emit, from: ev.from, to: ev.to, at: now })
   }
 
-  // prune state for vanished services (domain states are evaluateDomainAlerts' own)
-  const ids = new Set(next.map((s) => s.id))
-  for (const id of Object.keys(state)) if (!id.startsWith('domain:') && !ids.has(id)) delete state[id]
+  // A host homeport can't reach. With one host that means its socket proxy or
+  // daemon is gone and homeport is blind, which used to page nobody: the host's
+  // containers simply dropped out of the snapshot.
+  const hostNames = new Map(getHosts().map((h) => [h.id, h.name]))
+  for (const [hostId, online] of Object.entries(snap.hostsOnline)) {
+    const key = `host:${hostId}`
+    const { state: nextState, emit } = reduceAlertState(state[key] ?? emptyAlertState(), online ? null : 'down', rule, now)
+    state[key] = nextState
+    if (emit === 'down' || emit === 'recovered') {
+      const down = emit === 'down'
+      events.push({
+        id: key,
+        name: `Docker on ${hostNames.get(hostId) || hostId}`,
+        kind: emit,
+        from: down ? 'reachable' : 'unreachable',
+        to: down ? 'unreachable' : 'reachable',
+        at: now,
+      })
+    }
+  }
 
-  prevStates = new Map(next.map((s) => [s.id, s]))
+  // prune state for vanished services, keeping those of hosts that are offline
+  pruneServiceStates(state, new Set(next.map((s) => s.id)), snap.hostsOnline)
+
+  // Keep an offline host's last known states too, so whatever comes back stopped
+  // is compared against how it was, not treated as new.
+  const offline = offlineHosts(snap.hostsOnline)
+  const kept = [...prevStates.values()].filter((p) => onHost(p.id, offline))
+  prevStates = new Map([...kept, ...next].map((s) => [s.id, s]))
   stateCache = state
 
   if (events.length) {

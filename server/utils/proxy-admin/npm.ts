@@ -1,7 +1,7 @@
 import { httpJson } from '../http'
 import { log } from '../log'
 import type { ProxyAdmin, AdminRoute, NewRoute, ProxyAccess } from './types'
-import { buildProxyHostPayload, npmRouteFrom, pickCertificate, npmAccessFrom, type NpmProxyHost } from './npm-admin-core'
+import { buildProxyHostPayload, buildProxyHostUpdate, npmRouteFrom, pickCertificate, npmAccessFrom, type NpmProxyHost } from './npm-admin-core'
 import { npmLoginError } from './npm-bootstrap-core'
 
 // Nginx Proxy Manager REST API. Auth: POST /api/tokens {identity,secret} → JWT,
@@ -100,7 +100,9 @@ export function createNpmAdmin(cfg: NpmAdminConfig): ProxyAdmin {
     },
 
     async updateRoute(id: string, route: NewRoute): Promise<AdminRoute> {
-      const payload = buildProxyHostPayload(route, await certIdFor(route))
+      // Read the host first: the edit must leave everything homeport doesn't edit alone.
+      const existing = await api<NpmProxyHost>(`/api/nginx/proxy-hosts/${id}`)
+      const payload = buildProxyHostUpdate(route, existing, route.ssl ? await certIdFor(route) : 0)
       const updated = await api<NpmProxyHost>(`/api/nginx/proxy-hosts/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       return npmRouteFrom(updated)
     },
