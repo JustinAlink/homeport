@@ -1,5 +1,38 @@
 # Changelog
 
+## v2.37.0 (2026-11-25)
+
+### New: the exposure report
+
+A page (sidebar, or <kbd>G</kbd> <kbd>X</kbd>) and a card on each service page
+that show how every running app can be reached: by its domain through the
+reverse proxy, and directly through any port published on the machine, with the
+address it listens on.
+
+- **Reachable around the proxy**: an app with a domain that is also published
+  on every interface, so `http://<host>:<port>` skips the proxy's HTTPS and any
+  login in front of it. No other tool links the two.
+- **Controls Docker and is reachable**, **the proxy's admin port is open**
+  (NPM 81, Traefik 8080, Caddy 2019), **a database open on every interface**,
+  **served without HTTPS**, **plain HTTP still works**, and plain open ports.
+- Each finding says why it matters and gives the exact compose line to fix it,
+  ready to copy.
+- homeport asks each domain what an anonymous visitor gets (a login, a sign-in
+  portal, or a page that opens for anyone) and whether plain HTTP redirects.
+- A finding you mean to have can be **accepted** with a reason: it stays
+  listed, stops counting, and survives a recreate. Undo any time.
+- The sidebar badge counts what needs attention.
+
+Wording stays factual: "every interface" may still be LAN-only behind your
+router, and an app that opens for anyone may have its own login, so those are
+shown as facts, not flagged.
+
+### README
+
+The comparison now covers Arcane, Dockhand, Komodo, Portainer CE and Dozzle,
+checked cell by cell against each project's own docs on 2026-11-25, with a
+"pick something else if" list for where they are stronger.
+
 ## v2.36.2 (2026-11-25)
 
 - **Viewer accounts and read-only API tokens no longer read stack files.**
