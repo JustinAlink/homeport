@@ -1,5 +1,6 @@
 import { getConfig } from './config'
 import { readSettings, type SettingsHost } from './settings'
+import { uniqueIds } from './service-id'
 
 export interface HostConfig {
   id: string
@@ -43,13 +44,18 @@ function normalize(h: SettingsHost, i: number): HostConfig {
   }
 }
 
+function withUniqueIds(hosts: HostConfig[]): HostConfig[] {
+  const ids = uniqueIds(hosts.map((h) => h.id))
+  return hosts.map((h, i) => (ids[i] === h.id ? h : { ...h, id: ids[i] }))
+}
+
 export function getHosts(): HostConfig[] {
   // 1) env HOMEPORT_HOSTS (locks it)
   const raw = process.env.HOMEPORT_HOSTS
   if (raw) {
     try {
       const arr = JSON.parse(raw)
-      if (Array.isArray(arr) && arr.length) return arr.map(normalize)
+      if (Array.isArray(arr) && arr.length) return withUniqueIds(arr.map(normalize))
     } catch {
       // fall through
     }
@@ -57,7 +63,7 @@ export function getHosts(): HostConfig[] {
 
   // 2) UI-managed hosts from the settings page
   const s = readSettings()
-  if (s.hosts && s.hosts.length) return s.hosts.map(normalize)
+  if (s.hosts && s.hosts.length) return withUniqueIds(s.hosts.map(normalize))
 
   // 3) implicit single host from the standard config
   const c = getConfig()

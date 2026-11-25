@@ -21,7 +21,7 @@ import {
   onHost,
 } from './alerts-core'
 import { pingAll } from './ping'
-import { findProxyName } from './ping-core'
+import { findProxyName, localDomainUrls } from './ping-core'
 import { getHosts } from './hosts'
 import { getNotifiers, type AlertEvent } from './notifiers'
 
@@ -223,9 +223,10 @@ export async function evaluateDomainAlerts(snap: Snapshot): Promise<void> {
   if (!cfg.alertsEnabled || !cfg.alertDomains || !cfg.pingEnabled) return
   const targets = domainTargets(snap.services)
   const state = loadState()
-  const results = targets.length
-    ? await pingAll(targets.map((t) => t.url), snap.at, findProxyName(snap.services, getHosts()[0]?.name))
-    : {}
+  const localHost = getHosts()[0]?.name
+  const proxy = findProxyName(snap.services, localHost)
+  const local = localDomainUrls(snap.services, localHost)
+  const results = targets.length ? await pingAll(targets.map((t) => t.url), snap.at, (url) => (local.has(url) ? proxy : null)) : {}
   const rule = {
     debounceSamples: cfg.alertDebounceSamples,
     cooldownSec: cfg.alertCooldownSec,

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findProxyName, imageRepoOf, routeOrder } from '../server/utils/ping-core.ts'
+import { findProxyName, imageRepoOf, routeOrder, localDomainUrls } from '../server/utils/ping-core.ts'
 
 test('the proxy container is found by image, running, on this host', () => {
   const svcs = [
@@ -20,4 +20,16 @@ test('route order: public first, the proxy first only while the public route is 
   assert.deepEqual(routeOrder(5000, 1000, true), ['proxy', 'public'])
   assert.deepEqual(routeOrder(500, 1000, true), ['public', 'proxy'])
   assert.deepEqual(routeOrder(5000, 1000, false), ['public'])
+})
+
+test('localDomainUrls: only the own host’s domains may use its proxy as the fallback', () => {
+  const services = [
+    { host: 'vps', domains: [{ url: 'https://app.example.com' }] },
+    { host: 'nas', domains: [{ url: 'https://media.example.com' }] },
+    { domains: [{ url: 'https://single.example.com' }] }, // single-host setups carry no host
+  ]
+  const local = localDomainUrls(services, 'vps')
+  assert.deepEqual([...local].sort(), ['https://app.example.com', 'https://single.example.com'])
+  // without a known local host name everything is local (the single-host case)
+  assert.equal(localDomainUrls(services, undefined).size, 3)
 })

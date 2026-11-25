@@ -78,7 +78,12 @@ async function pingWithFallback(url: string, proxyHost: string | null, now: numb
  * Ping many URLs (bounded concurrency, TTL-cached). Returns a map keyed by url.
  * `proxyHost`: the reverse proxy's container name, for the fallback route.
  */
-export async function pingAll(urls: string[], now: number, proxyHost: string | null = null): Promise<Record<string, PingResult>> {
+/** proxyHost: the proxy container to fall back to, for every URL or per URL (null = public route only). */
+export async function pingAll(
+  urls: string[],
+  now: number,
+  proxyHost: string | null | ((url: string) => string | null) = null,
+): Promise<Record<string, PingResult>> {
   const out: Record<string, PingResult> = {}
   const todo: string[] = []
   for (const url of urls) {
@@ -91,7 +96,7 @@ export async function pingAll(urls: string[], now: number, proxyHost: string | n
   async function worker() {
     while (queue.length) {
       const url = queue.shift()!
-      const result = await pingWithFallback(url, proxyHost, now)
+      const result = await pingWithFallback(url, typeof proxyHost === 'function' ? proxyHost(url) : proxyHost, now)
       cache.set(url, { result, at: now })
       out[url] = result
     }

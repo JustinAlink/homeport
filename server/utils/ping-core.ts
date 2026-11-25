@@ -31,6 +31,21 @@ export function findProxyName(services: { name: string; image: string; state: st
   return proxy?.name ?? null
 }
 
+/**
+ * Domains served from homeport's own host (the first one). Only these may fall back
+ * to its proxy container: another host's domain sent through this host's proxy gets
+ * this proxy's "no such host" page, and a Traefik 404 reads as "up", so an outage on
+ * a remote host never showed and never alerted.
+ */
+export function localDomainUrls(services: { host?: string; domains: { url: string }[] }[], localHost?: string): Set<string> {
+  const out = new Set<string>()
+  for (const s of services) {
+    if (s.host && localHost && s.host !== localHost) continue
+    for (const d of s.domains) out.add(d.url)
+  }
+  return out
+}
+
 /** Which route to try first: straight to the proxy while the public one is known to fail. */
 export function routeOrder(publicDownUntil: number | undefined, now: number, hasProxy: boolean): ('public' | 'proxy')[] {
   if (!hasProxy) return ['public']
