@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.36.2 (2026-11-25)
+
+- **Viewer accounts and read-only API tokens no longer read stack files.**
+  Compose files and the files in a stack's folder (its `.env`) can hold
+  passwords, the same secrets container environments were already kept from
+  them. Viewers still see every stack with its services, status and mounts; the
+  stack page tells them the files are admin-only. The README now spells out
+  what viewers and each kind of token can reach.
+
 ## v2.36.1 (2026-11-25)
 
 The rest of the v2.36.0 audit: the follow-ups that needed more than a line.
