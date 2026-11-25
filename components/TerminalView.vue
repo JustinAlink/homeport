@@ -34,12 +34,18 @@ let term: any = null
 let fit: any = null
 let ws: WebSocket | null = null
 let ro: ResizeObserver | null = null
+// Set on unmount. connect() awaits the lazy xterm import first: leaving the tab
+// during that wait used to open the shell socket after cleanup had run, leaving
+// a live shell session nothing would ever close.
+let disposed = false
 
 async function connect() {
   status.value = 'connecting'
   // lazy-load xterm so it never lands in the main bundle
   const [{ Terminal }, { FitAddon }] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')])
+  if (disposed) return
   await import('@xterm/xterm/css/xterm.css')
+  if (disposed) return
 
   term?.dispose()
   term = new Terminal({
@@ -92,6 +98,7 @@ function sendResize() {
 
 onMounted(connect)
 onBeforeUnmount(() => {
+  disposed = true
   ro?.disconnect()
   ws?.close()
   term?.dispose()

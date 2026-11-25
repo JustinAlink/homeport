@@ -30,15 +30,24 @@ export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
   // tell an empty history (fresh install, history off) from a flat one
   const realPoints = ref(0)
 
+  // Switching 24h then 1h quickly sends two requests; the slower 24h answer
+  // could land last and draw 24h data under the 1h label. Newest request wins.
+  const seq = requestSequence()
   async function load() {
-    if (range.value === 'live') return
+    if (range.value === 'live') {
+      seq.invalidate() // a range still loading must not land once live is chosen
+      return
+    }
+    const current = seq.start()
     try {
       const r = await $fetch<{ cpu: (number | null)[]; mem: (number | null)[] }>('/api/history', {
         params: { id, range: range.value },
       })
+      if (!current()) return
       realPoints.value = r.cpu.filter((v) => v != null).length
       past.value = { cpu: fillGaps(r.cpu), mem: fillGaps(r.mem) }
     } catch {
+      if (!current()) return
       realPoints.value = 0
       past.value = null
     }
