@@ -101,6 +101,36 @@ test('detaching removes the service entry and an external declaration nobody use
   assert.throws(() => patchComposeService('services:\n  a:\n    image: x\n    network_mode: host\n', 'a', { addNetwork: 'n' }), /network_mode/)
 })
 
+// Without a top-level `name:` the project prefix of docker's network names
+// (`myapp_backend`) is only known from the stack; homeport runs it as `-p myapp`.
+const NO_NAME = `services:
+  app:
+    image: nginx
+    networks:
+      - default
+      - backend
+networks:
+  backend: {}
+`
+
+test('networks: the stack name maps <project>_<key> back to its key when the file has no name:', () => {
+  const removed = parseDocument(patchComposeService(NO_NAME, 'app', { removeNetwork: 'myapp_backend' }, 'myapp')).toJS() as any
+  assert.deepEqual(removed.services.app.networks, ['default'])
+  const added = parseDocument(patchComposeService(NO_NAME, 'app', { addNetwork: 'myapp_backend' }, 'myapp')).toJS() as any
+  assert.deepEqual(added.services.app.networks, ['default', 'backend'])
+  assert.deepEqual(Object.keys(added.networks), ['backend']) // no duplicate external `myapp_backend`
+})
+
+test('a patch that changes nothing returns the file byte for byte (no reflow reported as a change)', () => {
+  const quirky = `services:
+  app:
+    image:    nginx
+    networks: [ default ]
+`
+  assert.equal(patchComposeService(quirky, 'app', { removeNetwork: 'other_net' }, 'myapp'), quirky)
+  assert.equal(patchComposeService(quirky, 'app', { addNetwork: 'myapp_default' }, 'myapp'), quirky)
+})
+
 test('tag: moves the image to another version, keeping quotes, registry and comments', () => {
   const src = `services:
   app:
