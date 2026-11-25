@@ -298,7 +298,8 @@ async function logout() {
   try {
     await $fetch('/api/auth/logout', { method: 'POST' })
   } catch {}
-  await navigateTo('/login')
+  // ?loggedout stops single sign-on's auto-redirect from signing straight back in
+  await navigateTo('/login?loggedout=1')
 }
 
 // "?" opens the shortcut sheet; "g" then a letter jumps to a page (see utils/shortcuts.ts)

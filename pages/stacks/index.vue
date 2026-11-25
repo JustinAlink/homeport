@@ -217,7 +217,7 @@ async function load() {
     data.value = await $fetch<StacksResponse>('/api/stacks')
     error.value = ''
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not load stacks')
   }
 }

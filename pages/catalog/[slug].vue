@@ -188,7 +188,7 @@ async function load() {
     stackName.value = found.slug
     for (const i of found.inputs) values[i.name] = i.default ?? ''
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not load the catalog')
   }
   // best-effort: current fleet ports, to warn about clashes before installing

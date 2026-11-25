@@ -26,6 +26,10 @@ export default defineEventHandler((event) => {
   // check of the stack's own secret (HMAC signature or token) before anything runs.
   // POST only: any other method falls through to the normal session check.
   if (event.method === 'POST' && path.startsWith('/api/hooks/git/')) return
+  // Single sign-on: the start and the provider's callback happen before a session
+  // exists. Both are GET and guard themselves (signed state cookie, PKCE, nonce, and
+  // the token exchange); the admin-only test endpoint next to them stays protected.
+  if (event.method === 'GET' && (path === '/api/auth/oidc/start' || path === '/api/auth/oidc/callback')) return
 
   // open mode (no password, user skipped it or the volume is read-only) → no auth
   if (authMode() === 'open') return

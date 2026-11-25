@@ -69,7 +69,7 @@ async function load() {
     opsList.value = r.ops ?? []
     error.value = ''
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not load the activity feed')
   } finally {
     loaded.value = true

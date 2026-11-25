@@ -513,7 +513,7 @@ async function load() {
   } catch (e: any) {
     if (!current()) return
     const code = e?.statusCode ?? e?.response?.status
-    if (code === 401) return navigateTo('/login')
+    if (code === 401) return toLogin()
     // 404 = no stack dir; 403 = stacks disabled. Either way, fall back to the
     // unmanaged-project view driven by the live container list, unless a clone
     // is still creating the directory (the op card shows its progress meanwhile).

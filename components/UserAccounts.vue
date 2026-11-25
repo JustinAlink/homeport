@@ -32,6 +32,7 @@
       >
         <span class="text-sm text-slate-200">{{ u.username }}</span>
         <span class="rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">read-only</span>
+        <span v-if="u.sso" class="rounded-full border border-sky-400/30 px-1.5 py-0.5 text-[10px] uppercase text-sky-300" :title="`Signs in through single sign-on (${u.sso.iss})`">SSO</span>
         <span class="text-[11px] text-slate-600">
           created {{ rel(u.createdAt) }} · {{ u.lastLoginAt ? `last login ${rel(u.lastLoginAt)}` : 'never logged in' }}
         </span>
@@ -47,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-interface UserMeta { id: string; username: string; createdAt: number; lastLoginAt?: number }
+interface UserMeta { id: string; username: string; createdAt: number; lastLoginAt?: number; sso?: { iss: string; sub: string } }
 
 const fieldCls = 'mt-1 input'
 const uid = useId()

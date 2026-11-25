@@ -62,6 +62,21 @@ export interface PersistedSettings {
   /** recurring windows (server local time) when no alert is sent */
   maintenanceWindows?: MaintenanceWindow[]
   alertChannels?: WebhookChannel[]
+  /** The address people reach homeport at (scheme + host), for the SSO redirect URI. */
+  publicUrl?: string
+  /** OpenID Connect sign-in. */
+  oidcEnabled?: boolean
+  oidcIssuer?: string
+  oidcClientId?: string
+  oidcClientSecret?: string
+  oidcScopes?: string
+  /** dotted path of the claim that lists groups or roles */
+  oidcGroupsClaim?: string
+  oidcAdminGroups?: string[]
+  oidcViewerGroups?: string[]
+  oidcButtonLabel?: string
+  oidcAutoRedirect?: boolean
+  oidcHidePassword?: boolean
   /** Email (SMTP) alert channel. */
   smtpHost?: string
   smtpPort?: number

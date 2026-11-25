@@ -195,7 +195,7 @@ async function load() {
     portRows.value = r.ports.map((p) => ({ container: p, host: p, on: true, detected: true }))
     volRows.value = r.volumes.map((path) => ({ path, on: true }))
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not read the image configuration')
   }
   // best-effort: current fleet ports, to warn about clashes before installing

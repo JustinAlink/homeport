@@ -135,7 +135,7 @@ async function load() {
     routes.value = r.routes
     error.value = ''
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not load domains')
   } finally {
     loaded.value = true

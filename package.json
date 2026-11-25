@@ -25,6 +25,7 @@
     "confbox": "^0.2.0",
     "dockerode": "^4.0.2",
     "nuxt": "^4.6.2",
+    "openid-client": "^6.9.1",
     "qrcode": "^1.5.4",
     "vue": "^3.5.0",
     "vue-router": "^5.4.0",
@@ -36,6 +37,7 @@
     "@types/node": "^22.0.0",
     "@types/qrcode": "1.5.6",
     "axe-core": "4.14.0",
+    "oidc-provider": "^9.15.1",
     "playwright": "^1.61.1",
     "typescript": "5.9.3",
     "vue-tsc": "3.3.13"

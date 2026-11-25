@@ -774,6 +774,12 @@
         <TwoFactorAuth />
       </section>
 
+      <!-- Single sign-on (fields of the form, saved with the page) -->
+      <section v-show="inCategory('sso')" id="sso" class="card card-pad scroll-mt-8 space-y-3.5">
+        <h2 class="text-[15px] font-semibold text-slate-100">Single sign-on</h2>
+        <SsoSettings :form="form" :locked="locked" :secret-set="oidcSecretSet" />
+      </section>
+
       <!-- User accounts (self-contained CRUD, own endpoints) -->
       <section v-show="inCategory('user-accounts')" :id="'user-accounts'" class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">User accounts</h2>
@@ -864,6 +870,7 @@ const CDP_EXAMPLE = 'reverse_proxy {{upstreams 8080}}'
 // sources homeport only reads: there is no proxy API behind them to write routes to
 const READ_ONLY_SOURCES = ['traefik', 'traefik-api', 'caddy-docker-proxy', 'pangolin']
 const smtpPassSet = ref(false)
+const oidcSecretSet = ref(false) // a client secret is stored (saved or env): blank on save = keep
 const locked = ref<Record<string, boolean>>({})
 const busy = ref(false)
 const msg = ref('')
@@ -888,6 +895,7 @@ const CATEGORY_OF: Record<string, string> = {
   registries: 'updates',
   account: 'security',
   'two-factor': 'security',
+  'sso': 'security',
   'user-accounts': 'security',
   'api-tokens': 'security',
   mcp: 'security',
@@ -939,6 +947,7 @@ const sections = computed(() =>
     { id: 'appearance', label: 'Appearance' },
     { id: 'account', label: 'Account' },
     { id: 'two-factor', label: 'Two-factor auth' },
+    { id: 'sso', label: 'Single sign-on' },
     { id: 'user-accounts', label: 'User accounts' },
     { id: 'api-tokens', label: 'API tokens' },
     { id: 'mcp', label: 'AI assistant (MCP)' },
@@ -1052,6 +1061,18 @@ const form = reactive({
   smtpSecure: false,
   smtpUser: '',
   smtpPass: '',
+  publicUrl: '',
+  oidcEnabled: false,
+  oidcIssuer: '',
+  oidcClientId: '',
+  oidcClientSecret: '',
+  oidcScopes: 'openid profile email groups',
+  oidcGroupsClaim: 'groups',
+  oidcAdminGroups: [] as string[] | string,
+  oidcViewerGroups: [] as string[] | string,
+  oidcButtonLabel: '',
+  oidcAutoRedirect: false,
+  oidcHidePassword: false,
   smtpFrom: '',
   smtpTo: '',
   autoUpdateEnabled: false,
@@ -1366,10 +1387,11 @@ async function loadSettings() {
     npmApiSecretSet.value = !!r.settings.npmApiSecretSet
     traefikApiPasswordSet.value = !!r.settings.traefikApiPasswordSet
     smtpPassSet.value = !!r.settings.smtpPassSet
+    oidcSecretSet.value = !!r.settings.oidcClientSecretSet
     loaded.value = true
   } catch (e: any) {
     const code = e?.statusCode ?? e?.response?.status
-    if (code === 401) return navigateTo('/login')
+    if (code === 401) return toLogin()
     // read-only accounts may not read settings (they hold secrets): the viewer
     // notice above covers them once capabilities arrive
     if (code === 403) return

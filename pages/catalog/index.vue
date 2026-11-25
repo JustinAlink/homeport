@@ -564,7 +564,7 @@ async function load(refresh = false) {
     data.value = await $fetch<CatalogResponse>('/api/catalog', { query: refresh ? { refresh: 1 } : {} })
     error.value = ''
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not load the catalog')
   }
 }

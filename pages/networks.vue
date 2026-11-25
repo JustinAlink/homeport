@@ -263,7 +263,7 @@ async function load() {
     error.value = ''
     loaded.value = true
   } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
+    if ((e?.statusCode ?? e?.response?.status) === 401) return toLogin()
     error.value = errMsg(e, 'Could not list networks')
   } finally {
     loading.value = false
