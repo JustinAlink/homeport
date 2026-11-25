@@ -1,0 +1,57 @@
+[
+  { "name": "pangolin-site", "image": "fosrl/newt:1.5.2", "command": "/entrypoint.sh newt",
+    "labels": {} },
+  { "name": "nginx1", "image": "nginxdemos/hello", "internalPorts": [80],
+    "labels": {
+      "pangolin.public-resources.nginx.name": "nginx",
+      "pangolin.public-resources.nginx.full-domain": "nginx.example.com",
+      "pangolin.public-resources.nginx.protocol": "http",
+      "pangolin.public-resources.nginx.request-headers[0].name": "X-Example-Header",
+      "pangolin.public-resources.nginx.request-headers[0].value": "example-value",
+      "pangolin.public-resources.nginx.targets[0].method": "http",
+      "pangolin.public-resources.nginx.targets[0].path": "/path",
+      "pangolin.public-resources.nginx.targets[0].path-match": "prefix"
+    } },
+  { "name": "nginx2", "image": "nginxdemos/hello", "internalPorts": [80],
+    "labels": {
+      "pangolin.public-resources.nginx.targets[1].method": "http",
+      "pangolin.public-resources.nginx.targets[1].hostname": "nginx2",
+      "pangolin.public-resources.nginx.targets[1].port": "80"
+    } },
+  { "name": "wiki", "image": "wiki:1", "internalPorts": [3000, 9000],
+    "labels": {
+      "pangolin.public-resources.wiki.full-domain": "Wiki.Example.com",
+      "pangolin.public-resources.wiki.mode": "http",
+      "pangolin.public-resources.wiki.targets[0].method": "http",
+      "pangolin.public-resources.wiki.targets[1].method": "http",
+      "pangolin.public-resources.wiki.targets[1].port": "9000",
+      "pangolin.public-resources.wiki.targets[1].enabled": "false"
+    } },
+  { "name": "nas-labels", "image": "busybox",
+    "labels": {
+      "pangolin.public-resources.nas.full-domain": "nas.example.com",
+      "pangolin.public-resources.nas.ssl": "false",
+      "pangolin.public-resources.nas.targets[0].method": "https",
+      "pangolin.public-resources.nas.targets[0].hostname": "192.168.1.20",
+      "pangolin.public-resources.nas.targets[0].port": "5001"
+    } },
+  { "name": "gitea", "image": "gitea/gitea", "internalPorts": [22, 3000],
+    "labels": {
+      "pangolin.public-resources.git-ssh.mode": "tcp",
+      "pangolin.public-resources.git-ssh.proxy-port": "2222",
+      "pangolin.public-resources.git-ssh.targets[0].port": "22",
+      "pangolin.public-resources.git-web.full-domain": "git.example.com",
+      "pangolin.public-resources.git-web.enabled": "false",
+      "pangolin.public-resources.git-web.targets[0].port": "3000"
+    } },
+  { "name": "old-style", "image": "app:1", "internalPorts": [8080],
+    "labels": {
+      "pangolin.proxy-resources.old.full-domain": "old.example.com",
+      "pangolin.proxy-resources.old.protocol": "http",
+      "pangolin.proxy-resources.old.targets[0].method": "http"
+    } },
+  { "name": "solo", "image": "app:1", "internalPorts": [8000],
+    "labels": { "pangolin.public-resources.solo.full-domain": "solo.example.com" } },
+  { "name": "wild", "image": "app:1", "internalPorts": [80],
+    "labels": { "pangolin.public-resources.wild.full-domain": "*.apps.example.com", "pangolin.public-resources.wild.targets[0].method": "http" } }
+]

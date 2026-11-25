@@ -1,5 +1,4 @@
-import type { DomainProvider, Route } from './types'
-import type { HostConfig } from '../hosts'
+import type { Route } from './types'
 
 // Extract Host(`a.com`, `b.com`) hostnames from a Traefik router rule.
 function hostsFromRule(rule: string): string[] {
@@ -34,18 +33,14 @@ export function parseTraefikContainer(name: string, labels: Record<string, strin
   return { domains: [...new Set(domains)], upstreamHost: name, upstreamPort: port || 80, ssl }
 }
 
-export function createTraefikProvider(host: HostConfig): DomainProvider {
-  return {
-    name: 'Traefik',
-    async getRoutes(): Promise<Route[]> {
-      const { listContainersFor } = await import('../docker') // lazy: keeps the parser test-isolated
-      const containers = await listContainersFor(host)
-      const routes: Route[] = []
-      for (const c of containers) {
-        const r = parseTraefikContainer(c.name, c.labels)
-        if (r) routes.push(r)
-      }
-      return routes
-    },
+export const TRAEFIK_LABELS_SOURCE = 'Traefik'
+
+/** Every container's Traefik labels into routes (one per container). */
+export function parseTraefikLabels(containers: { name: string; labels: Record<string, string> }[]): Route[] {
+  const routes: Route[] = []
+  for (const c of containers) {
+    const r = parseTraefikContainer(c.name, c.labels)
+    if (r) routes.push({ ...r, source: TRAEFIK_LABELS_SOURCE })
   }
+  return routes
 }

@@ -1,0 +1,35 @@
+[
+  { "name": "caddy", "image": "lucaslorentz/caddy-docker-proxy:ci-alpine", "command": "/bin/caddy docker-proxy", "internalPorts": [80, 443, 2019],
+    "labels": { "caddy": "", "caddy.email": "admin@example.com" } },
+  { "name": "whoami", "image": "traefik/whoami", "internalPorts": [80],
+    "labels": { "caddy": "whoami.example.com", "caddy.reverse_proxy": "{{upstreams 80}}" } },
+  { "name": "shop", "image": "shop:1", "internalPorts": [3000, 8443],
+    "labels": {
+      "caddy_0": "shop.example.com, www.shop.example.com",
+      "caddy_0.reverse_proxy": "{{upstreams 3000}}",
+      "caddy_1": "http://admin.shop.example.com",
+      "caddy_1.reverse_proxy": "{{upstreams https 8443}}"
+    } },
+  { "name": "files", "image": "files:1", "internalPorts": [9090, 8080],
+    "labels": {
+      "caddy": "files.example.com",
+      "caddy.handle_path": "/files/*",
+      "caddy.handle_path.0_reverse_proxy": "{{upstreams lowestExposedPort}}"
+    } },
+  { "name": "chat", "image": "chat:1", "internalPorts": [80],
+    "labels": {
+      "caddy": "chat.example.com chat.example.org",
+      "caddy.@ws.0_header": "Connection *Upgrade*",
+      "caddy.@ws.1_header": "Upgrade websocket",
+      "caddy.0_reverse_proxy": "@ws {{upstreams}}",
+      "caddy.reverse_proxy.header_up": "Host {upstream_hostport}"
+    } },
+  { "name": "legacy-labels", "image": "busybox",
+    "labels": { "caddy": "legacy.example.com", "caddy.reverse_proxy": "legacy-backend:9000" } },
+  { "name": "blockform", "image": "app:1",
+    "labels": { "caddy": "block.example.com", "caddy.reverse_proxy": "", "caddy.reverse_proxy.to": "{{upstreams 5000}}" } },
+  { "name": "snippets", "image": "app:1",
+    "labels": { "caddy_0": "(common)", "caddy_0.encode": "zstd gzip", "caddy_1": "*.wild.example.com", "caddy_1.reverse_proxy": "{{upstreams 80}}" } },
+  { "name": "traefik-only", "image": "app:1",
+    "labels": { "traefik.http.routers.x.rule": "Host(`x.example.com`)" } }
+]

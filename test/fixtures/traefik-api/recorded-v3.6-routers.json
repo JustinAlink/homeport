@@ -1,0 +1,116 @@
+[
+  {
+    "entryPoints": [
+      "traefik"
+    ],
+    "service": "api@internal",
+    "rule": "PathPrefix(`/api`)",
+    "ruleSyntax": "default",
+    "priority": 9223372036854775806,
+    "observability": {
+      "accessLogs": true,
+      "metrics": true,
+      "tracing": true,
+      "traceVerbosity": "minimal"
+    },
+    "status": "enabled",
+    "using": [
+      "traefik"
+    ],
+    "name": "api@internal",
+    "provider": "internal",
+    "priorityStr": "9223372036854775806"
+  },
+  {
+    "entryPoints": [
+      "traefik"
+    ],
+    "middlewares": [
+      "dashboard_redirect@internal",
+      "dashboard_stripprefix@internal"
+    ],
+    "service": "dashboard@internal",
+    "rule": "PathPrefix(`/`)",
+    "ruleSyntax": "default",
+    "priority": 9223372036854775805,
+    "observability": {
+      "accessLogs": true,
+      "metrics": true,
+      "tracing": true,
+      "traceVerbosity": "minimal"
+    },
+    "status": "enabled",
+    "using": [
+      "traefik"
+    ],
+    "name": "dashboard@internal",
+    "provider": "internal",
+    "priorityStr": "9223372036854775805"
+  },
+  {
+    "entryPoints": [
+      "web"
+    ],
+    "service": "multi",
+    "rule": "Host(`a.example.com`) || Host(`b.example.com`)",
+    "priority": 46,
+    "observability": {
+      "accessLogs": true,
+      "metrics": true,
+      "tracing": true,
+      "traceVerbosity": "minimal"
+    },
+    "status": "enabled",
+    "using": [
+      "web"
+    ],
+    "name": "multi@docker",
+    "provider": "docker",
+    "priorityStr": "46"
+  },
+  {
+    "entryPoints": [
+      "web"
+    ],
+    "service": "hp-domains-whoami1",
+    "rule": "Host(`whoami.example.com`)",
+    "priority": 26,
+    "observability": {
+      "accessLogs": true,
+      "metrics": true,
+      "tracing": true,
+      "traceVerbosity": "minimal"
+    },
+    "status": "enabled",
+    "using": [
+      "web"
+    ],
+    "name": "whoami-http@docker",
+    "provider": "docker",
+    "priorityStr": "26"
+  },
+  {
+    "entryPoints": [
+      "websecure"
+    ],
+    "service": "hp-domains-whoami1",
+    "rule": "Host(`whoami.example.com`)",
+    "priority": 26,
+    "tls": {
+      "options": "default"
+    },
+    "observability": {
+      "accessLogs": true,
+      "metrics": true,
+      "tracing": true,
+      "traceVerbosity": "minimal"
+    },
+    "status": "enabled",
+    "using": [
+      "websecure"
+    ],
+    "name": "whoami@docker",
+    "provider": "docker",
+    "priorityStr": "26"
+  }
+]

@@ -1,0 +1,124 @@
+[
+  {
+    "entryPoints": ["websecure"],
+    "service": "whoami-whoami",
+    "rule": "Host(`whoami.example.com`)",
+    "priority": 33,
+    "tls": { "certResolver": "le" },
+    "observability": { "accessLogs": true, "metrics": true, "tracing": true, "traceVerbosity": "minimal" },
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "whoami@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["web"],
+    "middlewares": ["redirect-https@file"],
+    "service": "whoami-whoami",
+    "rule": "Host(`whoami.example.com`)",
+    "priority": 33,
+    "status": "enabled",
+    "using": ["web"],
+    "name": "whoami-http@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "app",
+    "rule": "Host(`a.example.com`, `b.example.com`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "multi@file",
+    "provider": "file"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "grafana-monitoring",
+    "rule": "Host(`grafana.example.com`) || Host(`metrics.example.com`)",
+    "tls": { "certResolver": "le" },
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "grafana@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["web"],
+    "service": "nas",
+    "rule": "Host(`intranet.example.com`) && PathPrefix(`/`)",
+    "status": "enabled",
+    "using": ["web"],
+    "name": "nas@file",
+    "provider": "file"
+  },
+  {
+    "entryPoints": ["traefik"],
+    "service": "api@internal",
+    "rule": "PathPrefix(`/api`) || PathPrefix(`/dashboard`)",
+    "priority": 9223372036854775806,
+    "status": "enabled",
+    "using": ["traefik"],
+    "name": "api@internal",
+    "provider": "internal"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "api@internal",
+    "rule": "Host(`traefik.example.com`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "dashboard@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "broken-svc",
+    "rule": "Host(`broken.example.com`)",
+    "error": ["the service \"broken-svc@docker\" does not exist"],
+    "status": "disabled",
+    "using": ["websecure"],
+    "name": "broken@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "shop-canary",
+    "rule": "Host(`shop.example.com`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "shop@file",
+    "provider": "file"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "web-app",
+    "rule": "Host(`web.example.com`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "web@docker",
+    "provider": "docker"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "default-echo-80",
+    "rule": "Host(`echo.k8s.example.com`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "default-echo-6c8f2d@kubernetescrd",
+    "provider": "kubernetescrd"
+  },
+  {
+    "entryPoints": ["websecure"],
+    "service": "app",
+    "rule": "HostRegexp(`^.+\\.example\\.com$`)",
+    "tls": {},
+    "status": "enabled",
+    "using": ["websecure"],
+    "name": "catchall@file",
+    "provider": "file"
+  }
+]

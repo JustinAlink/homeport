@@ -231,10 +231,11 @@
         </div>
         <p class="mb-3 text-xs text-slate-500">Proxy routes whose upstream doesn't match any running container: a stopped app, or a typo in the proxy.</p>
         <div class="card row-list">
-          <div v-for="u in unmatched" :key="u.upstream" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[13px]">
+          <div v-for="u in unmatched" :key="`${u.upstream}|${u.domains.join()}`" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[13px]">
             <span class="text-slate-200">{{ u.domains.join(', ') }}</span>
             <Icon name="arrow-right" class="h-3.5 w-3.5 text-slate-600" />
             <span class="font-mono text-xs text-slate-500">{{ u.upstream }}</span>
+            <span v-if="u.source" class="text-xs text-slate-500">from {{ u.source }}</span>
           </div>
         </div>
       </section>

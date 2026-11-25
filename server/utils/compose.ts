@@ -1,14 +1,12 @@
-import type { Service, ServiceDomain, ServicesResponse, UnmatchedRoute } from '~/types/service'
+import type { Service, ServiceDomain, ServicesResponse } from '~/types/service'
 import { listContainersFor, type RawContainer } from './docker'
-import { getDomainProviderFor } from './providers'
-import type { Route } from './providers/types'
+import { readHostSources } from './providers'
+import { joinRoutes } from './providers/join-core'
+import { sourcesLabel } from './providers/sources-core'
 import { getConfig } from './config'
 import { demoServices } from './demo'
 import { listSystemdServices, type SystemdUnit } from './systemd'
 import { getHosts, isMultiHost, type HostConfig } from './hosts'
-import { reportedProviderName } from './provider-label-core'
-
-const isIp = (h: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(h)
 
 function toService(host: HostConfig, c: RawContainer, domains: ServiceDomain[], multi: boolean): Service {
   const l = c.labels
@@ -65,38 +63,14 @@ function systemdToService(u: SystemdUnit): Service {
 
 /** Build one host's services (containers joined with its reverse-proxy domains). */
 async function buildHost(host: HostConfig, multi: boolean) {
-  const provider = getDomainProviderFor(host)
-  const [containers, routes] = await Promise.all([
-    listContainersFor(host),
-    provider ? provider.getRoutes() : Promise.resolve<Route[]>([]),
-  ])
-
-  const byName = new Map(containers.map((c) => [c.name, c]))
-  const domainsById = new Map<string, ServiceDomain[]>()
-  const usedRoutes = new Set<Route>()
-
-  for (const route of routes) {
-    let target: RawContainer | undefined
-    if (isIp(route.upstreamHost)) {
-      target = containers.find((c) => c.ports.some((p) => p.hostPort === route.upstreamPort))
-    } else {
-      target = byName.get(route.upstreamHost)
-    }
-    if (!target) continue
-    const list = domainsById.get(target.id) || []
-    const via = isIp(route.upstreamHost) ? ('ip' as const) : ('name' as const)
-    const port = route.upstreamPort || undefined
-    for (const d of route.domains) list.push({ domain: d, url: `${route.ssl ? 'https' : 'http'}://${d}`, ssl: route.ssl, via, ...(port ? { port } : {}) })
-    domainsById.set(target.id, list)
-    usedRoutes.add(route)
-  }
-
-  const services = containers.map((c) => toService(host, c, domainsById.get(c.id) || [], multi))
-  const unmatched: UnmatchedRoute[] = routes
-    .filter((r) => !usedRoutes.has(r))
-    .map((r) => ({ domains: r.domains, upstream: `${r.upstreamHost}:${r.upstreamPort}`, ssl: r.ssl }))
-
-  return { services, unmatched, providerName: reportedProviderName(provider?.name, host, routes.length) }
+  const containers = listContainersFor(host)
+  // the primary source (file or API) is read while Docker lists containers; the
+  // label sources then parse that same list (no second Docker call)
+  const [list, sources] = await Promise.all([containers, readHostSources(host, containers)])
+  const routes = sources.flatMap((s) => s.routes)
+  const { domainsById, unmatched } = joinRoutes(routes, list)
+  const services = list.map((c) => toService(host, c, domainsById.get(c.id) || [], multi))
+  return { services, unmatched, providerName: sourcesLabel(sources) }
 }
 
 /** Compose the dashboard payload across every configured host. */

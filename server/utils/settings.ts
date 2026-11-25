@@ -11,11 +11,15 @@ export interface PersistedSettings {
   dockerHost?: string // ssh://user@host when dockerMode==='ssh'
   dockerSshKey?: string // path to the private key
   dockerSshFingerprint?: string // SHA256:… of the remote host key (optional)
-  domainProvider?: string // '' | 'npm' | 'traefik' | 'caddy' | 'nginx' | 'traefik-file'
+  domainProvider?: string // '' = auto, or one of DOMAIN_PROVIDER_IDS (providers/sources-core.ts)
   npmConfDir?: string
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  /** Traefik API (read-only domain source), optional basic auth */
+  traefikApiUrl?: string
+  traefikApiUser?: string
+  traefikApiPassword?: string
   allowControl?: boolean
   /** Capability toggles (tiered opt-in; see README security table). */
   logsEnabled?: boolean
@@ -82,6 +86,9 @@ export interface SettingsHost {
   caddyfilePath?: string
   nginxConfDir?: string
   traefikFilePath?: string
+  traefikApiUrl?: string
+  traefikApiUser?: string
+  traefikApiPassword?: string
   npmApiUrl?: string
   npmApiIdentity?: string
   npmApiSecret?: string

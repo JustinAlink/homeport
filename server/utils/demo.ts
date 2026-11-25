@@ -23,7 +23,7 @@ interface Seed {
   state?: string
   health?: Service['health']
   statusText: string
-  domains?: { domain: string; ssl?: boolean }[]
+  domains?: { domain: string; ssl?: boolean; source?: string }[]
   ports?: number[]
   /** Address the ports are published on (default: every interface, Docker's default). */
   bind?: string
@@ -44,7 +44,7 @@ const seeds: Seed[] = [
   // infra
   { name: 'traefik', image: 'traefik:v3.1', group: 'infra', statusText: 'Up 3 weeks', ports: [80, 443, 8080] },
   { name: 'portainer', image: 'portainer/portainer-ce:2.21.0', group: 'infra', statusText: 'Up 3 weeks', domains: [{ domain: 'portainer.example.com', ssl: true }], ports: [9443], dockerSocket: true, probe: { status: 200, http: { status: 301, location: 'https://portainer.example.com/' } } },
-  { name: 'vaultwarden', image: 'vaultwarden/server:1.32.0', group: 'infra', health: 'healthy', statusText: 'Up 3 weeks (healthy)', domains: [{ domain: 'vault.example.com', ssl: true }], probe: { status: 200, http: { status: 301, location: 'https://vault.example.com/' } } },
+  { name: 'vaultwarden', image: 'vaultwarden/server:1.32.0', group: 'infra', health: 'healthy', statusText: 'Up 3 weeks (healthy)', domains: [{ domain: 'vault.example.com', ssl: true, source: 'Pangolin' }], probe: { status: 200, http: { status: 301, location: 'https://vault.example.com/' } } },
   // downloads
   { name: 'qbittorrent', image: 'lscr.io/linuxserver/qbittorrent:5.0.0@sha256:1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f', group: 'downloads', statusText: 'Up 6 days', domains: [{ domain: 'qbit.example.com', ssl: true }], ports: [8090], probe: { status: 401, http: { status: 301, location: 'https://qbit.example.com/' } } },
   { name: 'gluetun', image: 'qmcgaw/gluetun:v3.39.0', group: 'downloads', health: 'healthy', statusText: 'Up 6 days (healthy)' },
@@ -100,6 +100,8 @@ function toService(s: Seed, i: number): Service {
       url: `${d.ssl ? 'https' : 'http'}://${d.domain}`,
       ssl: !!d.ssl,
       via: 'name' as const, // demo routes point at container names, like most real proxy setups
+      // the demo reads its Traefik's API, plus one app tunnelled through Pangolin
+      source: d.source ?? 'Traefik (API)',
     })),
     hidden: false,
     noalert: false,
@@ -1006,7 +1008,7 @@ export function demoServices(): ServicesResponse {
   const services = [...containers, ...(getConfig().systemdEnabled ? demoSystemd() : [])]
   return {
     services,
-    unmatched: [{ domains: ['old.example.com'], upstream: '172.17.0.1:9000', ssl: true }],
+    unmatched: [{ domains: ['old.example.com'], upstream: '172.17.0.1:9000', ssl: true, source: 'Traefik (API)' }],
     stats: {
       running: services.filter((s) => s.state === 'running').length,
       total: services.length,
