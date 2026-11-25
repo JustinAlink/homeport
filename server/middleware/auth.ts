@@ -20,6 +20,12 @@ export default defineEventHandler((event) => {
   // short-lived pending token + rate limit rather than a session — a caller
   // here hasn't finished logging in yet, so no session cookie exists.
   if (path === '/api/auth/login' || path === '/api/auth/logout' || path === '/api/auth/totp' || path === '/api/setup') return
+  // Git webhook deliveries (deploy on push) come from GitHub, Gitea, GitLab or a
+  // script, which have no session and no API token. The handler is the gate: off
+  // unless HOMEPORT_ALLOW_GIT_WEBHOOKS, 404 for an unknown URL, and a constant-time
+  // check of the stack's own secret (HMAC signature or token) before anything runs.
+  // POST only: any other method falls through to the normal session check.
+  if (event.method === 'POST' && path.startsWith('/api/hooks/git/')) return
 
   // open mode (no password, user skipped it or the volume is read-only) → no auth
   if (authMode() === 'open') return

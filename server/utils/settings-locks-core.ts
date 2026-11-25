@@ -16,6 +16,7 @@ export const LOCKED_FIELDS = {
   updateCheckEnabled: 'updateCheckEnabled',
   allowUpdates: 'allowUpdates',
   allowStacks: 'allowStacks',
+  allowGitWebhooks: 'allowGitWebhooks',
   allowTerminal: 'allowTerminal',
   allowContainerFiles: 'allowContainerFiles',
   allowProxyAdmin: 'allowProxyAdmin',

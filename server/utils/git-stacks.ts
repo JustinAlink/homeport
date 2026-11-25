@@ -163,6 +163,21 @@ async function followedRef(cwd: string): Promise<string> {
   return (tag.code === 0 && validateRef(tag.out.trim())) || 'HEAD'
 }
 
+/** The branch or tag a git stack follows, without the rest of gitStackMeta (a webhook needs only this). */
+export async function stackFollowedRef(name: string): Promise<string | null> {
+  const safe = safeStackName(name)
+  if (!safe || !isGitStack(safe)) return null
+  return followedRef(stackPath(safe))
+}
+
+/** Short HEAD commit of a git stack (what an update just deployed). */
+export async function stackHeadCommit(name: string): Promise<string | undefined> {
+  const safe = safeStackName(name)
+  if (!safe || !isGitStack(safe)) return undefined
+  const r = await runGit(['rev-parse', '--short', 'HEAD'], { cwd: stackPath(safe), repoUrl: '', token: null })
+  return r.code === 0 ? r.out.trim() || undefined : undefined
+}
+
 /**
  * Auto-dockerize fallback for cloned repos: when the repo has no compose file
  * but ships a Dockerfile, generate a build-in-place compose.yaml (ports from

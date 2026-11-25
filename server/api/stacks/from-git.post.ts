@@ -4,6 +4,7 @@ import { assertNewStackName, validateCompose, runStackOp, StackNameTakenError } 
 import { newStackName } from '../../utils/stacks-core'
 import { validateRepoUrl, validateRef } from '../../utils/git-stacks-core'
 import { cloneGitStack, cleanupFailedClone, ensureComposeFile, saveToken } from '../../utils/git-stacks'
+import { forgetStack } from '../../utils/git-webhooks'
 import { demoStackFromGit } from '../../utils/demo'
 
 // Create a stack from a git repository: shallow-clone into the stacks dir,
@@ -38,6 +39,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: e instanceof StackNameTakenError ? 409 : 400, statusMessage: e?.message || 'invalid stack name' })
   }
 
+  // a stack folder removed by hand leaves its deploy-on-push settings behind; a
+  // new repository under the same name must not answer the old one's webhook
+  forgetStack(name)
   const token = String(body?.token || '').trim() || null
   if (token) saveToken(name, token)
 

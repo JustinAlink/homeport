@@ -15,6 +15,8 @@ export default defineEventHandler((event) => {
     updateCheck: cfg.updateCheckEnabled,
     updates: cfg.allowUpdates && !viewer,
     stacks: cfg.allowStacks,
+    // the public delivery endpoint only works with stacks on, so the UI asks for both
+    gitWebhooks: cfg.allowGitWebhooks && cfg.allowStacks && !viewer,
     terminal: cfg.allowTerminal && !viewer,
     containerFiles: cfg.allowContainerFiles && !viewer,
     proxyAdmin: cfg.allowProxyAdmin,

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import type { PingMap, Service, ServicesResponse, StatsMap, StatsResponse } from '~/types/service'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
@@ -234,6 +235,7 @@ export function demoActivity() {
   const H = 3600_000
   return [
     { id: 'default|jellyfin/jellyfin:10.9.6', name: 'jellyfin', host: 'demo', kind: 'update', from: 'jellyfin/jellyfin:10.9.6', to: 'sha256:cdcd', at: now - 0.4 * H },
+    { id: 'git|media', name: 'stack media', host: 'demo', kind: 'updated', from: 'git push', to: '', at: now - 2 * H },
     { id: 'auto|demo|stack media', name: 'stack media', host: 'demo', kind: 'updated', from: 'auto-update', to: '', at: now - 5 * H },
     { id: 'demo-12', name: 'restic-backup', kind: 'recovered', from: 'exited', to: 'running', at: now - 9 * H },
     { id: 'demo-12', name: 'restic-backup', kind: 'down', from: 'running', to: 'exited', at: now - 11 * H },
@@ -480,6 +482,28 @@ export function demoGitMeta(name: string) {
 }
 
 const demoGitStacks = new Set<string>()
+
+// Deploy on push in demo: the media stack has a webhook (whose secret nobody
+// knows until "Regenerate" shows a fresh one) and a delivery from two hours ago.
+// Deliveries are verified for real and then do nothing.
+export function demoGitWebhookSeed(name: string) {
+  if (name !== DEMO_GIT_STACK) return { autoSync: { enabled: false, intervalMin: 5 } }
+  const now = Date.now()
+  return {
+    hook: { id: 'demo-Hq3vV9xKp2LmT8wZ', secret: randomBytes(32).toString('hex'), createdAt: now - 9 * DAY },
+    autoSync: { enabled: false, intervalMin: 5 },
+    lastDelivery: {
+      at: now - 2 * 3600_000,
+      provider: 'GitHub',
+      event: 'push',
+      ref: 'refs/heads/main',
+      commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      status: 200,
+      result: 'deployed' as const,
+      message: '',
+    },
+  }
+}
 
 export function demoStackFromGit(name: string, repo: string, ref: string) {
   demoGitStacks.add(name)

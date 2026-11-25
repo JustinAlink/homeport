@@ -23,6 +23,8 @@ export interface PersistedSettings {
   /** Registry logins for checking/pulling private images (e.g. ghcr.io). */
   registryCreds?: RegistryCred[]
   allowStacks?: boolean
+  /** Deploy git stacks on push: public per-stack webhook URLs. */
+  allowGitWebhooks?: boolean
   /** Extra dirs scanned for compose projects, managed in place (mounted at the same host path). */
   composeRoots?: string[]
   /** Extra app-catalog template source URLs (native or Portainer format). */

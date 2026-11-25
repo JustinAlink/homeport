@@ -59,6 +59,8 @@ export interface HomeportConfig {
   registryCreds: RegistryCred[]
   /** Compose stack management from a mounted stacks dir (needs broad proxy perms). Off by default. */
   allowStacks: boolean
+  /** Public per-stack webhook URLs that update a git stack on a push. Off by default; needs allowStacks. */
+  allowGitWebhooks: boolean
   /** Directory of compose stacks (each subdir = one stack). */
   stacksDir: string
   /** Extra dirs scanned for compose projects, managed in place (mount at the SAME host path). */
@@ -230,6 +232,11 @@ export function getConfig(): HomeportConfig {
       envStr('HOMEPORT_ALLOW_STACKS') !== undefined
         ? process.env.HOMEPORT_ALLOW_STACKS === 'true'
         : !!s.allowStacks,
+    // opens a public endpoint (/api/hooks/git/...), so it is its own opt-in on top of stacks
+    allowGitWebhooks:
+      envStr('HOMEPORT_ALLOW_GIT_WEBHOOKS') !== undefined
+        ? process.env.HOMEPORT_ALLOW_GIT_WEBHOOKS === 'true'
+        : !!s.allowGitWebhooks,
     stacksDir: envStr('HOMEPORT_STACKS_DIR') ?? '/stacks',
     composeRoots:
       envStr('HOMEPORT_COMPOSE_ROOTS') !== undefined
@@ -333,6 +340,7 @@ export function getEnvLocks() {
     allowUpdates: envStr('HOMEPORT_ALLOW_UPDATES') !== undefined,
     registryCreds: envStr('HOMEPORT_REGISTRY_AUTH') !== undefined,
     allowStacks: envStr('HOMEPORT_ALLOW_STACKS') !== undefined,
+    allowGitWebhooks: envStr('HOMEPORT_ALLOW_GIT_WEBHOOKS') !== undefined,
     composeRoots: envStr('HOMEPORT_COMPOSE_ROOTS') !== undefined,
     catalogUrls: envStr('HOMEPORT_CATALOG_URLS') !== undefined,
     allowTerminal: envStr('HOMEPORT_ALLOW_TERMINAL') !== undefined,
@@ -380,6 +388,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds'> & {
     allowUpdates: !!s.allowUpdates,
     registryCreds: settingsRegistryCreds(s).map((c) => ({ registry: c.registry, username: c.username, token: '', tokenSet: !!c.token })),
     allowStacks: !!s.allowStacks,
+    allowGitWebhooks: !!s.allowGitWebhooks,
     composeRoots: s.composeRoots ?? [],
     catalogUrls: s.catalogUrls ?? DEFAULT_CATALOG_URLS,
     allowTerminal: !!s.allowTerminal,
