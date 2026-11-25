@@ -68,6 +68,10 @@ all live and builds the page for you. **Zero tiles to configure.**
 - **Updates in one place** — every outdated image grouped by stack, with opt-in scheduled auto-updates.
 
 ### 🌐 Domains, proxy & apps
+- **Exposure report**: how every app can be reached, by domain and by port. It flags an app that is
+  also reachable *around* the proxy (skipping its HTTPS and login), plain HTTP, open databases and
+  admin ports, and containers that control Docker, each with the exact compose line to fix it. A
+  finding you meant to have can be accepted with a reason. [How it works](docs/operations.md#exposure-report).
 - **Proxy management** — create / edit / remove routes from the UI (Nginx Proxy Manager, Caddy, or Traefik).
 - **App catalog** — one-click install curated + Portainer-compatible templates, plus **Docker Hub & GitHub** tabs that auto-dockerize any image or repo — including [a reverse proxy itself](#get-your-first-service-online).
 - **Git-backed stacks** — deploy straight from a repo and update with one click when it moves.
@@ -78,32 +82,44 @@ _Plus real app logos, systemd services, multi-host aggregation, backup & restore
 
 ## How it compares
 
-Most self-hosted dashboards make you choose between *seeing* your fleet and *managing* it.
-homeport is the overlap — it discovers everything on its own, reads your reverse proxy so it
-already knows your domains, and stays read-only until you decide to turn management on.
+homeport is built around one idea: your reverse proxy already knows which domain reaches which
+container. homeport reads that configuration as it is (no labels to add), can write routes back,
+and checks how every app can actually be reached. Management is there too, off until you turn it on.
 
-| | **homeport** | Portainer | Dockge | Homepage / Dashy |
-|---|---|---|---|---|
-| Setup | **Zero-config** — auto-discovers every container | Manual | Point at compose dirs | Hand-write a tile per service |
-| First job | Status hub (read-only by default) | Full management console | Compose editor | Static launcher |
-| Domain mapping | **Automatic** — reads NPM / Caddy / Traefik / Nginx | — | — | Manual links |
-| Live updates | Docker events (instant) | Polling | — | — |
-| Management | **Opt-in, tiered** (controls · updates · stacks · terminal) | Always on | Compose ops | None |
-| Compose stacks | ✅ edit + deploy in-browser | limited | ✅ (its focus) | — |
-| Reverse-proxy admin | ✅ create/edit routes from the UI | — | — | — |
+| | **homeport** | Arcane | Dockhand | Komodo | Portainer CE | Dozzle |
+|---|---|---|---|---|---|---|
+| Domain for each container | **Read from the proxy's own config**: NPM, Caddyfile, nginx, Traefik (labels or file) | No | Traefik, Pangolin and caddy-docker-proxy labels | Typed in by hand | No | A label you add |
+| Create and edit proxy routes | ✅ NPM, Caddy, Traefik file | No | No | No | Kubernetes Ingress only | No |
+| Exposure report (what skips the proxy, plain HTTP, open ports) | ✅ | No | Compose check warns about open database ports | No | No | No |
+| Read-only until you opt in | ✅ tiered | No | No | No | No | ✅ actions off by default |
+| Compose stacks in the browser | ✅ | ✅ | ✅ | ✅ | ✅ | No |
+| Image updates: check and apply | ✅ | ✅ | ✅ | ✅ | Re-pull by hand (the indicator is Business-only) | ✅ |
+| Down / unhealthy alerts | ✅ | Auto-heal restarts only | ✅ | ✅ state changes | Business-only | ✅ rules you write |
+| Single sign-on | Forward-auth + TOTP | ✅ OIDC | ✅ OIDC | ✅ OIDC | Custom OAuth2 | ✅ OIDC |
+| Vulnerability scans | No | ✅ Trivy | ✅ Grype, Trivy | No | No | No |
+| Beyond plain Docker | No | Swarm, Podman | Podman | Swarm | Swarm, Kubernetes, Podman | Swarm, Kubernetes, Podman |
+| License | GPL-3.0 | BSD-3-Clause | BUSL-1.1 (free for personal use) | GPL-3.0 | Zlib | MIT |
 
-Coming from one of those? homeport isn't a replacement for a full container platform — it's the
-status-and-domains layer on top, and it stays out of your way until you turn management on.
+<sub>Checked on 2026-11-25 against Arcane 3.1.1, Dockhand 1.0.59, Komodo 2.3.4, Portainer CE 2.45.4 and
+Dozzle 11.5.0, from each project's own docs and code. Something out of date? Please
+[open an issue](https://github.com/JustinAlink/homeport/issues).</sub>
 
-**Not (yet) for you if…**
+**Pick something else if…**
 
-- You need **native OIDC / OAuth SSO** — homeport supports **forward-auth** (put it behind
-  Authelia / Authentik / oauth2-proxy and it trusts their `Remote-User` header) and **built-in
-  TOTP 2FA** on the admin account, but there's no built-in OIDC yet.
-- You run **Podman, Kubernetes, or Swarm** — homeport talks to the Docker API only.
-- You want to edit a container's **healthcheck** from the UI — not there yet, and can't be live-updated
-  by the Docker Engine API even if it were (needs a recreate). CPU/RAM limits, restart policy, and the
-  full compose file can all be edited live.
+- you need **vulnerability scanning**: Arcane or Dockhand;
+- you run **Swarm, Kubernetes or Podman**: Portainer, Arcane, Komodo or Dozzle (homeport talks to the
+  Docker API only);
+- **logs** are what you mostly look at: Dozzle;
+- you want **built-in OIDC**: homeport supports **forward-auth** instead (put it behind Authelia,
+  Authentik or oauth2-proxy and it trusts their `Remote-User` header) plus **TOTP 2FA** on the admin
+  account;
+- you want to edit a container's **healthcheck** from the UI: not there yet, and the Docker Engine API
+  can't change it live anyway (it needs a recreate). CPU/RAM limits, restart policy and the full compose
+  file can all be edited live.
+
+The exposure report shows how every app can be reached, and the exact line that closes what shouldn't be open:
+
+![exposure report](docs/exposure.png)
 
 Every container has its own page — overview, logs, terminal, domains, and updates:
 
