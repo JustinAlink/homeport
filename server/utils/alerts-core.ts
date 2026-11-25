@@ -128,6 +128,49 @@ export function reduceAlertState(
 }
 
 /**
+ * Per-service labels remembered across ticks so an alert can say what it moved
+ * between: `before` is the label a service had before it went bad ("running" in
+ * "running → exited"), `during` its latest bad label ("exited" in
+ * "recovered (exited → running)").
+ */
+export interface LabelMemory {
+  before: Map<string, string>
+  during: Map<string, string>
+}
+
+export const emptyLabelMemory = (): LabelMemory => ({ before: new Map(), during: new Map() })
+
+/**
+ * The from/to an emitted container alert reports. Call once per service per
+ * tick with that tick's transition (if any) and reducer output; it updates
+ * `memory` and returns null when nothing was emitted. A recovery reports the
+ * label the service recovered FROM: it used to reuse `before`, so a stopped and
+ * restarted container announced "recovered (running → running)".
+ */
+export function eventLabels(
+  memory: LabelMemory,
+  s: ServiceState,
+  tr: Transition | undefined,
+  emit: AlertKind | null,
+): { from: string; to: string } | null {
+  if (tr && (tr.kind === 'down' || tr.kind === 'unhealthy')) memory.before.set(s.id, tr.from)
+  const bad = isBad(s)
+  if (bad) memory.during.set(s.id, label(s))
+
+  let out: { from: string; to: string } | null = null
+  if (emit === 'recovered') {
+    // nothing remembered (homeport restarted mid-outage and the first tick it
+    // saw was already good): fall back to the generic word
+    out = { from: memory.during.get(s.id) || 'down', to: label(s) }
+    memory.before.delete(s.id)
+  } else if (emit) {
+    out = { from: memory.before.get(s.id) || '', to: label(s) }
+  }
+  if (!bad) memory.during.delete(s.id)
+  return out
+}
+
+/**
  * The domains worth watching: those of running containers that aren't excluded
  * (a stopped container already alerts on its own, its domain failing too would
  * just repeat that). One entry per URL.

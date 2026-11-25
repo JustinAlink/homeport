@@ -8,6 +8,8 @@ import {
   type AlertState,
   type Transition,
   emptyAlertState,
+  emptyLabelMemory,
+  eventLabels,
   detectTransitions,
   reduceAlertState,
   badKind,
@@ -34,7 +36,7 @@ const logFile = () => join(dir(), 'log.json')
 let stateCache: Record<string, AlertState> | null = null
 let logCache: AlertEvent[] | null = null
 let prevStates = new Map<string, ServiceState>()
-const originLabel = new Map<string, string>() // label captured when a service first went bad
+const labels = emptyLabelMemory() // what each alert says it moved between (alerts-core)
 let writable: boolean | null = null
 
 function canWrite(): boolean {
@@ -150,20 +152,12 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
     if (s.noalert) continue
     const kind = badKind(s)
 
-    // Capture the "from" label at the moment a service first goes bad.
-    const tr = transitions.get(s.id)
-    if (tr && (tr.kind === 'down' || tr.kind === 'unhealthy')) originLabel.set(s.id, tr.from)
-
     const cur = state[s.id] ?? emptyAlertState()
     const { state: nextState, emit } = reduceAlertState(cur, kind, rule, now)
     state[s.id] = nextState
 
-    if (emit) {
-      const from = emit === 'recovered' ? originLabel.get(s.id) || 'down' : originLabel.get(s.id) || ''
-      const to = emit === 'recovered' ? labelOf(s) : labelOf(s)
-      events.push({ id: s.id, name: s.name, host: s.host, kind: emit, from, to, at: now })
-      if (emit === 'recovered') originLabel.delete(s.id)
-    }
+    const ev = eventLabels(labels, s, transitions.get(s.id), emit)
+    if (emit && ev) events.push({ id: s.id, name: s.name, host: s.host, kind: emit, from: ev.from, to: ev.to, at: now })
   }
 
   // prune state for vanished services (domain states are evaluateDomainAlerts' own)
@@ -189,12 +183,6 @@ export async function evaluateAlerts(snap: Snapshot): Promise<void> {
 
 function toState(s: { id: string; displayName: string; host?: string; state: string; health: string | null; noalert: boolean }): ServiceState {
   return { id: s.id, name: s.displayName, host: s.host, state: s.state, health: s.health, noalert: s.noalert }
-}
-
-function labelOf(s: ServiceState): string {
-  if (s.state !== 'running' && s.state !== 'restarting') return s.state
-  if (s.health === 'unhealthy') return 'unhealthy'
-  return s.health || s.state
 }
 
 /**

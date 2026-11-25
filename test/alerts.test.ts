@@ -8,6 +8,8 @@ import {
   emptyAlertState,
   domainTargets,
   domainDown,
+  emptyLabelMemory,
+  eventLabels,
   type ServiceState,
   type AlertRuleConfig,
 } from '../server/utils/alerts-core.ts'
@@ -174,3 +176,57 @@ test('domain alert texts say which site and what it answers', () => {
   assert.match(eventText({ id: 'domain:x', name: 'blog.example.com', kind: 'domain-down', from: 'ghost', to: 'HTTP 502', at: 0 }), /blog\.example\.com is not answering properly \(HTTP 502\), served by ghost/)
   assert.match(eventText({ id: 'domain:x', name: 'blog.example.com', kind: 'domain-recovered', from: 'HTTP 502', to: 'HTTP 200', at: 0 }), /blog\.example\.com answers again \(HTTP 200\)/)
 })
+
+// ---- eventLabels: what each alert says it moved between ----
+
+// Replays ticks the way evaluateAlerts does: detect → reduce → label.
+function replay(states: Partial<ServiceState>[], r = rule({ debounceSamples: 1 })) {
+  const memory = emptyLabelMemory()
+  let alert = emptyAlertState()
+  let prev: ServiceState[] = []
+  const out: string[] = []
+  states.forEach((over, i) => {
+    const s = svc(over)
+    const tr = detectTransitions(prev, [s])[0]
+    const { state, emit } = reduceAlertState(alert, badKind(s), r, i * 30_000)
+    alert = state
+    const ev = eventLabels(memory, s, tr, emit)
+    if (emit && ev) out.push(`${emit} (${ev.from} → ${ev.to})`)
+    prev = [s]
+  })
+  return out
+}
+
+test('eventLabels: a stop and start reads running → exited, then exited → running', () => {
+  assert.deepEqual(replay([{ state: 'running' }, { state: 'exited' }, { state: 'running' }]), [
+    'down (running → exited)',
+    'recovered (exited → running)',
+  ])
+})
+
+test('eventLabels: recovery names the latest bad label after the nature changed', () => {
+  assert.deepEqual(
+    replay([{ health: 'healthy' }, { health: 'unhealthy' }, { state: 'exited', health: null }, { health: 'healthy' }]),
+    ['unhealthy (healthy → unhealthy)', 'recovered (exited → healthy)'],
+  )
+})
+
+test('eventLabels: the debounce does not change the labels', () => {
+  assert.deepEqual(
+    replay([{ state: 'running' }, { state: 'exited' }, { state: 'exited' }, { state: 'exited' }, { state: 'running' }], rule({ debounceSamples: 3 })),
+    ['down (running → exited)', 'recovered (exited → running)'],
+  )
+})
+
+test('eventLabels: a homeport restart mid-outage still names what it recovered from', () => {
+  // no previous snapshot: the outage is already under way when homeport starts
+  const memory = emptyLabelMemory()
+  const firing = { ...emptyAlertState(), consecutiveBad: 3, firing: true }
+  const down = svc({ state: 'exited' })
+  eventLabels(memory, down, undefined, reduceAlertState(firing, 'down', rule(), 0).emit)
+  const up = svc({ state: 'running' })
+  const tr = detectTransitions([down], [up])[0]
+  const { emit } = reduceAlertState(firing, null, rule(), 30_000)
+  assert.deepEqual(eventLabels(memory, up, tr, emit), { from: 'exited', to: 'running' })
+})
+

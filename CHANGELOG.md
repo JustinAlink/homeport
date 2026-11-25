@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.35.2 (2026-11-25)
+
+- **Bug: recovery alerts said "running → running".** A container that went down
+  and came back announced `🟢 web recovered (running → running)`, because the
+  recovery reused the label from before the outage. It now names what the
+  service recovered from, e.g. `recovered (exited → running)`, including after
+  the outage changed nature (unhealthy, then exited) and after homeport itself
+  restarted mid-outage. Down and unhealthy alerts are unchanged.
+
 ## v2.35.1 (2026-10-25)
 
 - **Bug: a switch set by an environment variable hid everything under it.** With
