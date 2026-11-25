@@ -167,3 +167,32 @@ test('exposure: an accepted finding stops counting but stays visible with its re
   const game = app({ key: 'h|mc', ports: [{ hostPort: 25565, containerPort: 25565, type: 'tcp', addrs: ALL }] })
   assert.equal(exposureOf(game, {}, { [ackKey('h|mc', 'open-port')]: { note: 'game server', at: 1 } }).level, 'open')
 })
+
+test('exposure: only the port the proxy forwards to is a way around it (found on a real fleet)', () => {
+  // Pelican Wings: the panel's domain goes to its API on 8080, SFTP is open on 2022
+  const wings = { domain: 'node.example.com', url: 'https://node.example.com', ssl: true, via: 'name' as const, port: 8080 }
+  const sftpOnly = exposureOf(app({ key: 'h|wings', domains: [wings], ports: [{ hostPort: 2022, containerPort: 2022, type: 'tcp', addrs: ALL }] }))
+  assert.deepEqual(sftpOnly.findings.map((f) => f.code), ['open-port']) // a separate way in, not a bypass
+  assert.equal(sftpOnly.level, 'open')
+  assert.match(sftpOnly.findings[0].detail, /isn’t the port the proxy forwards to/)
+  // the forwarded port itself open too: that one is around the proxy
+  const both = exposureOf(app({ key: 'h|wings', domains: [wings], ports: [{ hostPort: 8080, containerPort: 8080, type: 'tcp', addrs: ALL }, { hostPort: 2022, containerPort: 2022, type: 'tcp', addrs: ALL }] }))
+  assert.deepEqual(both.findings.map((f) => f.code), ['around-proxy', 'open-port'])
+  assert.deepEqual(both.findings[0].ports, [8080])
+  // routed by host IP: the forward port is a host port
+  const byIp = exposureOf(app({ domains: [{ ...wings, via: 'ip', port: 18080 }], ports: [{ hostPort: 18080, containerPort: 8080, type: 'tcp', addrs: ALL }] }))
+  assert.equal(byIp.findings[0].code, 'around-proxy')
+  // with the Docker socket, its own finding already names every open port
+  const real = exposureOf(app({ key: 'h|wings', dockerSocket: true, domains: [wings], ports: [{ hostPort: 2022, containerPort: 2022, type: 'tcp', addrs: ALL }] }))
+  assert.deepEqual(real.findings.map((f) => f.code), ['docker-control'])
+})
+
+test('exposure: a port published for tcp and udp is named once', () => {
+  const mc = exposureOf(
+    app({
+      ports: [25565, 25565, 25566, 25566].map((p, i) => ({ hostPort: p, containerPort: p, type: i % 2 ? 'udp' : 'tcp', addrs: ALL })),
+    }),
+  )
+  assert.match(mc.findings[0].detail, /^Ports 25565 and 25566 on /)
+  assert.deepEqual(mc.findings[0].ports, [25565, 25566])
+})

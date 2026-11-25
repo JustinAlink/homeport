@@ -26,7 +26,7 @@ export interface ExposureInput {
   isProxy: boolean
   dockerSocket?: boolean
   ports: { hostPort: number; containerPort: number; type: string; addrs?: string[] }[]
-  domains: { domain: string; url: string; ssl: boolean; via?: 'name' | 'ip' }[]
+  domains: { domain: string; url: string; ssl: boolean; via?: 'name' | 'ip'; port?: number }[]
 }
 
 export interface DomainProbe {
@@ -160,7 +160,14 @@ const PROXY_ADMIN: { match: RegExp; port: number; what: string; level: 'risk' | 
 const DATA_STORE = /(^|\/)(postgres|postgresql|postgis|timescaledb|mysql|mariadb|mongo|mongodb|redis|valkey|keydb|memcached|influxdb|elasticsearch|opensearch|couchdb|clickhouse-server|cassandra|rabbitmq|mosquitto)(:|@|$)/
 
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
-const portsText = (ps: ExposurePort[]) => (ps.length === 1 ? `port ${ps[0].hostPort}` : `ports ${list(ps.map((p) => String(p.hostPort)))}`)
+// a port published for tcp and udp is one port to a reader
+const hostPorts = (ps: ExposurePort[]) => [...new Set(ps.map((p) => p.hostPort))]
+const portsText = (ps: ExposurePort[]) => {
+  const n = hostPorts(ps)
+  return n.length === 1 ? `port ${n[0]}` : `ports ${list(n.map(String))}`
+}
+const isAre = (ps: ExposurePort[]) => (hostPorts(ps).length === 1 ? 'is' : 'are')
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1)
 const bindExample = (p: ExposurePort) => `\`127.0.0.1:${p.hostPort}:${p.containerPort}\``
 const proto = (p: ExposurePort) => (p.type === 'udp' ? '/udp' : '')
 const localSnippet = (p: ExposurePort) => ({ from: `"${p.hostPort}:${p.containerPort}${proto(p)}"`, to: `"127.0.0.1:${p.hostPort}:${p.containerPort}${proto(p)}"` })
@@ -199,7 +206,15 @@ export function exposureOf(s: ExposureInput, probes: Record<string, DomainProbe>
       })
     }
   } else {
-    if (routes.length && open.length) {
+    // Only the port the proxy forwards to is a way around it. Another open port of the
+    // same container is a different service (Wings' SFTP next to its API, a game port
+    // next to a web panel): open, but not bypassing anything. Unknown forward port:
+    // assume it is this one, the cautious reading.
+    const forwarded = (p: ExposurePort) =>
+      s.domains.some((d) => d.port === undefined || (d.via === 'ip' ? d.port === p.hostPort : d.port === p.containerPort))
+    const bypass = routes.length ? open.filter(forwarded) : []
+    const others = routes.length ? open.filter((p) => !forwarded(p)) : []
+    if (bypass.length) {
       const gated = routes.some((r) => r.access === 'login' || r.access === 'sso' || r.access === 'refused')
       const byIp = s.domains.some((d) => d.via === 'ip')
       findings.push({
@@ -207,15 +222,26 @@ export function exposureOf(s: ExposureInput, probes: Record<string, DomainProbe>
         level: 'risk',
         title: 'Reachable around the proxy',
         detail:
-          `${list(routes.map((r) => r.domain))} ${routes.length === 1 ? 'goes' : 'go'} through the reverse proxy, but ${portsText(open)} ` +
-          `${open.length === 1 ? 'is' : 'are'} also published on every interface of ${where}, which reaches the app directly, ` +
+          `${list(routes.map((r) => r.domain))} ${routes.length === 1 ? 'goes' : 'go'} through the reverse proxy, but ${portsText(bypass)} ` +
+          `${isAre(bypass)} also published on every interface of ${where}, which reaches the app directly, ` +
           `without the proxy’s HTTPS${gated ? ' or the login in front of it' : ''}. ${FIREWALL}`,
         fix: byIp
           ? 'The proxy reaches this app through the published port. Bind that port to the address the proxy connects from instead of every interface, or put the app on the proxy’s network and route to it by container name.'
-          : `The proxy reaches it by container name, so the domain doesn’t need the port: remove it from \`ports:\`, or bind it to 127.0.0.1 (${bindExample(open[0])}) to keep local access.`,
+          : `The proxy reaches it by container name, so the domain doesn’t need the port: remove it from \`ports:\`, or bind it to 127.0.0.1 (${bindExample(bypass[0])}) to keep local access.`,
         // binding to loopback would cut off a proxy that connects through the port
-        ...(byIp ? {} : { snippet: localSnippet(open[0]) }),
-        ports: open.map((p) => p.hostPort),
+        ...(byIp ? {} : { snippet: localSnippet(bypass[0]) }),
+        ports: hostPorts(bypass),
+      })
+    }
+    if (others.length && !s.dockerSocket) {
+      findings.push({
+        code: 'open-port',
+        level: 'open',
+        title: 'Another port is open on every interface',
+        detail: `${cap(portsText(others))} on ${where} ${isAre(others)} published on every interface. It isn’t the port the proxy forwards to, so it is a separate way in (often on purpose: SFTP, a game or media port). ${FIREWALL}`,
+        fix: `Fine if it is meant to be reached directly. Otherwise bind it to 127.0.0.1 (${bindExample(others[0])}).`,
+        snippet: localSnippet(others[0]),
+        ports: hostPorts(others),
       })
     }
     if (s.dockerSocket && (routes.length || open.length)) {
@@ -227,7 +253,7 @@ export function exposureOf(s: ExposureInput, probes: Record<string, DomainProbe>
         detail: `It mounts the Docker socket, so whoever gets into it can start containers as root on ${where}. It answers ${how}.`,
         fix: 'Keep it off the open internet: no published port, and a domain only with a login in front (an access list or forward-auth). If it only needs to read Docker, give it a socket proxy that allows reads only.',
         ...(open.length && !routes.length ? { snippet: localSnippet(open[0]) } : {}),
-        ports: open.map((p) => p.hostPort),
+        ports: hostPorts(open),
       })
     }
     // the Docker finding above already covers its open port: one finding, not two
@@ -237,20 +263,20 @@ export function exposureOf(s: ExposureInput, probes: Record<string, DomainProbe>
           code: 'database-open',
           level: 'warn',
           title: 'A database is open on every interface',
-          detail: `${portsText(open)[0].toUpperCase()}${portsText(open).slice(1)} on ${where} ${open.length === 1 ? 'reaches' : 'reach'} it directly. Databases are rarely meant to be reached from outside. ${FIREWALL}`,
+          detail: `${cap(portsText(open))} on ${where} ${hostPorts(open).length === 1 ? 'reaches' : 'reach'} it directly. Databases are rarely meant to be reached from outside. ${FIREWALL}`,
           fix: `If only other containers use it, drop the port: they reach it by name on a shared network. If something on the host needs it, bind it to 127.0.0.1 (${bindExample(open[0])}).`,
           snippet: localSnippet(open[0]),
-          ports: open.map((p) => p.hostPort),
+          ports: hostPorts(open),
         })
       } else {
         findings.push({
           code: 'open-port',
           level: 'open',
           title: 'Open on every interface',
-          detail: `${portsText(open)[0].toUpperCase()}${portsText(open).slice(1)} on ${where} ${open.length === 1 ? 'reaches' : 'reach'} it directly, from anywhere that can reach the machine. ${FIREWALL}`,
+          detail: `${cap(portsText(open))} on ${where} ${hostPorts(open).length === 1 ? 'reaches' : 'reach'} it directly, from anywhere that can reach the machine. ${FIREWALL}`,
           fix: `Fine for something meant to be reached directly, like a game server. Otherwise bind it to 127.0.0.1 (${bindExample(open[0])}) or put it behind the proxy.`,
           snippet: localSnippet(open[0]),
-          ports: open.map((p) => p.hostPort),
+          ports: hostPorts(open),
         })
       }
     }

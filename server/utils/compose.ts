@@ -85,7 +85,8 @@ async function buildHost(host: HostConfig, multi: boolean) {
     if (!target) continue
     const list = domainsById.get(target.id) || []
     const via = isIp(route.upstreamHost) ? ('ip' as const) : ('name' as const)
-    for (const d of route.domains) list.push({ domain: d, url: `${route.ssl ? 'https' : 'http'}://${d}`, ssl: route.ssl, via })
+    const port = route.upstreamPort || undefined
+    for (const d of route.domains) list.push({ domain: d, url: `${route.ssl ? 'https' : 'http'}://${d}`, ssl: route.ssl, via, ...(port ? { port } : {}) })
     domainsById.set(target.id, list)
     usedRoutes.add(route)
   }
