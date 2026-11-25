@@ -2,7 +2,7 @@
 
 Deeper homeport topics, split out of the main [README](../README.md#compose-stacks) to keep it lean:
 the file browser, adopting projects started outside homeport, the networks and storage managers,
-complete deletes, and "Pool overlaps" troubleshooting.
+complete deletes, "Pool overlaps" troubleshooting, and the health check.
 
 ## File browser
 
@@ -84,3 +84,14 @@ on your machine — docker then fails with the famously unhelpful
 names the conflicting network, and the stack page shows a card listing every docker network
 (subnet + how many containers use it) with one-click **removal of unused networks**, then
 retry. Pool-exhaustion errors (too many networks) get the same treatment.
+
+## Health check
+
+`GET /healthz` answers `200 {"status":"ok"}` while homeport can reach at least one Docker
+host, and `503` when it can't (`docker-unreachable`) or its background collector has not
+produced a snapshot for a long time (`collector-stalled`, at least 30 minutes, so a slow
+auto-update never trips it). It sits outside `/api/`, so it needs no login or token, and it
+reveals nothing beyond that one word. The image's `HEALTHCHECK` uses it, which makes a
+homeport that lost its Docker connection show as `unhealthy` in `docker ps`; point Uptime
+Kuma or any other monitor at the same URL. It reads the collector's last result rather than
+calling Docker, so frequent probes cost nothing.

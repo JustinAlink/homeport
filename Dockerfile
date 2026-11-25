@@ -1,4 +1,4 @@
-# homeport — Nuxt 3 (Nitro node-server). Build, then run the node server.
+# homeport: Nuxt 4 (Nitro node-server). Build, then run the node server.
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -20,4 +20,9 @@ ENV NODE_ENV=production \
     NITRO_HOST=0.0.0.0
 COPY --from=builder /app/.output ./.output
 EXPOSE 3000
+# /healthz turns unhealthy when homeport can no longer reach any Docker host or its
+# collector has stalled, so a homeport that lost its socket proxy shows up in docker ps.
+# busybox wget ships with alpine; shell form so a changed NITRO_PORT is honoured.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${NITRO_PORT:-3000}/healthz" || exit 1
 CMD ["node", ".output/server/index.mjs"]

@@ -8,8 +8,18 @@
         you can still configure everything with environment variables.</span>
     </div>
 
-    <div v-if="loaded && caps.viewer" class="card">
+    <div v-if="caps.viewer" class="card">
       <EmptyState icon="lock" title="Settings are admin-only" text="Read-only accounts can view the fleet but not change how homeport is configured." />
+    </div>
+
+    <!-- A failed load must never fall through to the form: it would show defaults,
+         and saving posts the whole form, wiping hosts, channels and capabilities. -->
+    <div v-else-if="loadError" class="card">
+      <EmptyState icon="alert" title="Couldn't load settings" :text="loadError">
+        <template #actions>
+          <button type="button" class="btn btn-primary" @click="loadSettings">Try again</button>
+        </template>
+      </EmptyState>
     </div>
 
     <div v-else-if="!loaded" class="gap-8 lg:flex">
@@ -766,6 +776,7 @@
 <script setup lang="ts">
 
 const loaded = ref(false)
+const loadError = ref('')
 const writable = ref(true)
 const npmApiSecretSet = ref(false) // a secret is stored server-side (masked); blank on save = keep
 const smtpPassSet = ref(false)
@@ -1191,10 +1202,15 @@ function addHost() {
   })
 }
 
-onMounted(async () => {
+onMounted(() => {
   if (!svcData.value) refreshServices() // for the "no reverse proxy" hint
   loadCaps()
   refreshSelfUpdate()
+  loadSettings()
+})
+
+async function loadSettings() {
+  loadError.value = ''
   try {
     const r = await $fetch<any>('/api/settings')
     Object.assign(form, r.settings)
@@ -1226,12 +1242,17 @@ onMounted(async () => {
     writable.value = r.writable
     npmApiSecretSet.value = !!r.settings.npmApiSecretSet
     smtpPassSet.value = !!r.settings.smtpPassSet
-  } catch (e: any) {
-    if ((e?.statusCode ?? e?.response?.status) === 401) return navigateTo('/login')
-  } finally {
     loaded.value = true
+  } catch (e: any) {
+    const code = e?.statusCode ?? e?.response?.status
+    if (code === 401) return navigateTo('/login')
+    // read-only accounts may not read settings (they hold secrets): the viewer
+    // notice above covers them once capabilities arrive
+    if (code === 403) return
+    // stay un-loaded: no snapshot, no save bar, nothing that could post defaults
+    loadError.value = errMsg(e, 'The server did not return your settings.')
   }
-})
+}
 
 // Unsaved-change tracking: a snapshot of the form as last loaded/saved.
 const snapshot = ref('')
