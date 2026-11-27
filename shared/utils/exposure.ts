@@ -96,6 +96,24 @@ export const ackKey = (key: string, code: string) => `${key}|${code}`
 /** The finding codes Accept may store (anything else is refused). */
 export const FINDING_CODES = ['around-proxy', 'docker-control', 'proxy-admin-open', 'database-open', 'open-port', 'plain-http', 'http-not-redirected']
 
+/**
+ * Accepted findings from a backup file, under the same rules Accept applies:
+ * a container key and a known finding code, and a reason (1 to 200 characters).
+ */
+export function sanitizeAcksBackup(data: unknown): Record<string, ExposureAck> {
+  const out: Record<string, ExposureAck> = {}
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return out
+  for (const [k, raw] of Object.entries(data as Record<string, unknown>).slice(0, 2000)) {
+    const m = /^([\w.-]{1,64}\|[\w.-]{1,128})\|([a-z-]+)$/.exec(k)
+    if (!m || !FINDING_CODES.includes(m[2]) || !raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const note = typeof r.note === 'string' ? r.note.trim().slice(0, 200) : ''
+    if (!note) continue
+    out[k] = { note, at: typeof r.at === 'number' && Number.isFinite(r.at) ? r.at : Date.now() }
+  }
+  return out
+}
+
 /** One builder for the server, the demo and the sidebar badge, so all three judge the same input. */
 export function exposureInput(s: Service, isProxy: boolean): ExposureInput {
   const sep = s.id.indexOf('::')

@@ -99,3 +99,36 @@ export function scopeAllows(scope: TokenScope, method: string, path: string): bo
   if (READ_DENY_PATTERNS.some((re) => re.test(path))) return false
   return !READ_DENY.some((p) => path === p || path.startsWith(`${p}/`))
 }
+
+/**
+ * The API tokens from a backup file: only the hashes travel (the tokens
+ * themselves were shown once and never stored), so scripts using them keep
+ * working after a restore. Kept only in the shapes mintToken makes; duplicates
+ * (by id or by hash) keep the first.
+ */
+export function sanitizeTokensBackup(data: unknown): ApiTokenRecord[] {
+  if (!Array.isArray(data)) return []
+  const out: ApiTokenRecord[] = []
+  const seen = new Set<string>()
+  for (const raw of data.slice(0, 500)) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    if (typeof r.id !== 'string' || !/^[0-9a-f]{12}$/.test(r.id)) continue
+    if (typeof r.hash !== 'string' || !/^[0-9a-f]{64}$/.test(r.hash)) continue
+    if (r.scope !== 'read' && r.scope !== 'full') continue
+    if (seen.has(r.id) || seen.has(r.hash)) continue
+    const rec: ApiTokenRecord = {
+      id: r.id,
+      name: (typeof r.name === 'string' ? r.name.trim().slice(0, 64) : '') || 'token',
+      scope: r.scope,
+      hash: r.hash,
+      prefix: typeof r.prefix === 'string' && r.prefix.startsWith(TOKEN_PREFIX) ? r.prefix.slice(0, 16) : `${TOKEN_PREFIX}…`,
+      createdAt: typeof r.createdAt === 'number' && Number.isFinite(r.createdAt) ? r.createdAt : Date.now(),
+    }
+    if (typeof r.lastUsedAt === 'number' && Number.isFinite(r.lastUsedAt)) rec.lastUsedAt = r.lastUsedAt
+    seen.add(r.id)
+    seen.add(r.hash)
+    out.push(rec)
+  }
+  return out
+}

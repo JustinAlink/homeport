@@ -83,3 +83,40 @@ export function mintUser(username: string, hash: string, now: number): UserRecor
     createdAt: now,
   }
 }
+
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/**
+ * The accounts from a backup file, keeping only well-formed ones. The file is the
+ * admin's own but still input, and an account is a way in, so: ids and usernames
+ * in the shapes homeport makes (never "admin"), password hashes in hashPassword's
+ * shape, and the admin role only on an SSO account (a password account can't be
+ * one anywhere else either). An account with neither a password nor SSO could
+ * never sign in and is left out. Duplicates keep the first.
+ */
+export function sanitizeUsersBackup(data: unknown): UserRecord[] {
+  if (!Array.isArray(data)) return []
+  const out: UserRecord[] = []
+  const ids = new Set<string>()
+  const names = new Set<string>()
+  for (const raw of data.slice(0, 1000)) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const id = typeof r.id === 'string' && /^[0-9a-f]{12}$/.test(r.id) ? r.id : null
+    const username = typeof r.username === 'string' && !validateUsername(r.username) ? normalizeUsername(r.username) : null
+    if (!id || !username || ids.has(id) || names.has(username)) continue
+    const hash = typeof r.hash === 'string' && /^[0-9a-f]{32}:[0-9a-f]{128}$/.test(r.hash) ? r.hash : ''
+    const s = r.sso as Record<string, unknown> | undefined
+    const sso = s && typeof s.iss === 'string' && typeof s.sub === 'string' && s.iss && s.sub && s.iss.length <= 500 && s.sub.length <= 255 ? { iss: s.iss, sub: s.sub } : undefined
+    if (!hash && !sso) continue
+    const rec: UserRecord = { id, username, hash, createdAt: finite(r.createdAt) ? r.createdAt : Date.now() }
+    if (sso) rec.sso = sso
+    if (sso && (r.role === 'admin' || r.role === 'viewer')) rec.role = r.role
+    if (finite(r.lastLoginAt)) rec.lastLoginAt = r.lastLoginAt
+    if (finite(r.signedOutAt)) rec.signedOutAt = r.signedOutAt
+    ids.add(id)
+    names.add(username)
+    out.push(rec)
+  }
+  return out
+}

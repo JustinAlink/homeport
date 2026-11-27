@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { mintToken, matchToken, type ApiTokenRecord, type TokenScope } from './api-tokens-core'
+import { mintToken, matchToken, sanitizeTokensBackup, type ApiTokenRecord, type TokenScope } from './api-tokens-core'
 
 // Persistence for scoped API tokens (<data>/api-tokens.json, 0600). Only hashes
 // are stored — the plaintext is returned once at creation and never again.
@@ -65,4 +65,16 @@ export function verifyApiToken(token: string): { id: string; scope: TokenScope }
     persist(read())
   }
   return { id: rec.id, scope: rec.scope }
+}
+
+/** For the backup file: the token records with their hashes (never a token itself: none is stored). */
+export function exportTokens(): ApiTokenRecord[] {
+  return sanitizeTokensBackup(read())
+}
+
+/** Restore from a backup: the tokens are replaced, and the ones in it work again. */
+export function importTokens(data: unknown): number {
+  const clean = sanitizeTokensBackup(data)
+  persist(clean)
+  return clean.length
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { portScope, routeAccess, plainHttpServed, exposureOf, exposureSummary, sortExposure, ackKey, type ExposureInput } from '../shared/utils/exposure.ts'
+import { portScope, routeAccess, plainHttpServed, exposureOf, exposureSummary, sortExposure, ackKey, sanitizeAcksBackup, type ExposureInput } from '../shared/utils/exposure.ts'
 
 const app = (over: Partial<ExposureInput> = {}): ExposureInput => ({
   id: 'h::1',
@@ -195,4 +195,16 @@ test('exposure: a port published for tcp and udp is named once', () => {
   )
   assert.match(mc.findings[0].detail, /^Ports 25565 and 25566 on /)
   assert.deepEqual(mc.findings[0].ports, [25565, 25566])
+})
+
+test('backup: accepted findings come back under Accept\'s own rules', () => {
+  const out = sanitizeAcksBackup({
+    [ackKey('default|plex', 'open-port')]: { note: ' LAN clients need 32400 ', at: 5 },
+    [ackKey('default|db', 'database-open')]: { note: '' }, // no reason: not an acceptance
+    [ackKey('default|x', 'made-up-code')]: { note: 'why' },
+    'no-container-key|open-port': { note: 'why' },
+    [ackKey('default|y', 'plain-http')]: 'not an object',
+  })
+  assert.deepEqual(out, { 'default|plex|open-port': { note: 'LAN clients need 32400', at: 5 } })
+  assert.deepEqual(sanitizeAcksBackup([]), {})
 })

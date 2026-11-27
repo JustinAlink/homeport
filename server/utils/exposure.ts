@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Service } from '~/types/service'
-import { exposureOf, exposureInput, sortExposure, exposureSummary, ackKey, FINDING_CODES, type DomainProbe, type ServiceExposure, type ExposureLevel, type ExposureAck } from '../../shared/utils/exposure.ts'
+import { exposureOf, exposureInput, sortExposure, exposureSummary, ackKey, FINDING_CODES, sanitizeAcksBackup, type DomainProbe, type ServiceExposure, type ExposureLevel, type ExposureAck } from '../../shared/utils/exposure.ts'
 import { buildServices } from './compose'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
@@ -87,6 +87,22 @@ export function readAcks(): Record<string, ExposureAck> {
   return acksCache!
 }
 
+/** Restore accepted findings from a backup (replaced, like the settings). Returns how many. */
+export function importAcks(data: unknown): number {
+  const clean = sanitizeAcksBackup(data)
+  writeAcks(clean)
+  return Object.keys(clean).length
+}
+
+function writeAcks(next: Record<string, ExposureAck>): void {
+  const dir = process.env.HOMEPORT_DATA_DIR || '/data'
+  mkdirSync(dir, { recursive: true })
+  const tmp = `${acksFile()}.tmp`
+  writeFileSync(tmp, JSON.stringify({ acks: next }, null, 2))
+  renameSync(tmp, acksFile())
+  acksCache = next
+}
+
 /** Accept a finding (note) or take the acceptance back (note null). Throws on bad input or an unwritable data dir. */
 export function setAck(key: string, code: string, note: string | null): Record<string, ExposureAck> {
   if (!/^[\w.-]{1,64}\|[\w.-]{1,128}$/.test(key)) throw Object.assign(new Error('invalid container key'), { statusCode: 400 })
@@ -99,11 +115,6 @@ export function setAck(key: string, code: string, note: string | null): Record<s
     if (!text) throw Object.assign(new Error('say why this is fine, so the next look at it makes sense'), { statusCode: 400 })
     next[k] = { note: text, at: Date.now() }
   }
-  const dir = process.env.HOMEPORT_DATA_DIR || '/data'
-  mkdirSync(dir, { recursive: true })
-  const tmp = `${acksFile()}.tmp`
-  writeFileSync(tmp, JSON.stringify({ acks: next }, null, 2))
-  renameSync(tmp, acksFile())
-  acksCache = next
+  writeAcks(next)
   return next
 }

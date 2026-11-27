@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { hashPassword, verifyHash, MIN_PASSWORD_LENGTH } from './auth-core'
-import { mintUser, normalizeUsername, validateUsername, type UserRecord } from './users-core'
+import { mintUser, normalizeUsername, validateUsername, sanitizeUsersBackup, type UserRecord } from './users-core'
 import { usernameFromClaims, uniqueUsername } from './oidc-core'
 
 // A fixed decoy hash so a nonexistent username still pays the same scrypt
@@ -123,4 +123,16 @@ export function verifyUserLogin(username: string, password: string): Omit<UserRe
   persist(read())
   const { hash, ...meta } = rec
   return meta
+}
+
+/** For the backup file: every account, password hashes included (the file holds secrets anyway). */
+export function exportUsers(): UserRecord[] {
+  return sanitizeUsersBackup(read())
+}
+
+/** Restore from a backup: the accounts are replaced. Returns how many were restored. */
+export function importUsers(data: unknown): number {
+  const clean = sanitizeUsersBackup(data)
+  persist(clean)
+  return clean.length
 }

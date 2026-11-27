@@ -3,11 +3,16 @@ import { readSettings } from '../utils/settings'
 import { exportAuthFile } from '../utils/auth'
 import { listTokens } from '../utils/git-stacks'
 import { exportWebhooks } from '../utils/git-webhooks'
+import { exportUsers } from '../utils/users'
+import { exportTokens } from '../utils/api-tokens'
+import { readAcks } from '../utils/exposure'
 
 // Download a restorable backup of homeport's persisted state: settings (hosts,
 // channels, proxy creds…), the auth file (password hash + session secret) and
 // per-stack git tokens and deploy-on-push webhooks (URL id and secret, so the
-// forges keep delivering after a restore). Operational caches (history, update checks, alert log)
+// forges keep delivering after a restore), the viewer and SSO accounts, the API
+// tokens (hashes only: scripts keep working) and accepted exposure findings.
+// Operational caches (history, update checks, alert log)
 // are rebuildable and deliberately excluded — as are the compose files in the
 // stacks dir, which live outside the data dir (back those up separately / use git).
 // The result contains SECRETS — it is only served to the authenticated admin.
@@ -24,5 +29,8 @@ export default defineEventHandler((event) => {
     auth: exportAuthFile(),
     gitTokens: listTokens(),
     gitWebhooks: exportWebhooks(),
+    accounts: exportUsers(),
+    apiTokens: exportTokens(),
+    exposureAcks: readAcks(),
   }
 })

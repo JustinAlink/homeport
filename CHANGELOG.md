@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.40.0 (2026-11-27)
+
+- **The backup holds the rest.** Viewer and SSO accounts (with their password
+  hashes and roles), API tokens (their hashes: scripts using them keep working,
+  no token ever travels in clear) and accepted exposure findings are now in
+  Settings, Backup, next to the settings and webhooks. On restore each part in
+  the file replaces what is there; a part an older backup doesn't have is left
+  alone. Every part is checked on the way in: an account can only be an admin
+  through single sign-on, so a hand-edited file can't add an admin password
+  account, and hashes, ids and finding codes must be in the shapes homeport
+  makes.
+
 ## v2.39.1 (2026-11-27)
 
 - **Webhooks are in the backup.** Settings, Backup now includes each git stack's

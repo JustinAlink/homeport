@@ -718,8 +718,9 @@
       <section v-show="inCategory('backup')" :id="'backup'" class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">Backup</h2>
         <p class="text-xs text-slate-500">
-          Everything homeport persists — settings, hosts, alert channels, proxy credentials, the admin password hash
-          and stack git tokens — in one JSON file. <strong class="text-amber-300/90">It contains secrets; store it like a password.</strong>
+          homeport's configuration in one JSON file: settings, hosts, alert channels, proxy credentials, the admin
+          password hash, stack git tokens and webhooks, viewer and SSO accounts, API tokens and accepted exposure
+          findings. <strong class="text-amber-300">It contains secrets; store it like a password.</strong>
           Compose files in the stacks directory aren't included (they live outside the data dir — keep those in git).
         </p>
         <div class="flex flex-wrap items-center gap-2">
@@ -1251,9 +1252,17 @@ async function restoreBackup(ev: Event) {
     danger: true,
   }))) return
   try {
-    const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number; gitWebhooks?: number }>('/api/backup', { method: 'POST', body: parsed })
+    const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number; gitWebhooks?: number; accounts?: number | null; apiTokens?: number | null; exposureAcks?: number | null }>('/api/backup', { method: 'POST', body: parsed })
     backupOk.value = true
-    backupMsg.value = `Restored (git tokens: ${r.gitTokens}${r.gitWebhooks ? `, deploy-on-push webhooks: ${r.gitWebhooks}` : ''}${r.authRestored ? ', auth file replaced' : ''}). Reloading…`
+    const parts = [
+      `git tokens: ${r.gitTokens}`,
+      r.gitWebhooks ? `deploy-on-push webhooks: ${r.gitWebhooks}` : '',
+      r.accounts != null ? `accounts: ${r.accounts}` : '',
+      r.apiTokens != null ? `API tokens: ${r.apiTokens}` : '',
+      r.exposureAcks != null ? `accepted findings: ${r.exposureAcks}` : '',
+      r.authRestored ? 'auth file replaced' : '',
+    ].filter(Boolean)
+    backupMsg.value = `Restored (${parts.join(', ')}). Reloading…`
     // a restored session secret invalidates this session — a reload lands wherever auth says
     setTimeout(() => window.location.reload(), 1500)
   } catch (e: any) {

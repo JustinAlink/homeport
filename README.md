@@ -647,9 +647,10 @@ the branch moved. [Details](docs/git-webhooks.md).
 ## Backup & restore
 
 **Settings → Backup & about** downloads homeport's configuration as one JSON file: settings,
-hosts, alert channels, proxy credentials, the admin password hash, stack git tokens and
-deploy-on-push webhooks. It restores on any homeport (settings are replaced wholesale). Viewer
-and SSO accounts, API tokens and accepted exposure findings are not in it yet. The file contains
+hosts, alert channels, proxy credentials, the admin password hash, stack git tokens,
+deploy-on-push webhooks, viewer and SSO accounts, API tokens (as hashes, so your scripts keep
+working) and accepted exposure findings. It restores on any homeport: each part in the file
+replaces what is there, and every part is checked on the way in. The file contains
 secrets: store it like a password. Compose files in the stacks dir aren't included — keep
 those in git (or use git-backed stacks and they already are).
 

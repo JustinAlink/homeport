@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeUsername, validateUsername, mintUser, MIN_USERNAME_LENGTH, isAdminLoginName, sessionAccess } from '../server/utils/users-core.ts'
+import { normalizeUsername, validateUsername, mintUser, MIN_USERNAME_LENGTH, isAdminLoginName, sessionAccess, sanitizeUsersBackup } from '../server/utils/users-core.ts'
 
 test('normalizeUsername: trims and lowercases', () => {
   assert.equal(normalizeUsername('  Teammate  '), 'teammate')
@@ -56,4 +56,26 @@ test('sessionAccess: the account decides, on every request', () => {
   assert.equal(sessionAccess(s('v'), {}, false), 'viewer')
   // a role in a token means nothing: only the account's role counts
   assert.equal(sessionAccess({ iat: t, uid: 'v', role: 'admin' } as any, { role: 'viewer' }, true), 'viewer')
+})
+
+test('backup: accounts come back, and no restore can mint a way in', () => {
+  const hash = 'a'.repeat(32) + ':' + 'b'.repeat(128)
+  const sso = { iss: 'https://auth.example.com', sub: 'abc' }
+  const out = sanitizeUsersBackup([
+    { id: '0123456789ab', username: 'fons', hash, createdAt: 1, lastLoginAt: 2 },
+    { id: '0123456789ac', username: 'alice', hash: '', sso, role: 'admin', signedOutAt: 3 },
+    { id: '0123456789ad', username: 'mallory', hash, role: 'admin' }, // a password account is never an admin
+    { id: '0123456789ae', username: 'admin', hash }, // the primary account's name
+    { id: 'not-hex-id!!', username: 'eve', hash },
+    { id: '0123456789af', username: 'ghost', hash: '' }, // no password and no SSO: could never sign in
+    { id: '0123456789b0', username: 'weak', hash: 'plaintext' }, // not a hash homeport makes
+    { id: '0123456789ab', username: 'dup-id', hash }, // same id as fons
+    { id: '0123456789b1', username: 'FONS', hash }, // same name as fons
+  ])
+  assert.deepEqual(out.map((u) => u.username), ['fons', 'alice', 'mallory'])
+  assert.equal(out[0].hash, hash)
+  assert.equal(out[1].role, 'admin') // an SSO admin stays one (its groups decide again at the next sign-in)
+  assert.equal(out[1].signedOutAt, 3)
+  assert.equal(out[2].role, undefined) // read-only
+  assert.deepEqual(sanitizeUsersBackup('nope'), [])
 })

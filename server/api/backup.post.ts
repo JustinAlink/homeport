@@ -3,6 +3,9 @@ import { replaceSettings, settingsWritable, type PersistedSettings } from '../ut
 import { restoreAuthFile } from '../utils/auth'
 import { saveToken } from '../utils/git-stacks'
 import { importWebhooks } from '../utils/git-webhooks'
+import { importUsers } from '../utils/users'
+import { importTokens } from '../utils/api-tokens'
+import { importAcks } from '../utils/exposure'
 import { safeStackName } from '../utils/stacks-core'
 import { log } from '../utils/log'
 
@@ -24,6 +27,9 @@ export default defineEventHandler(async (event) => {
     auth?: { passwordHash?: string; sessionSecret?: string; sessionGeneration?: number }
     gitTokens?: Record<string, string>
     gitWebhooks?: unknown
+    accounts?: unknown
+    apiTokens?: unknown
+    exposureAcks?: unknown
   }>(event)
 
   if (body?.format !== 'homeport-backup' || typeof body.version !== 'number') {
@@ -53,10 +59,14 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // older backups have none: leave the current webhooks alone rather than wipe them
+    // Older backups lack these: leave what is here alone rather than wipe it.
+    // Each part is checked on the way in (the sanitize* functions).
     const gitWebhooks = body.gitWebhooks !== undefined ? importWebhooks(body.gitWebhooks) : 0
+    const accounts = body.accounts !== undefined ? importUsers(body.accounts) : null
+    const apiTokens = body.apiTokens !== undefined ? importTokens(body.apiTokens) : null
+    const exposureAcks = body.exposureAcks !== undefined ? importAcks(body.exposureAcks) : null
 
-    return { ok: true, authRestored, gitTokens: tokens, gitWebhooks }
+    return { ok: true, authRestored, gitTokens: tokens, gitWebhooks, accounts, apiTokens, exposureAcks }
   } catch (e: any) {
     // A mid-restore write failure (volume flipped read-only, disk full) must
     // reach the client as a clear message, not a bare 500.

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hashToken, mintToken, matchToken, scopeAllows, TOKEN_PREFIX } from '../server/utils/api-tokens-core.ts'
+import { hashToken, mintToken, matchToken, scopeAllows, TOKEN_PREFIX, sanitizeTokensBackup } from '../server/utils/api-tokens-core.ts'
 
 test('mintToken: prefixed high-entropy token, hash-only record, scope normalized', () => {
   const { token, record } = mintToken('junibot', 'full', 1000)
@@ -86,4 +86,20 @@ test('scopeAllows: read scope may POST to the MCP endpoint and nowhere else', ()
   // the read-only rule still holds everywhere else
   for (const p of ['/api/control', '/api/recreate', '/api/stacks/media', '/api/settings', '/api/env', '/api/tokens', '/api/backup', '/api/exposure/acks', '/api/services'])
     assert.equal(scopeAllows('read', 'POST', p), false, p)
+})
+
+test('backup: API tokens come back working, malformed ones do not', () => {
+  const { token, record } = mintToken('junibot', 'read', 1)
+  const out = sanitizeTokensBackup([
+    record,
+    { ...record, id: 'fedcba987654' }, // same hash under another id: dropped
+    { id: '0123456789ab', name: 'x', scope: 'admin', hash: 'c'.repeat(64) }, // no such scope
+    { id: '0123456789ac', name: 'x', scope: 'full', hash: 'short' },
+    { id: '0123456789ad', name: '  ', scope: 'full', hash: 'd'.repeat(64), prefix: 'nope' },
+  ])
+  assert.equal(out.length, 2)
+  assert.equal(matchToken(token, out)?.id, record.id) // the script's token still works after the restore
+  assert.equal(out[1].name, 'token') // a blank name gets the default
+  assert.ok(out[1].prefix.startsWith(TOKEN_PREFIX))
+  assert.deepEqual(sanitizeTokensBackup({}), [])
 })
