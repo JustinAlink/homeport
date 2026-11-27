@@ -123,7 +123,8 @@ const me = async (p) => (await p.request.get(`${BASE}/api/auth/me`)).json().catc
   check('...and the primary admin stays signed in', (await page.request.get(`${BASE}/api/services`)).status() === 200)
   await page.goto(`${BASE}/settings?tab=security`)
   await page.locator('#user-accounts').waitFor()
-  check('user accounts offer a per-person sign-out', await page.locator('#user-accounts').getByRole('button', { name: 'Sign alice out on every device' }).isVisible())
+  // the list loads after the section appears: wait for the row, not just the section
+  check('user accounts offer a per-person sign-out', await page.locator('#user-accounts').getByRole('button', { name: 'Sign alice out on every device' }).waitFor({ timeout: 5000 }).then(() => true, () => false))
   await c.close()
 }
 

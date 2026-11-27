@@ -402,15 +402,16 @@
 
       <!-- Uptime -->
       <section v-show="inCategory('uptime')" :id="'uptime'"  class="card card-pad scroll-mt-8 space-y-3.5">
-        <h2 class="text-[15px] font-semibold text-slate-100">Uptime</h2>
-        <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code> — locked.</p>
+        <!-- the id stays "uptime" for old links; "Uptime" itself now names the 24 h / 7 d / 30 d figures -->
+        <h2 class="text-[15px] font-semibold text-slate-100">Domain checks</h2>
+        <p v-if="locked.pingEnabled" class="text-xs text-slate-500">Set by <code>HOMEPORT_PING</code>, locked.</p>
         <label
           class="check"
           :class="locked.pingEnabled ? 'is-locked' : ''"
         >
           <input v-model="form.pingEnabled" type="checkbox" />
-          HTTP-ping mapped domains
-          <span class="text-[11px] text-slate-500">(up/down dot on each domain)</span>
+          Check each mapped domain over HTTP
+          <span class="text-[11px] text-slate-500">(the up/down dot on each domain; domain alerts, certificate checks and domain uptime on the status page need it too)</span>
         </label>
       </section>
 
@@ -949,7 +950,7 @@ const sections = computed(() =>
     { id: 'capabilities', label: 'Capabilities' },
     ...(form.allowStacks ? [{ id: 'stacks', label: 'Compose roots' }] : []),
     { id: 'catalog', label: 'App catalog' },
-    { id: 'uptime', label: 'Uptime' },
+    { id: 'uptime', label: 'Domain checks' },
     { id: 'systemd', label: 'Host services' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'status-page', label: 'Status page' },
@@ -1250,9 +1251,9 @@ async function restoreBackup(ev: Event) {
     danger: true,
   }))) return
   try {
-    const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number }>('/api/backup', { method: 'POST', body: parsed })
+    const r = await $fetch<{ ok: boolean; authRestored: boolean; gitTokens: number; gitWebhooks?: number }>('/api/backup', { method: 'POST', body: parsed })
     backupOk.value = true
-    backupMsg.value = `Restored (git tokens: ${r.gitTokens}${r.authRestored ? ', auth file replaced' : ''}). Reloading…`
+    backupMsg.value = `Restored (git tokens: ${r.gitTokens}${r.gitWebhooks ? `, deploy-on-push webhooks: ${r.gitWebhooks}` : ''}${r.authRestored ? ', auth file replaced' : ''}). Reloading…`
     // a restored session secret invalidates this session — a reload lands wherever auth says
     setTimeout(() => window.location.reload(), 1500)
   } catch (e: any) {

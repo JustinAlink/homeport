@@ -1,17 +1,10 @@
+import { bridgeGaps } from '~/utils/chartScale'
+
 export type GraphRange = 'live' | '1h' | '6h' | '24h' | '7d' | '30d'
 
 /** The range buttons, in order (one list for the dashboard and the service page). */
 export const GRAPH_RANGES: readonly GraphRange[] = ['live', '1h', '6h', '24h', '7d', '30d']
 export const rangeLabel = (r: GraphRange) => (r === 'live' ? 'Live' : r)
-
-/** Fill nulls so a graphed line stays continuous: interior gaps carry the
- *  previous value forward; LEADING nulls (young series, e.g. right after a
- *  feature ships) take the first real value instead of a misleading 0. */
-export function fillGaps(a: (number | null)[]): number[] {
-  const first = a.find((v) => v != null) ?? 0
-  let last = first
-  return a.map((v) => (v == null ? last : (last = v)))
-}
 
 /**
  * Shared live/1h/6h/24h/7d/30d range state for a CPU/RAM history graph. `id` is
@@ -30,10 +23,11 @@ export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
   // seconds per point of the loaded history (60, 900 or 3600), set by the response
   const res = ref(60)
   const intervalSec = computed(() => (range.value === 'live' ? 7 : res.value))
-  const past = ref<{ cpu: number[]; mem: number[] } | null>(null)
+  // null where nothing was recorded for a while: the graph draws a break there
+  const past = ref<{ cpu: (number | null)[]; mem: (number | null)[] } | null>(null)
   // start time of each history point, for the time axis and the tooltip
   const times = ref<number[] | null>(null)
-  // samples that were really recorded (fillGaps pads the rest), so callers can
+  // samples that were really recorded (bridgeGaps pads short gaps), so callers can
   // tell an empty history (fresh install, history off) from a flat one
   const realPoints = ref(0)
 
@@ -54,7 +48,7 @@ export function useHistoryRange(id: string, defaultRange: GraphRange = 'live') {
       realPoints.value = r.cpu.filter((v) => v != null).length
       res.value = r.res || 60
       times.value = r.t ?? null
-      past.value = { cpu: fillGaps(r.cpu), mem: fillGaps(r.mem) }
+      past.value = { cpu: bridgeGaps(r.cpu), mem: bridgeGaps(r.mem) }
     } catch {
       if (!current()) return
       realPoints.value = 0

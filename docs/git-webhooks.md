@@ -149,8 +149,9 @@ rebuild a broken build (and notify you) every few minutes. The card says so. Pus
 - homeport's own stack never updates itself from git: a webhook for it cannot be created, and a
   delivery or a sync that reaches it anyway is refused. Use **Update homeport**.
 - Deleting a stack deletes its webhook. A new stack with the same name starts without one.
-- The webhook settings are not part of **Settings, Backup**. After restoring on a new machine, create
-  the webhook again and paste the new URL and secret into your git host.
+- **Settings, Backup** includes each stack's webhook (its URL and secret) and auto-sync setting, so
+  after a restore on a new machine your git host keeps delivering without being reconfigured, as
+  long as the machine is reached at the same address. The delivery and sync history is not included.
 
 ## Demo mode
 

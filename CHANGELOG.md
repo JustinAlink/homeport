@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.39.1 (2026-11-27)
+
+- **Webhooks are in the backup.** Settings, Backup now includes each git stack's
+  deploy-on-push webhook (URL and secret) and auto-sync setting, so after a
+  restore your git host keeps delivering without being set up again. An older
+  backup without them leaves the current webhooks alone.
+- **Graphs show where nothing was recorded.** A stretch with no samples (the
+  container was stopped, homeport was off) is now a break in the line instead
+  of a flat stretch that looked like steady use, and the tooltip says "no
+  data" there. A missed sample or two is still bridged.
+- **"Domain checks", not "Uptime".** The Settings section that switches the
+  HTTP checks of your domains had the same name as the new uptime figures. It
+  is called Domain checks now, and says what else needs it (domain alerts,
+  certificate checks, domain uptime on the status page).
+- The README no longer says the backup holds everything: viewer and SSO
+  accounts, API tokens and accepted exposure findings are not in it yet.
+
 ## v2.39.0 (2026-11-27)
 
 - **Sign out one person.** Everyone who comes in through single sign-on now has

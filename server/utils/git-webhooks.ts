@@ -10,7 +10,7 @@ import { createContainerLock, ContainerBusyError } from './container-lock-core'
 import { guard } from './guard'
 import { log, warnOnce } from './log'
 import { demoGitWebhookSeed, demoIsGitStack } from './demo'
-import { autoSyncAction, autoSyncDue, createCoalescer, mintHookId, mintSecret, safeEqual } from './git-webhooks-core'
+import { autoSyncAction, autoSyncDue, createCoalescer, mintHookId, mintSecret, safeEqual, sanitizeWebhookBackup, type WebhookBackupEntry } from './git-webhooks-core'
 import { clampSyncInterval, hookPath, AUTO_SYNC_DEFAULT, type DeliveryRecord, type SyncRecord } from '../../shared/utils/git-webhooks.ts'
 
 // Deploy on push, the effectful half: per-stack webhook and auto-sync config in
@@ -162,6 +162,26 @@ export function setAutoSync(name: string, enabled: boolean, intervalMin: unknown
     r.autoSync = { enabled, intervalMin: clampSyncInterval(intervalMin) }
   })
   lastCheck.delete(name) // switched on: check on the next tick, not one interval later
+}
+
+/** For the backup file: each stack's webhook and auto-sync setting, no run history. */
+export function exportWebhooks(): Record<string, WebhookBackupEntry> {
+  const out: Record<string, StackRecord> = {}
+  for (const [name, r] of Object.entries(read().stacks)) out[name] = { hook: r.hook, autoSync: r.autoSync }
+  return sanitizeWebhookBackup(out)
+}
+
+/**
+ * Restore from a backup: the webhook settings are replaced, like the rest of the
+ * settings. The URLs and secrets come back as they were, so the forges keep
+ * delivering without being reconfigured. Returns how many stacks were restored.
+ */
+export function importWebhooks(data: unknown): number {
+  const clean = sanitizeWebhookBackup(data)
+  cache = { stacks: Object.fromEntries(Object.entries(clean).map(([name, e]) => [name, { ...e } as StackRecord])) }
+  lastCheck.clear()
+  persist()
+  return Object.keys(clean).length
 }
 
 /** Drop everything for a stack (deleted, or a new stack is taking its name). */

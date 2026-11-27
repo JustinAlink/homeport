@@ -19,11 +19,14 @@
             <stop offset="1" :stop-color="s.color" stop-opacity="0" />
           </linearGradient>
         </defs>
-        <polygon v-for="(s, i) in series" v-show="n > 1 && i === 0" :key="'a' + s.label" :points="areaFor(s)" :fill="`url(#lg-${uid}-${i})`" />
-        <polyline v-for="s in series" v-show="n > 1" :key="s.label" :points="lineFor(s)" fill="none" :stroke="s.color" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+        <!-- one piece per run of recorded data: a stretch with nothing recorded is a gap, not a flat line -->
+        <path v-for="(s, i) in series" v-show="n > 1 && i === 0" :key="'a' + s.label" :d="areaFor(s)" :fill="`url(#lg-${uid}-${i})`" />
+        <path v-for="s in series" v-show="n > 1" :key="s.label" :d="lineFor(s)" fill="none" :stroke="s.color" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
         <g v-if="hi != null">
           <line :x1="hx" :x2="hx" y1="0" :y2="H" stroke="currentColor" class="text-slate-500/40" stroke-width="1" />
-          <circle v-for="s in series" :key="'d' + s.label" :cx="hx" :cy="y(maxOf(s), s.data[hi] ?? 0)" r="3.5" :fill="s.color" stroke="currentColor" class="text-ink-900" stroke-width="2" />
+          <template v-for="s in series" :key="'d' + s.label">
+            <circle v-if="s.data[hi] != null" :cx="hx" :cy="y(maxOf(s), s.data[hi] ?? 0)" r="3.5" :fill="s.color" stroke="currentColor" class="text-ink-900" stroke-width="2" />
+          </template>
         </g>
       </svg>
 
@@ -49,7 +52,8 @@
 interface Series {
   label: string
   color: string
-  data: number[]
+  /** null where nothing was recorded */
+  data: (number | null)[]
   unit?: string
 }
 const props = withDefaults(
@@ -75,15 +79,27 @@ const n = computed(() => Math.max(1, ...props.series.map((s) => s.data.length)))
 // shared scale: fixed at sharedMax, or with `fit` fitted to the data (round steps,
 // never above sharedMax) so a quiet big host doesn't draw flat lines at the bottom
 const scaleMax = computed(() =>
-  props.sharedMax == null ? null : props.fit ? niceScaleMax(Math.max(0, ...props.series.flatMap((s) => s.data)), props.sharedMax) : props.sharedMax,
+  props.sharedMax == null ? null : props.fit ? niceScaleMax(Math.max(0, ...props.series.flatMap((s) => nums(s.data))), props.sharedMax) : props.sharedMax,
 )
 // per-series scale gets 25% headroom so a steady line sits below the top edge
-const maxOf = (s: Series) => scaleMax.value ?? Math.max(1, ...s.data) * 1.25
+const nums = (d: (number | null)[]) => d.filter((v): v is number => v != null)
+const maxOf = (s: Series) => scaleMax.value ?? Math.max(1, ...nums(s.data)) * 1.25
 const y = (max: number, v: number) => H.value - (Math.min(max, Math.max(0, v)) / max) * H.value
 const xAt = (i: number) => (n.value < 2 ? 0 : (i / (n.value - 1)) * w.value)
 const uid = useId() // stable across SSR + hydration, unique per graph
-const areaFor = (s: Series) => (n.value < 2 ? '' : `0,${H.value} ${lineFor(s)} ${xAt(s.data.length - 1).toFixed(1)},${H.value}`)
-const lineFor = (s: Series) => s.data.map((v, i) => `${xAt(i).toFixed(1)},${y(maxOf(s), v).toFixed(1)}`).join(' ')
+const pt = (s: Series, i: number) => `${xAt(i).toFixed(1)},${y(maxOf(s), s.data[i] ?? 0).toFixed(1)}`
+// a lone point between two gaps is drawn as a dot (a zero-length line with round caps)
+const lineFor = (s: Series) =>
+  segmentsOf(s.data)
+    .map(([a, b]) => (a === b ? `M${pt(s, a)}h0.01` : `M${pt(s, a)}` + Array.from({ length: b - a }, (_, k) => `L${pt(s, a + k + 1)}`).join('')))
+    .join('')
+const areaFor = (s: Series) =>
+  n.value < 2
+    ? ''
+    : segmentsOf(s.data)
+        .filter(([a, b]) => b > a)
+        .map(([a, b]) => `M${xAt(a).toFixed(1)},${H.value}` + Array.from({ length: b - a + 1 }, (_, k) => `L${pt(s, a + k)}`).join('') + `L${xAt(b).toFixed(1)},${H.value}Z`)
+        .join('')
 
 const hi = ref<number | null>(null)
 const hx = computed(() => (hi.value == null ? 0 : xAt(hi.value)))
@@ -119,5 +135,5 @@ const ticks = computed(() => {
     .filter((tk) => tk.x >= 18 && tk.x <= w.value - 18) // a label cut off at the edge helps nobody
 })
 const tip = computed(() => (hx.value > w.value * 0.6 ? { right: `${Math.max(0, w.value - hx.value + 10)}px` } : { left: `${hx.value + 10}px` }))
-const fmt = (s: Series, i: number) => `${s.data[i] ?? 0}${s.unit ? (s.unit === '%' ? '%' : ' ' + s.unit) : ''}`
+const fmt = (s: Series, i: number) => (s.data[i] == null ? 'no data' : `${s.data[i]}${s.unit ? (s.unit === '%' ? '%' : ' ' + s.unit) : ''}`)
 </script>

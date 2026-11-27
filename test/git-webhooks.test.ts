@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import {
+  sanitizeWebhookBackup,
   verifyDelivery,
   detectProvider,
   parseDelivery,
@@ -423,4 +424,30 @@ test('alerts name a git deploy as such, not as an auto-update', () => {
   assert.equal(eventText(e), '🟢 stack media updated from git (on push) on vps')
   assert.match(eventText({ ...e, from: 'auto-sync', to: 'exited with code 1' }), /update from git \(auto-sync\) failed: exited with code 1/)
   assert.match(eventText({ ...e, from: 'auto-update' }), /auto-updated/)
+})
+
+test('backup: webhook settings come back as they were, bad entries do not', () => {
+  const secret = 'a'.repeat(64)
+  const good = { media: { hook: { id: 'AbCdEfGhIjKlMnOpQrStUv12', secret, createdAt: 1, signingKey: 'whsec_' + Buffer.alloc(24, 7).toString('base64') }, autoSync: { enabled: true, intervalMin: 15 }, lastDelivery: { at: 1 }, failedCommit: 'abc' } }
+  const out = sanitizeWebhookBackup(good)
+  assert.deepEqual(Object.keys(out), ['media'])
+  assert.equal(out.media.hook?.secret, secret) // the forges keep delivering after a restore
+  assert.ok(out.media.hook?.signingKey?.startsWith('whsec_'))
+  assert.deepEqual(out.media.autoSync, { enabled: true, intervalMin: 15 })
+  assert.equal('lastDelivery' in out.media, false) // run history is not configuration
+  assert.equal('failedCommit' in out.media, false)
+  // input, even from the admin's own file: nothing malformed reaches a public endpoint
+  const bad = sanitizeWebhookBackup({
+    '../etc': { hook: { id: 'AbCdEfGhIjKlMnOpQrStUv12', secret } }, // not a stack name
+    short: { hook: { id: 'x', secret } }, // id not in the minted shape
+    weak: { hook: { id: 'AbCdEfGhIjKlMnOpQrStUv12', secret: 'hunter2' } }, // secret not minted by homeport
+    keyed: { hook: { id: 'AbCdEfGhIjKlMnOpQrStUv12', secret, signingKey: 'not-a-key' } },
+    sync: { autoSync: { enabled: 'yes', intervalMin: 0 } },
+  })
+  assert.deepEqual(Object.keys(bad).sort(), ['keyed', 'sync'])
+  assert.equal(bad.keyed.hook?.signingKey, undefined) // the hook stays, the bad key is dropped
+  assert.equal(bad.sync.autoSync?.enabled, false) // only a real true switches it on
+  assert.ok((bad.sync.autoSync?.intervalMin ?? 0) > 0)
+  assert.deepEqual(sanitizeWebhookBackup(null), {})
+  assert.deepEqual(sanitizeWebhookBackup([1, 2]), {})
 })

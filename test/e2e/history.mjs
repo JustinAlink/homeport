@@ -60,6 +60,13 @@ try {
     check('…hovering it gives that day\'s figure and downtime', /: 9\d(\.\d+)?% up, about \d+ min down/.test(await uptime.innerText()))
   }
 
+  // a stretch with nothing recorded is a break in the line, not a flat stretch
+  // (qbittorrent's demo week has 1.5 h without samples)
+  await page.goto(BASE + '/services/demo-9', { waitUntil: 'load' }); await wait(2000)
+  await page.getByRole('button', { name: '7d', exact: true }).click(); await wait(1500)
+  const pieces = await page.evaluate(() => [...document.querySelectorAll('svg path[stroke]')].filter((p) => p.getAttribute('stroke')?.startsWith('#')).map((p) => (p.getAttribute('d')?.match(/M/g) ?? []).length))
+  check('a gap in the history breaks the line', pieces.length === 2 && pieces.every((n) => n >= 2), JSON.stringify(pieces))
+
   // a stopped container still has its uptime (and no usage graph)
   await page.goto(BASE + '/services/demo-12', { waitUntil: 'load' }); await wait(2500)
   check('stopped one-shot job: uptime card, low figure', (await page.getByTestId('uptime-card').innerText()).includes('days'))

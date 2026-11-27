@@ -1,5 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { HeaderGetter } from './csrf-core.ts'
+import { safeStackName } from './stacks-core.ts'
+import { clampSyncInterval } from '../../shared/utils/git-webhooks.ts'
 
 // Deploy on push, the pure half: who sent a delivery, whether it carries the
 // stack's secret, whether the push is for the ref the stack follows, and the
@@ -372,4 +374,41 @@ export function autoSyncAction(
   if (behind === null) return 'unreachable'
   if (failedCommit && remoteCommit && failedCommit.startsWith(remoteCommit.slice(0, 7))) return 'held'
   return behind ? 'deploy' : 'up-to-date'
+}
+
+/** What a backup carries per stack: its webhook and its auto-sync setting. */
+export interface WebhookBackupEntry {
+  hook?: { id: string; secret: string; signingKey?: string; createdAt: number; rotatedAt?: number }
+  autoSync?: { enabled: boolean; intervalMin: number }
+}
+
+/**
+ * The webhook settings from a backup file, keeping only well-formed entries: a
+ * valid stack name, a URL id and secret in the shapes homeport mints, a signing
+ * key in GitLab's documented shape. Run history (deliveries, syncs, a held commit)
+ * is never part of it: that is this server's past, not its configuration. The
+ * file is the admin's own, but it is still input, and a bad entry must not land
+ * on a public endpoint.
+ */
+export function sanitizeWebhookBackup(data: unknown): Record<string, WebhookBackupEntry> {
+  const out: Record<string, WebhookBackupEntry> = {}
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return out
+  for (const [rawName, raw] of Object.entries(data as Record<string, unknown>)) {
+    const name = safeStackName(rawName)
+    if (!name || !raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, any>
+    const entry: WebhookBackupEntry = {}
+    const h = r.hook
+    if (h && typeof h === 'object' && validHookId(h.id) && typeof h.secret === 'string' && /^[0-9a-f]{64}$/.test(h.secret)) {
+      entry.hook = { id: h.id, secret: h.secret, createdAt: Number.isFinite(h.createdAt) ? h.createdAt : Date.now() }
+      const key = typeof h.signingKey === 'string' ? validSigningKey(h.signingKey) : null
+      if (key) entry.hook.signingKey = key
+      if (Number.isFinite(h.rotatedAt)) entry.hook.rotatedAt = h.rotatedAt
+    }
+    if (r.autoSync && typeof r.autoSync === 'object') {
+      entry.autoSync = { enabled: r.autoSync.enabled === true, intervalMin: clampSyncInterval(r.autoSync.intervalMin) }
+    }
+    if (entry.hook || entry.autoSync) out[name] = entry
+  }
+  return out
 }

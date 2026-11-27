@@ -2,6 +2,7 @@ import { getConfig } from '../utils/config'
 import { replaceSettings, settingsWritable, type PersistedSettings } from '../utils/settings'
 import { restoreAuthFile } from '../utils/auth'
 import { saveToken } from '../utils/git-stacks'
+import { importWebhooks } from '../utils/git-webhooks'
 import { safeStackName } from '../utils/stacks-core'
 import { log } from '../utils/log'
 
@@ -22,6 +23,7 @@ export default defineEventHandler(async (event) => {
     settings?: PersistedSettings
     auth?: { passwordHash?: string; sessionSecret?: string; sessionGeneration?: number }
     gitTokens?: Record<string, string>
+    gitWebhooks?: unknown
   }>(event)
 
   if (body?.format !== 'homeport-backup' || typeof body.version !== 'number') {
@@ -51,7 +53,10 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    return { ok: true, authRestored, gitTokens: tokens }
+    // older backups have none: leave the current webhooks alone rather than wipe them
+    const gitWebhooks = body.gitWebhooks !== undefined ? importWebhooks(body.gitWebhooks) : 0
+
+    return { ok: true, authRestored, gitTokens: tokens, gitWebhooks }
   } catch (e: any) {
     // A mid-restore write failure (volume flipped read-only, disk full) must
     // reach the client as a clear message, not a bare 500.

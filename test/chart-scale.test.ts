@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { niceScaleMax } from '../utils/chartScale.ts'
+import { niceScaleMax, bridgeGaps, segmentsOf } from '../utils/chartScale.ts'
 
 test('the usage chart fits its scale to the data, on round steps, never past the cap', () => {
   assert.equal(niceScaleMax(0.6), 5) // a quiet big server
@@ -33,4 +33,17 @@ test('time ticks sit on round local times and stay few', () => {
   assert.ok(month.at.length <= 6)
   assert.equal(month.at[1] - month.at[0], 5 * DAY)
   assert.deepEqual(timeTicks(now, now, 0).at, [])
+})
+
+test('graph gaps: a missed sample is bridged, a stopped stretch is a break', () => {
+  const n = null
+  assert.deepEqual(bridgeGaps([1, n, 3]), [1, 1, 3]) // one missed sample
+  assert.deepEqual(bridgeGaps([1, n, n, 4]), [1, 1, 1, 4]) // two
+  assert.deepEqual(bridgeGaps([1, n, n, n, 5]), [1, n, n, n, 5]) // stopped for a while: a break, not a flat line
+  assert.deepEqual(bridgeGaps([n, n, 3, 4]), [n, n, 3, 4]) // a young series starts later, not at a made-up value
+  assert.deepEqual(bridgeGaps([1, 2, n]), [1, 2, 2]) // the current minute not written yet
+  assert.deepEqual(bridgeGaps([1, 2, n, n, n]), [1, 2, n, n, n]) // stopped now
+  assert.deepEqual(bridgeGaps([]), [])
+  assert.deepEqual(segmentsOf([1, 2, n, n, 5, n, 7, 8]), [[0, 1], [4, 4], [6, 7]])
+  assert.deepEqual(segmentsOf([n, n]), [])
 })
