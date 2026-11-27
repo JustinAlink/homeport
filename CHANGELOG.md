@@ -16,6 +16,18 @@ openid-client (PKCE, state, nonce, ID token checks). Environment:
 `HOMEPORT_OIDC_CLIENT_ID`, `HOMEPORT_OIDC_CLIENT_SECRET`.
 [docs/oidc.md](docs/oidc.md)
 
+### New: a public status page
+
+Opt-in (`HOMEPORT_STATUS_PAGE`, or Settings, Monitoring & alerts). A page at
+`/status` for family, friends or band members: "is it me, or is it down?". It
+shows only the apps and domains you pick, under the names you give them, in
+groups, with the state now, 24 h, 7 and 30 day uptime and a bar per day (with a
+text alternative, so keyboard and screen-reader users get the days too), plus an
+optional notice. No ids, images, hosts, ports or error messages ever reach it.
+While it is off, `/status` answers like a page that never existed; an admin can
+preview it before publishing. It follows the visitor's light or dark setting and
+refreshes every minute. [docs/status-page.md](docs/status-page.md)
+
 ### New: certificate alerts, snooze and maintenance windows
 
 - The TLS certificate behind each HTTPS domain is checked daily (hourly near
@@ -72,6 +84,14 @@ blueprint labels. Each domain says where it was read from.
 - A signed-out visitor now returns to the page they were on after signing in.
   Before, a background check on the login page sent it to a bare `/login`,
   which also wiped `?sso_error` and `?local=1`.
+- From the security review of this release: the sign-in return path can no
+  longer be bent off-site with a tab character, SSO group names with spaces are
+  one name (not two), a certificate replaced by the proxy's untrusted default is
+  announced, events during a pause or maintenance window are held and sent
+  afterwards instead of dropped, "until it recovers" snoozes wait for real
+  trouble (domains included), short-lived containers no longer use up the
+  history series limit, the MCP size limit holds for chunked bodies, and git
+  calls have a deadline.
 - Settings no longer sends an extra host's NPM API password to the browser, and
   saving the settings page no longer wipes the per-host NPM API and Caddy admin
   fields it has no inputs for.

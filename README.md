@@ -61,6 +61,7 @@ all live and builds the page for you. **Zero tiles to configure.**
 - **Find anything fast**: <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> jumps to any container, stack or page and runs actions ("restart sonarr", "jelly logs"); <kbd>?</kbd> lists every shortcut. The dashboard filters by status, flags what needs attention, pins favourites to the top, and switches between cards and a dense list.
 - **Alerts**: down / unhealthy / recovered over Discord, Slack, ntfy, Apprise (Gotify/Pushover/Telegram/…), custom webhooks, or email, with anti-flap debounce.
   TLS certificates are watched too (expiring, renewed, no longer trusted). Snooze one app while you work on it, pause everything for an hour, or set weekly maintenance windows.
+- **Public status page** (opt-in): a page at `/status` for the people who use your apps, showing only what you pick, under names you choose, with 30 days of uptime bars. [Status page](docs/status-page.md).
 - **Ask an AI assistant**: a built-in, read-only [MCP server](docs/mcp.md) lets Claude and other assistants answer "what serves app.example.com?" or "what needs updating?" from live data.
 
 ### 🛠️ Manage — opt-in, only what you enable
@@ -258,6 +259,7 @@ All via environment variables (set on the container at runtime):
 | `HOMEPORT_ALERTS` | `false` | Enable per-service down/unhealthy/recovered notifications (configure channels in settings). |
 | `HOMEPORT_TRAEFIK_API_URL` | _(none)_ | Read domains from Traefik's API (`http://traefik:8080`, keep it internal). `_USER` / `_PASSWORD` for basic auth. See [domain sources](docs/domain-sources.md). |
 | `HOMEPORT_ALLOW_GIT_WEBHOOKS` | `false` | `true` lets git stacks deploy on push through a per-stack, secret-checked webhook. Needs stacks on. See [deploy on push](docs/git-webhooks.md). |
+| `HOMEPORT_STATUS_PAGE` | `false` | `true` publishes the status page at `/status` (what it shows is picked in the settings page). See [status page](docs/status-page.md). |
 | `HOMEPORT_PUBLIC_URL` | _(none)_ | The address you open homeport at, e.g. `https://hub.example.com`. Single sign-on builds its redirect URI from it. |
 | `HOMEPORT_OIDC` | `false` | `true` offers single sign-on. With `HOMEPORT_OIDC_ISSUER`, `_CLIENT_ID` and `_CLIENT_SECRET`; groups are set in the settings page. See [single sign-on](docs/oidc.md). |
 
