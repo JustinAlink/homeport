@@ -39,7 +39,9 @@ try {
   check('…no admin shell (sidebar, menu, search)', (await v.p.locator('aside, nav[aria-label="Main"]').count()) === 0)
   check('…a single small "powered by" link to the project, not to this admin', (await v.p.getByRole('link', { name: 'homeport' }).getAttribute('href')) === 'https://github.com/JustinAlink/homeport')
   check('…no link into the admin app', (await v.p.locator('a[href^="/"]').count()) === 0)
-  check('…only the public API was asked', v.apis.length > 0 && v.apis.every((p) => p === '/api/public/status'), JSON.stringify(v.apis))
+  // the first answer comes with the server-rendered page; the browser asks again
+  // only when its time zone differs from the server's (so not on a UTC CI runner)
+  check('…only the public API was asked', v.apis.every((p) => p === '/api/public/status'), JSON.stringify(v.apis))
   check('…no admin manifest (Add to home screen opens this page)', (await v.p.locator('link[rel="manifest"]').count()) === 0)
 
   // what the JSON holds: names, state and uptime; no container names that were renamed, no ids, images, ports
@@ -79,6 +81,7 @@ try {
   await v.p.clock.runFor(61_000)
   const req = await refreshed.catch(() => null)
   check('refreshes with the visitor\'s time zone', !!req && /tz=-?\d+/.test(req.url()), req?.url())
+  check('…and every request a visitor made went to the public API alone', v.apis.length > 0 && v.apis.every((p) => p === '/api/public/status'), JSON.stringify(v.apis))
   await v.p.waitForTimeout(800)
   const after = await v.p.locator('main').boundingBox()
   check('…without moving the layout', Math.abs(before.height - after.height) < 2, `${before.height} -> ${after.height}`)
