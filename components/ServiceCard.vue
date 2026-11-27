@@ -116,7 +116,7 @@
         target="_blank"
         rel="noopener noreferrer"
         class="chip chip-accent max-w-full"
-        :title="unreachable && d.via === 'name' ? `${reachApi.proxy.value?.displayName} can't reach this container (no shared network)` : pingTitle(d.url) || d.url"
+        :title="unreachable && d.via === 'name' ? `${reach.proxy?.displayName} can't reach this container (no shared network)` : pingTitle(d.url) || d.url"
         @click.stop
       >
         <Icon v-if="unreachable && d.via === 'name'" name="alert" class="h-3 w-3 text-amber-400" />
@@ -217,7 +217,9 @@ const cpuHistory = computed(() => history.value[props.service.id]?.cpu ?? [])
 const { pings } = usePings()
 // the reverse proxy shares no network with this container: its domains can't work
 const reachApi = useProxyReach()
-const unreachable = computed(() => reachApi.domainReach(props.service).ok === false)
+// the container this card's routes depend on (Traefik, Caddy, Newt...), not the first proxy found
+const reach = computed(() => reachApi.domainReach(props.service))
+const unreachable = computed(() => reach.value.ok === false)
 function pingClass(url: string) {
   const p = pings.value[url]
   if (!p) return ''

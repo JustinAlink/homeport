@@ -44,10 +44,18 @@
         <div v-if="unreachable.length" class="callout callout-warn mb-5">
           <Icon name="alert" />
           <div>
-            Your reverse proxy (<span class="font-medium text-slate-100">{{ proxyName }}</span>) can't reach
-            <span v-for="(u, i) in unreachable" :key="u.service.id"><NuxtLink :to="`/services/${encodeURIComponent(u.service.id)}`" class="link">{{ u.service.displayName }}</NuxtLink>{{ i < unreachable.length - 1 ? ', ' : '' }}</span>:
-            {{ unreachable.length > 1 ? 'they share' : 'it shares' }} no network, so {{ unreachable.length > 1 ? 'their domains' : 'its domain' }} will answer with an error.
-            <span v-if="unreachable[0].suggest">Connect {{ unreachable.length > 1 ? 'them' : 'it' }} to <span class="font-mono">{{ unreachable[0].suggest }}</span> below.</span>
+            <template v-if="proxyNames.length === 1">
+              Your reverse proxy (<span class="font-medium text-slate-100">{{ proxyNames[0] }}</span>) can't reach
+              <span v-for="(u, i) in unreachable" :key="u.service.id"><NuxtLink :to="`/services/${encodeURIComponent(u.service.id)}`" class="link">{{ u.service.displayName }}</NuxtLink>{{ i < unreachable.length - 1 ? ', ' : '' }}</span>:
+              {{ unreachable.length > 1 ? 'they share' : 'it shares' }} no network, so {{ unreachable.length > 1 ? 'their domains' : 'its domain' }} will answer with an error.
+              <span v-if="unreachable[0].suggest">Connect {{ unreachable.length > 1 ? 'them' : 'it' }} to <span class="font-mono">{{ unreachable[0].suggest }}</span> below.</span>
+            </template>
+            <!-- several proxies on this host: say which one each app needs, and where to connect it -->
+            <template v-else>
+              Some apps share no network with the proxy their domain goes through, so those domains will answer with an error:
+              <span v-for="(u, i) in unreachable" :key="u.service.id"><NuxtLink :to="`/services/${encodeURIComponent(u.service.id)}`" class="link">{{ u.service.displayName }}</NuxtLink>
+                ({{ u.proxy?.displayName }}<template v-if="u.suggest">, connect it to <span class="font-mono">{{ u.suggest }}</span></template>){{ i < unreachable.length - 1 ? '; ' : '.' }}</span>
+            </template>
           </div>
         </div>
 
@@ -228,6 +236,8 @@ const shared = computed(() => {
 })
 
 const proxyName = computed(() => reachApi.proxy.value?.displayName ?? '')
+// the proxies the unreachable apps depend on (one per source: Traefik, Caddy, Newt...)
+const proxyNames = computed(() => [...new Set(unreachable.value.map((u) => u.proxy?.displayName ?? ''))].filter(Boolean))
 const proxyOn = (n: NetRow) => !!reachApi.proxy.value && (n.attached ?? []).some((c) => c.id === reachApi.proxy.value!.id)
 const unreachable = computed(() =>
   (svcData.value?.services ?? [])

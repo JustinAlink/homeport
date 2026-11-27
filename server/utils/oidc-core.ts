@@ -137,12 +137,76 @@ export function unpackState(value: string | undefined, key: string, now: number)
   }
 }
 
+/**
+ * The scopes to ask for: the configured ones the provider says it supports, and
+ * always openid. Keycloak rejects the whole sign-in over one scope it doesn't know
+ * (invalid_scope), and "groups" is a scope at Authelia and Pocket ID but only a
+ * claim mapper at Keycloak, so homeport's default would break it. A provider that
+ * publishes no scopes_supported list gets the configured scopes as they are.
+ */
+export function effectiveScopes(configured: string, supported: unknown): { scope: string; dropped: string[] } {
+  const want = [...new Set(['openid', ...String(configured || '').split(/\s+/).filter(Boolean)])]
+  if (!Array.isArray(supported) || !supported.length) return { scope: want.join(' '), dropped: [] }
+  const offered = new Set(supported.filter((x): x is string => typeof x === 'string'))
+  const keep = want.filter((s) => s === 'openid' || offered.has(s))
+  return { scope: keep.join(' '), dropped: want.filter((s) => !keep.includes(s)) }
+}
+
+/**
+ * How homeport sends its client secret to the token endpoint. HTTP Basic is the
+ * standard's default and what Authelia enforces unless told otherwise (sending it
+ * in the body failed every Authelia sign-in with invalid_client); the body is used
+ * only for a provider that lists it and not Basic.
+ */
+export function pickClientAuth(methods: unknown): 'client_secret_basic' | 'client_secret_post' {
+  if (!Array.isArray(methods) || !methods.length || methods.includes('client_secret_basic')) return 'client_secret_basic'
+  return methods.includes('client_secret_post') ? 'client_secret_post' : 'client_secret_basic'
+}
+
+type ErrLike = { error?: unknown; error_description?: unknown; message?: unknown; code?: unknown; status?: unknown; alg?: unknown; cause?: unknown }
+
+/** The error and its causes, outermost first. openid-client wraps the real reason ("unsupported JWS algorithm", {alg}) in a bland "unsupported operation". */
+function chainOf(e: unknown): ErrLike[] {
+  const out: ErrLike[] = []
+  let cur: unknown = e
+  for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
+    out.push(cur as ErrLike)
+    cur = (cur as ErrLike).cause
+  }
+  return out
+}
+
+/** An openid-client error as one log line, with the provider's own code and description and the underlying cause. */
+export function describeOidcError(e: unknown): string {
+  if (!e || typeof e !== 'object') return String(e)
+  const parts: string[] = []
+  for (const x of chainOf(e)) {
+    if (typeof x.error === 'string') parts.push(`${x.error}${typeof x.error_description === 'string' && x.error_description ? `: ${x.error_description}` : ''}`)
+    if (typeof x.message === 'string' && x.message) parts.push(x.message)
+    if (typeof x.alg === 'string') parts.push(`alg ${x.alg}`)
+    if (typeof x.code === 'string') parts.push(x.code)
+    if (typeof x.status === 'number') parts.push(`HTTP ${x.status}`)
+  }
+  return [...new Set(parts)].join(' · ')
+}
+
+/** Which failure this is, for the login page: a refused client, an ID token signed in a way homeport won't accept, or something else. */
+export function oidcFailureKind(e: unknown): 'client' | 'signature' | null {
+  const chain = chainOf(e)
+  if (chain.some((x) => x.error === 'invalid_client')) return 'client'
+  if (chain.some((x) => typeof x.alg === 'string' || (typeof x.message === 'string' && /JWS algorithm|signature/i.test(x.message)))) return 'signature'
+  return null
+}
+
 /** Why a sign-in failed, as a code the login page turns into a sentence. */
-export type SsoError = 'state' | 'denied' | 'provider' | 'exchange' | 'config' | 'off'
+export type SsoError = 'state' | 'denied' | 'provider' | 'scope' | 'client' | 'signature' | 'exchange' | 'config' | 'off'
 export const SSO_ERROR_TEXT: Record<SsoError, string> = {
   state: 'The sign-in took too long or was started in another browser. Please try again.',
   denied: 'Your account signed in, but it is not in a group allowed into homeport. Ask the admin to add you to one.',
   provider: 'The identity provider refused or cancelled the sign-in.',
+  scope: 'The identity provider refused the scopes homeport asked for. The admin can check Scopes under Single sign-on.',
+  client: "The identity provider did not accept homeport's client ID or secret. The admin can check them at both ends.",
+  signature: 'The identity provider signed the sign-in in a way homeport does not accept (with the client secret, HS256). The admin can give it a signing key.',
   exchange: 'homeport could not complete the sign-in with the identity provider. Check the client secret and the redirect URI there.',
   config: 'Single sign-on is not set up completely. Use your password, or ask the admin.',
   off: 'Single sign-on is turned off.',

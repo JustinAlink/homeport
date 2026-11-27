@@ -1,5 +1,49 @@
 # Changelog
 
+## v2.40.1 (2026-11-27)
+
+Fixes from testing against real software (Keycloak 26.8, Authentik 2026.8,
+Authelia 4.39, GitHub, GitLab 19.6, Gitea 28.4, Traefik 3.8,
+caddy-docker-proxy 2.13, Newt 1.20, pangolin-cli 0.23):
+
+- **Single sign-on with Keycloak works out of the box.** homeport asked for a
+  `groups` scope, which Keycloak doesn't have, so Keycloak refused every
+  sign-in. homeport now asks only for scopes the provider lists, "Test the
+  provider" names any it leaves out, and a refused scope gets its own message
+  on the login page instead of "the provider refused the sign-in".
+- **Several proxies on one host.** Domain checks fell back to the first proxy
+  found for every domain, so a Traefik domain was checked through Caddy (its
+  redirect read as up) and a Pangolin domain through Traefik (a 404 read as
+  up). Each domain now uses the proxy of the source it was read from, and
+  Pangolin domains are checked at their public address only. The "proxy can't
+  reach this container" warning likewise checks the container each route
+  depends on (Newt for Pangolin), instead of warning about the wrong proxy, on
+  the service page, the dashboard card's tooltip and the Networks page.
+- **Single sign-on with Authelia works with its default client.** homeport
+  sent the client secret in the request body; Authelia, like the standard,
+  expects HTTP Basic and refused every sign-in. homeport now uses Basic unless
+  the provider only lists the body method. If you set an Authelia client to
+  `client_secret_post` to make an earlier version work, set it back to the
+  default (`client_secret_basic`).
+- **ID token signatures are checked.** homeport now verifies each ID token
+  against the provider's published keys, so a token signed with the client
+  secret (Authentik without a signing key) is refused. Before, only the
+  algorithm was compared with what the provider advertised. A refused sign-in
+  is now logged with the provider's own error and its underlying cause, and a
+  rejected client ID or secret, or an ID token signed with the client secret,
+  gets its own message on the login page.
+- **A quiet login page.** The signed-in app's background requests no longer
+  run on the login page, where each of them failed with 401 (about 20 errors
+  in the browser console within half a minute).
+
+- The domain check no longer reports a `cert` field: nothing read it, and on a
+  reused TLS connection it came back empty. Certificate expiry has its own
+  checks (a fresh connection each time) since v2.38.0.
+
+Deploy on push was verified with real GitHub, GitLab 19.6 (secret token and
+signing token) and Gitea pushes, a private repository and wrong secrets
+refused, and needed no change.
+
 ## v2.40.0 (2026-11-27)
 
 - **The backup holds the rest.** Viewer and SSO accounts (with their password

@@ -7,7 +7,7 @@ import { buildMetrics, formatPrometheus, type MetricsInput } from '../utils/metr
 import { getUpdateMap } from '../utils/updates'
 import type { UpdateEntry } from '../utils/registry-core'
 import { cachedPings, pingAll } from '../utils/ping'
-import { findProxyName, localDomainUrls } from '../utils/ping-core'
+import { proxyForDomains } from '../utils/ping-core'
 import { getHosts } from '../utils/hosts'
 import { splitServiceId } from '../utils/service-id'
 import { guard } from '../utils/guard'
@@ -73,9 +73,8 @@ export default defineEventHandler((event) => {
       results = cached.results
       if (cached.due && urls.length) {
         const localHost = getHosts()[0]?.name
-        const proxy = findProxyName(services, localHost)
-        const local = localDomainUrls(services, localHost)
-        void refreshPings(urls, (url) => (local.has(url) ? proxy : null)).catch(() => {})
+        const proxyOf = proxyForDomains(services, localHost)
+        void refreshPings(urls, (url) => proxyOf.get(url) ?? null).catch(() => {})
       }
     }
     domains = [...targets].filter(([url]) => results[url]).map(([url, t]) => ({ ...t, status: results[url].status, ms: results[url].ms }))

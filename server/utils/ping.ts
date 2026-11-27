@@ -1,7 +1,6 @@
 import http from 'node:http'
 import https from 'node:https'
-import type { TLSSocket } from 'node:tls'
-import type { PingCert, PingResult } from '~/types/service'
+import type { PingResult } from '~/types/service'
 import { routeOrder } from './ping-core'
 
 /**
@@ -28,11 +27,8 @@ export function pingUrl(url: string, timeoutMs = 6000, via?: { host: string; por
     const onResponse = (res: http.IncomingMessage) => {
       const status = res.statusCode || 0
       const location = status >= 300 && status < 400 && typeof res.headers.location === 'string' ? res.headers.location : undefined
-      // The handshake already happened, so the certificate costs nothing extra. Read
-      // before draining: a closed socket has nothing left to tell.
-      const cert = isHttps ? certOf(res.socket as TLSSocket) : undefined
       res.resume() // drain
-      resolve({ status, ms: Date.now() - start, ...(location ? { location } : {}), ...(cert ? { cert } : {}) })
+      resolve({ status, ms: Date.now() - start, ...(location ? { location } : {}) })
     }
     // one options object for the proxy route (a URL can't carry another host's address)
     const req = via
@@ -55,24 +51,6 @@ export function pingUrl(url: string, timeoutMs = 6000, via?: { host: string; por
     req.on('error', () => resolve({ status: 0, ms: Date.now() - start }))
     req.end()
   })
-}
-
-/** The peer certificate of a TLS answer, with whether a strict client would accept it. */
-function certOf(sock: TLSSocket | null | undefined): PingCert | undefined {
-  try {
-    const c = sock?.getPeerCertificate?.()
-    if (!c || !c.valid_to) return undefined
-    const notAfter = Date.parse(c.valid_to)
-    if (!Number.isFinite(notAfter)) return undefined
-    const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined
-    const issuer = pick(c.issuer?.O) || pick(c.issuer?.CN)
-    // rejectUnauthorized is off (self-signed apps still count as up), but the socket
-    // still records what verification would have said
-    const err = sock?.authorized ? undefined : String(sock?.authorizationError ?? '') || undefined
-    return { notAfter, ...(issuer ? { issuer } : {}), trusted: !!sock?.authorized, ...(err ? { error: err } : {}) }
-  } catch {
-    return undefined // a certificate we can't read is no reason to fail the check
-  }
 }
 
 // Per-URL cache so frequent polls don't re-hit every target.

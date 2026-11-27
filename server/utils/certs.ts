@@ -6,7 +6,7 @@ import { certAlertStep, inheritedState, certLeftText, nextCheckIn, certLevel, ty
 import { serviceKey } from '../../shared/utils/silence.ts'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
-import { findProxyName, localDomainUrls } from './ping-core'
+import { proxyForDomains } from './ping-core'
 import { guard } from './guard'
 import { dispatch } from './alerts'
 import { silenceFor } from './silences'
@@ -107,14 +107,14 @@ async function check(url: string, proxy: string | null): Promise<CertInfo> {
 
 /** HTTPS domains of running containers, with the app that serves each. */
 function targets(services: Service[]) {
-  const out = new Map<string, { url: string; domain: string; owner: string; host?: string; local: boolean }>()
+  const out = new Map<string, { url: string; domain: string; owner: string; host?: string; proxy: string | null }>()
   const localHost = getHosts()[0]?.name
-  const local = localDomainUrls(services, localHost)
+  const proxyOf = proxyForDomains(services, localHost)
   for (const s of services) {
     if (s.kind !== 'container' || s.state !== 'running' || s.noalert) continue
     for (const d of s.domains) {
       if (!d.ssl || out.has(d.url)) continue
-      out.set(d.url, { url: d.url, domain: d.domain, owner: serviceKey(s.id, s.name), host: s.host, local: local.has(d.url) })
+      out.set(d.url, { url: d.url, domain: d.domain, owner: serviceKey(s.id, s.name), host: s.host, proxy: proxyOf.get(d.url) ?? null })
     }
   }
   return [...out.values()]
@@ -131,7 +131,6 @@ export const runCertChecks = guard(async (services: Service[]) => {
   const store = load()
   const now = Date.now()
   const list = targets(services)
-  const proxy = findProxyName(services, getHosts()[0]?.name)
   const due = list.filter((t) => {
     const e = store.entries[t.url]
     return !e || now - e.checkedAt >= nextCheckIn(e.cert ?? null, !!e.failed, now)
@@ -144,7 +143,7 @@ export const runCertChecks = guard(async (services: Service[]) => {
       const t = queue.shift()!
       const prev = store.entries[t.url]
       try {
-        const cert = await check(t.url, t.local ? proxy : null)
+        const cert = await check(t.url, t.proxy)
         store.entries[t.url] = { url: t.url, domain: t.domain, owner: t.owner, host: t.host, cert, checkedAt: Date.now() }
         if (prev?.cert && prev.cert.fingerprint !== cert.fingerprint) {
           renewed.set(prev.cert.fingerprint, [...(renewed.get(prev.cert.fingerprint) ?? []), store.entries[t.url]])

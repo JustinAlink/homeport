@@ -14,7 +14,7 @@
 
 import type { Service, ServicesResponse, StatsMap } from '../../types/service.ts'
 import { portScope, type ExposureLevel, type ExposureRoute, type ServiceExposure } from '../../shared/utils/exposure.ts'
-import { findProxyName } from './ping-core.ts'
+import { proxyForDomains } from './ping-core.ts'
 import type { McpTool } from './mcp-core.ts'
 
 export interface AlertLike {
@@ -416,7 +416,8 @@ const findDomain: McpTool<FleetSource> = {
     const out: string[] = []
     for (const s of hits) {
       const d = s.domains.find((x) => domainMatches(x.domain, host))!
-      const proxy = findProxyName(svc.services, s.host)
+      // the proxy that serves this domain's source (a Pangolin domain has none on the host)
+      const proxy = proxyForDomains(svc.services, s.host).get(d.url) ?? null
       out.push(`${host} is served by ${s.kind} "${s.name}"${s.host ? ` on host ${s.host}` : ''} (id ${s.id}; image ${shortImage(s.image)}; ${stateText(s)}).`)
       const how = d.via === 'name' ? 'by container name' : d.via === 'ip' ? 'through a port published on the host' : 'by a route homeport matched'
       out.push(

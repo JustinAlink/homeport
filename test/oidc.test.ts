@@ -13,6 +13,10 @@ import {
   packState,
   unpackState,
   STATE_MAX_AGE_MS,
+  effectiveScopes,
+  pickClientAuth,
+  describeOidcError,
+  oidcFailureKind,
 } from '../server/utils/oidc-core.ts'
 
 test('oidc: group claims in the shapes providers use', () => {
@@ -86,4 +90,38 @@ test('oidc: the state cookie is signed, expires, and resists tampering', () => {
   // even a validly signed state can't carry an off-site return path
   const sneaky = packState({ ...st, r: '//evil.example.com' }, 'key-1')
   assert.equal(unpackState(sneaky, 'key-1', now)?.r, '/')
+})
+
+test('oidc: only scopes the provider offers are asked for (Keycloak rejects the rest)', () => {
+  // Keycloak 26: no "groups" scope; asking for it fails every sign-in with invalid_scope
+  const keycloak = ['openid', 'profile', 'email', 'roles', 'web-origins', 'acr', 'offline_access']
+  assert.deepEqual(effectiveScopes('openid profile email groups', keycloak), { scope: 'openid profile email', dropped: ['groups'] })
+  // Authelia and Pocket ID offer it: kept
+  assert.equal(effectiveScopes('openid profile email groups', ['openid', 'profile', 'email', 'groups']).scope, 'openid profile email groups')
+  // no list published: send as configured, openid always first and once
+  assert.deepEqual(effectiveScopes('profile groups openid', undefined), { scope: 'openid profile groups', dropped: [] })
+  assert.equal(effectiveScopes('', ['profile']).scope, 'openid') // openid even when the list leaves it out
+})
+
+test('oidc: the client secret goes by HTTP Basic unless the provider only takes it in the body', () => {
+  assert.equal(pickClientAuth(['client_secret_basic', 'client_secret_post']), 'client_secret_basic') // Keycloak, Authentik, Authelia
+  assert.equal(pickClientAuth(['client_secret_post']), 'client_secret_post')
+  assert.equal(pickClientAuth(undefined), 'client_secret_basic') // the standard's default
+  assert.equal(pickClientAuth(['private_key_jwt']), 'client_secret_basic')
+})
+
+test('oidc: a failed exchange is logged with the provider\'s own reason', () => {
+  const e = Object.assign(new Error('server responded with an error in the response body'), { error: 'invalid_client', error_description: 'client authentication failed', code: 'OAUTH_RESPONSE_BODY_ERROR', status: 401 })
+  assert.equal(describeOidcError(e), 'invalid_client: client authentication failed · server responded with an error in the response body · OAUTH_RESPONSE_BODY_ERROR · HTTP 401')
+  assert.equal(describeOidcError('plain'), 'plain')
+})
+
+test('oidc: a refused HS256 token is named as such, from the wrapped cause', () => {
+  // what openid-client throws for Authentik without a signing key
+  const inner = Object.assign(new Error('unsupported JWS algorithm'), { cause: { alg: 'HS256' } })
+  const e = Object.assign(new Error('unsupported operation'), { code: 'OAUTH_UNSUPPORTED_OPERATION', cause: inner })
+  assert.equal(describeOidcError(e), 'unsupported operation · OAUTH_UNSUPPORTED_OPERATION · unsupported JWS algorithm · alg HS256')
+  assert.equal(oidcFailureKind(e), 'signature')
+  assert.equal(oidcFailureKind(Object.assign(new Error('x'), { error: 'invalid_client' })), 'client')
+  assert.equal(oidcFailureKind(new Error('fetch failed')), null)
 })

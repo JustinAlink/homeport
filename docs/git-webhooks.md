@@ -12,7 +12,12 @@ Both run exactly what the **Update from git** button runs: `git fetch` of the br
 stack follows, a hard reset to it, then `docker compose up -d --build --remove-orphans`. Local edits
 to files the repository tracks are overwritten, as with the button.
 
-Both are set up on the stack's own page, in the **Deploy on push** card.
+Both are set up on the stack's own page, in the **Deploy on push** card. Tested end to end with real
+GitHub, GitLab 19.6 and Gitea 28.4 deliveries: each signed push updated the stack to the new
+commit (a private GitHub repository cloned with a token; GitLab with both its secret token and its
+signing token), GitHub's ping got a 200, and a wrong secret or signing token was refused with 401.
+Bitbucket's signature check follows its documentation but has not been tried against Bitbucket
+itself.
 
 ## Turning webhooks on
 

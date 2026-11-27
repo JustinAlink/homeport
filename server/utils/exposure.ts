@@ -6,7 +6,7 @@ import { buildServices } from './compose'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
 import { pingWithFallback } from './ping'
-import { findProxyName, localDomainUrls, PROXY_IMAGES, imageRepoOf } from './ping-core'
+import { proxyForDomains, PROXY_IMAGES, imageRepoOf } from './ping-core'
 
 // The exposure report: the shared rules (shared/utils/exposure.ts) applied to the
 // live fleet, plus what an anonymous visitor gets from each domain. Probes go
@@ -33,14 +33,13 @@ async function probe(url: string, https: boolean, proxy: string | null, now: num
 /** Probe every route of these services (bounded concurrency, cached a minute). */
 async function probeAll(services: Service[], now: number): Promise<Record<string, DomainProbe>> {
   const localHost = getHosts()[0]?.name
-  const proxy = findProxyName(services, localHost)
-  const local = localDomainUrls(services, localHost)
+  const proxyOf = proxyForDomains(services, localHost)
   const queue = [...new Map(services.flatMap((s) => s.domains.map((d) => [d.url, d.ssl] as const))).entries()]
   const out: Record<string, DomainProbe> = {}
   async function worker() {
     while (queue.length) {
       const [url, ssl] = queue.shift()!
-      out[url] = await probe(url, ssl, local.has(url) ? proxy : null, now)
+      out[url] = await probe(url, ssl, proxyOf.get(url) ?? null, now)
     }
   }
   await Promise.all(Array.from({ length: Math.min(8, queue.length || 1) }, worker))

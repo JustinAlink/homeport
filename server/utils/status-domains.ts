@@ -3,7 +3,7 @@ import type { Snapshot } from './collector'
 import { getConfig, getEnvLocks, getStatusPageConfig } from './config'
 import { recordUptimeSample } from './history'
 import { pingAll } from './ping'
-import { findProxyName, localDomainUrls } from './ping-core'
+import { proxyForDomains } from './ping-core'
 import { getHosts } from './hosts'
 import { domainDown } from './alerts-core'
 import { statusDomainKey } from '../../shared/utils/status-page.ts'
@@ -47,9 +47,8 @@ export async function recordStatusPage(snap: Snapshot): Promise<void> {
   const targets = picked.flatMap((it) => (urls.has(it.ref) ? [{ domain: it.ref, url: urls.get(it.ref)! }] : []))
   if (!targets.length) return
   const localHost = getHosts()[0]?.name
-  const proxy = findProxyName(snap.services, localHost)
-  const local = localDomainUrls(snap.services, localHost)
-  const results = await pingAll(targets.map((t) => t.url), snap.at, (url) => (local.has(url) ? proxy : null))
+  const proxyOf = proxyForDomains(snap.services, localHost)
+  const results = await pingAll(targets.map((t) => t.url), snap.at, (url) => proxyOf.get(url) ?? null)
   for (const t of targets) {
     const r = results[t.url]
     if (!r) continue

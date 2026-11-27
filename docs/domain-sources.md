@@ -17,6 +17,12 @@ writable proxy you configured (NPM, Caddy's admin API, a Traefik dynamic file).
 Each domain on a service page says where it came from ("from Traefik (API)"), and so does
 each entry under "Domains without a container" on the dashboard.
 
+With several proxies on one host, each domain is handled by its own: the domain check's
+fallback (when the server can't reach its own public address) asks the proxy that serves that
+source, and "the proxy can't reach this container" is judged for that container (Newt for a
+Pangolin route). Pangolin domains are checked at their public address only, since they arrive
+through the tunnel. Tested with Traefik 3.8, caddy-docker-proxy 2.13 and Newt 1.20.
+
 ## Traefik API
 
 The API is Traefik's own runtime view, so one read covers the Docker provider, the file

@@ -13,8 +13,15 @@ const SECRET = 'idp-client-secret-0123456789'
 const GROUPS = { alice: ['homeport-admins'], bob: ['/family'], eve: ['strangers'] }
 
 const provider = new Provider(ISSUER, {
-  clients: [{ client_id: 'homeport', client_secret: SECRET, redirect_uris: [`http://127.0.0.1:${PORT}/api/auth/oidc/callback`], grant_types: ['authorization_code'], response_types: ['code'] }],
+  clients: [
+    // Basic, as Authelia enforces by default: sending the secret in the body is refused
+    { client_id: 'homeport', client_secret: SECRET, token_endpoint_auth_method: 'client_secret_basic', redirect_uris: [`http://127.0.0.1:${PORT}/api/auth/oidc/callback`], grant_types: ['authorization_code'], response_types: ['code'] },
+    // ID tokens signed with the client secret (HS256), as Authentik does with no signing key
+    { client_id: 'homeport-hs256', client_secret: SECRET, id_token_signed_response_alg: 'HS256', redirect_uris: [`http://127.0.0.1:${PORT}/api/auth/oidc/callback`], grant_types: ['authorization_code'], response_types: ['code'] },
+  ],
   pkce: { required: () => true },
+  // HS256 enabled only so the test can show homeport refusing it (the default client stays RS256)
+  enabledJWA: { idTokenSigningAlgValues: ['RS256', 'HS256'] },
   scopes: ['openid', 'profile', 'email', 'groups'],
   claims: { openid: ['sub'], profile: ['preferred_username', 'name'], groups: ['groups'] },
   findAccount: (_ctx, id) => ({ accountId: id, claims: () => ({ sub: `id-${id}`, preferred_username: id, name: id, groups: GROUPS[id] ?? [] }) }),
@@ -104,6 +111,18 @@ const me = async (p) => (await p.request.get(`${BASE}/api/auth/me`)).json().catc
   await p.waitForURL((u) => u.pathname === '/updates')
   check('...and the password sign-in returns to it', true)
   await c.close()
+}
+
+// A scope the provider doesn't offer is left out, not sent (Keycloak rejects the
+// whole sign-in over one unknown scope); the provider test says so
+{
+  await save({ oidcScopes: 'profile email groups made-up-scope' })
+  const t = await (await page.request.post(`${BASE}/api/auth/oidc/test`, { data: { issuer: ISSUER, clientId: 'homeport', scopes: 'profile email groups made-up-scope' }, headers: { origin: BASE } })).json()
+  check('the provider test names a scope it does not offer', t.ok && JSON.stringify(t.droppedScopes) === '["made-up-scope"]' && t.message.includes('made-up-scope'), t.message)
+  const { c, p } = await signIn('bob')
+  check('...and signing in still works without it', (await me(p))?.user === 'bob')
+  await c.close()
+  await save({ oidcScopes: 'profile email groups' })
 }
 
 // Admin by group
@@ -230,6 +249,17 @@ check('saving with a blank secret is accepted', r.ok())
   check('bob logging out on one device signs out his other one too', (await b.p.request.get(`${BASE}/api/services`)).status() === 401)
   check('...and not the admin', (await page.request.get(`${BASE}/api/services`)).status() === 200)
   await a.c.close(); await b.c.close()
+}
+
+// An ID token signed with the client secret (HS256) proves nothing about the
+// provider: homeport checks the signature against the provider's published keys
+{
+  await save({ oidcClientId: 'homeport-hs256', oidcAutoRedirect: false })
+  const { c, p } = await signIn('alice', { path: '/login?loggedout=1' })
+  check('an HS256-signed ID token is refused, and the page says why', new URL(p.url()).searchParams.get('sso_error') === 'signature', p.url())
+  check('...and grants nothing', (await p.request.get(`${BASE}/api/services`)).status() === 401)
+  await c.close()
+  await save({ oidcClientId: 'homeport' })
 }
 
 // Turned off: the endpoints refuse and the login page shows no button

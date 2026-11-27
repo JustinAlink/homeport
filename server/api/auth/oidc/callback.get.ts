@@ -2,7 +2,7 @@ import { getConfig } from '../../../utils/config'
 import { signingKey } from '../../../utils/auth'
 import { SESSION_COOKIE, createSessionToken } from '../../../utils/session'
 import { oidc, oidcConfiguration, redirectUri, ssoMissing } from '../../../utils/oidc'
-import { unpackState, claimAt, groupsFrom, roleFor, type SsoError } from '../../../utils/oidc-core'
+import { unpackState, claimAt, groupsFrom, roleFor, describeOidcError, oidcFailureKind, type SsoError } from '../../../utils/oidc-core'
 import { findOrCreateSsoUser } from '../../../utils/users'
 import { log } from '../../../utils/log'
 
@@ -11,7 +11,8 @@ import { log } from '../../../utils/log'
 // login page with a reason; nothing here ever grants access by default.
 export default defineEventHandler(async (event) => {
   const fail = (code: SsoError, why?: unknown) => {
-    if (why) log.warn('sso', `sign-in refused (${code})`, why)
+    // the provider's own error code and description, not just openid-client's summary
+    if (why) log.warn('sso', `sign-in refused (${code}): ${typeof why === 'string' ? why : describeOidcError(why)}`)
     return sendRedirect(event, `/login?sso_error=${code}`, 302)
   }
   const cfg = getConfig()
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
   deleteCookie(event, 'hp_oidc', { path: '/api/auth/oidc' })
   if (!st) return fail('state')
   const q = getQuery(event)
-  if (q.error) return fail('provider', `${q.error}${q.error_description ? `: ${q.error_description}` : ''}`)
+  if (q.error) return fail(q.error === 'invalid_scope' ? 'scope' : 'provider', `${q.error}${q.error_description ? `: ${q.error_description}` : ''}`)
 
   let config
   try {
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
   try {
     tokens = await oidc.authorizationCodeGrant(config, current, { pkceCodeVerifier: st.v, expectedState: st.s, expectedNonce: st.n, idTokenExpected: true })
   } catch (e) {
-    return fail('exchange', e)
+    return fail(oidcFailureKind(e) ?? 'exchange', e)
   }
   const claims = tokens.claims()
   if (!claims?.sub) return fail('exchange', 'no subject in the ID token')

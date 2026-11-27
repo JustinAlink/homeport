@@ -60,14 +60,22 @@ HOMEPORT_OIDC_CLIENT_SECRET=...
 ### Provider notes
 
 - **Authentik:** the issuer is `https://<authentik>/application/o/<slug>/` (keep the trailing
-  slash). Groups come in the `groups` claim with the `profile` scope. Pick a signing key on the
-  provider: without one Authentik signs ID tokens with the client secret (HS256), which homeport
-  does not accept.
+  slash). Groups come in the `groups` claim with the `profile` scope (Authentik has no `groups`
+  scope; homeport leaves it out by itself). Pick a signing key on the provider: without one
+  Authentik signs ID tokens with the client secret (HS256), which homeport refuses, and make sure
+  "authorization code" is among the provider's grant types. Tested with Authentik 2026.8.
 - **Authelia:** add the `groups` scope to the client. Authelia puts groups in userinfo rather than
-  the ID token; homeport reads both.
+  the ID token; homeport reads both. The client's default `token_endpoint_auth_method`
+  (`client_secret_basic`) is what homeport uses. Authelia insists on HTTPS for its own address;
+  with a private CA, give homeport's container `NODE_EXTRA_CA_CERTS`. Tested with Authelia 4.39.
 - **Keycloak:** the issuer is `https://<keycloak>/realms/<realm>`. Add a "Group Membership" mapper
-  with claim name `groups`. For client roles instead, set the groups claim to
-  `resource_access.<client>.roles`.
+  with claim name `groups`, added to the ID token or userinfo (homeport reads both, never the
+  access token). Keycloak has no `groups` scope and refuses a sign-in that asks for one; homeport
+  only asks for scopes the provider lists, so the default works, and **Test the provider** names
+  any scope it leaves out. For client roles instead, set the groups claim to
+  `resource_access.<client>.roles` and switch on "Add to ID token" (or "Add to userinfo") on
+  Keycloak's client roles mapper: by default those roles are only in the access token.
+  Tested with Keycloak 26.8.
 - **Pocket ID:** request the `groups` scope.
 - **Zitadel:** set the groups claim to `urn:zitadel:iam:org:project:roles` and turn on "Assert
   Roles on Authentication" for the project.
@@ -75,8 +83,12 @@ HOMEPORT_OIDC_CLIENT_SECRET=...
 ## Security
 
 - The protocol is handled by [openid-client](https://github.com/panva/openid-client): discovery,
-  the authorization code flow with PKCE (S256), and ID token validation (signature, issuer,
-  audience, expiry, nonce). homeport adds no JWT handling of its own.
+  the authorization code flow with PKCE (S256), and ID token validation (issuer, audience, expiry,
+  nonce, and the signature against the provider's published keys, so an ID token signed with the
+  client secret is refused). homeport adds no JWT handling of its own.
+- The client secret goes to the token endpoint with HTTP Basic (`client_secret_basic`), the
+  standard's default, unless the provider lists only `client_secret_post`.
+- A refused sign-in is logged with the provider's own error code and description.
 - PKCE verifier, state and nonce are fresh for every attempt and travel in a signed, ten-minute,
   httpOnly cookie scoped to `/api/auth/oidc`. A callback without that cookie, with a changed state,
   or from another browser is refused.

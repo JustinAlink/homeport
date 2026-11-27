@@ -1,8 +1,8 @@
 import { getConfig } from '../../../utils/config'
 import { signingKey } from '../../../utils/auth'
 import { oidc, oidcConfiguration, redirectUri, ssoMissing } from '../../../utils/oidc'
-import { packState, safeReturnTo } from '../../../utils/oidc-core'
-import { log } from '../../../utils/log'
+import { packState, safeReturnTo, effectiveScopes } from '../../../utils/oidc-core'
+import { log, warnOnce } from '../../../utils/log'
 
 // Public (no session yet): send the browser to the identity provider. PKCE, state
 // and nonce are fresh for every attempt and travel in a short-lived signed cookie,
@@ -17,12 +17,14 @@ export default defineEventHandler(async (event) => {
     log.warn('sso', `discovery at ${cfg.oidcIssuer} failed`, e)
     return sendRedirect(event, '/login?sso_error=config', 302)
   }
+  const { scope, dropped } = effectiveScopes(cfg.oidcScopes, config.serverMetadata().scopes_supported)
+  if (dropped.length) warnOnce(`sso-scopes:${dropped.join(',')}`, 'sso', `not asking for scope(s) ${dropped.join(', ')}: ${cfg.oidcIssuer} does not offer them`)
   const verifier = oidc.randomPKCECodeVerifier()
   const state = oidc.randomState()
   const nonce = oidc.randomNonce()
   const url = oidc.buildAuthorizationUrl(config, {
     redirect_uri: redirectUri(cfg),
-    scope: cfg.oidcScopes,
+    scope,
     code_challenge: await oidc.calculatePKCECodeChallenge(verifier),
     code_challenge_method: 'S256',
     state,
