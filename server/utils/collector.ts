@@ -3,6 +3,7 @@ import { buildServices } from './compose'
 import { collectStats } from './stats'
 import { recordHistory } from './history'
 import { evaluateAlerts, evaluateDomainAlerts } from './alerts'
+import { recordStatusPage } from './status-domains'
 import { runUpdateSweep } from './updates'
 import { maybeAutoUpdate } from './auto-update'
 import { runCertChecks } from './certs'
@@ -67,6 +68,8 @@ const tick = guard(async () => {
   await stage('history', () => recordHistory(snap))
   await stage('alerts', () => evaluateAlerts(snap))
   await stage('domain-alerts', () => evaluateDomainAlerts(snap))
+  // after the domain alerts: their checks fill the ping cache this stage reuses
+  await stage('status-page', () => recordStatusPage(snap))
   // Update work runs beside the tick, not inside it: a multi-GB pull at the
   // auto-update hour (or a registry that hangs) used to hold the tick's guard, so
   // every tick in the meantime was skipped and there were no alerts or history

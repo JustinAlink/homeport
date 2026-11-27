@@ -159,6 +159,18 @@ export function recordHistory(snap: Snapshot): void {
   if (at - lastPrune > PRUNE_EVERY) prune(at)
 }
 
+/**
+ * One up/down observation for a series without CPU or memory: a domain on the
+ * status page. Same store, files, cap and pruning as a container, so a domain
+ * nobody picks any more is forgotten after 30 days like a removed container.
+ */
+export function recordUptimeSample(key: string, at: number, up: boolean): void {
+  if (!getConfig().historyEnabled) return
+  if (!cache.has(key) && cache.size >= getConfig().historyMaxSeries) return
+  recordSample(loadStore(key), at, { up })
+  lastSeen.set(key, at)
+}
+
 /** Persist all cached series to disk (best-effort; no-op on a read-only volume). */
 export function flush(): void {
   lastFlush = Date.now()

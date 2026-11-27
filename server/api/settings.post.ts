@@ -8,6 +8,7 @@ import { validWindow, type MaintenanceWindow } from '../../shared/utils/silence.
 import { DOMAIN_PROVIDER_IDS } from '../utils/providers/sources-core'
 import { keptPassword, mergeHostSecrets } from '../utils/host-secrets-core'
 import { normalizePublicUrl, parseGroupList } from '../utils/oidc-core'
+import { sanitizeStatusPageConfig } from '../../shared/utils/status-page.ts'
 
 const PROVIDERS: readonly string[] = DOMAIN_PROVIDER_IDS
 
@@ -282,6 +283,9 @@ export default defineEventHandler(async (event) => {
     if (bad) throw createError({ statusCode: 400, statusMessage: 'a maintenance window needs at least one day and two different times (HH:MM)' })
     patch.maintenanceWindows = windows
   }
+  if (body.statusPageEnabled !== undefined) patch.statusPageEnabled = !!body.statusPageEnabled
+  // what a public page shows: malformed items are dropped and text is capped, never stored as sent
+  if (body.statusPage !== undefined) patch.statusPage = sanitizeStatusPageConfig(body.statusPage)
 
   try {
     // the environment owns locked fields: never persist the value the page mirrored

@@ -71,6 +71,8 @@ const READ_DENY = [
   '/api/env',
   '/api/containers/file',
   '/api/containers/files',
+  // the status page preview: the page an admin is preparing, shown even while it is off
+  '/api/status-page',
 ]
 
 // Stack file contents: the compose file (GET /api/stacks/<name>) and anything in the

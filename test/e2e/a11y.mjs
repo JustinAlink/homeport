@@ -11,7 +11,7 @@ const PAGES = [
   '/', '/stacks', '/stacks/media', '/networks', '/storage', '/updates', '/catalog', '/catalog/uptime-kuma', '/activity', '/domains', '/exposure',
   '/settings', '/settings?tab=proxy', '/settings?tab=capabilities', '/settings?tab=monitoring', '/settings?tab=updates',
   '/settings?tab=security', '/settings?tab=system', '/services/demo-0', '/services/demo-2?tab=env', '/services/demo-5?tab=update',
-  '/services/demo-8?tab=update', '/welcome',
+  '/services/demo-8?tab=update', '/welcome', '/status',
 ]
 // CodeMirror token spans (`.cm-line > .ͼq`, generated class names) inside the editor
 const allowed = (target) => /\.cm-|ͼ/.test(target)

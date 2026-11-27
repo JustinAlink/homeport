@@ -9,6 +9,7 @@ import { withEffective } from './settings-locks-core'
 import type { WebhookChannel } from './notifiers/types'
 import { normalizeRegistry, type RegistryCred } from './registry-core'
 import { maskHostSecrets, type MaskedHost } from './host-secrets-core'
+import { sanitizeStatusPageConfig, DEMO_STATUS_PAGE, type StatusPageConfig } from '../../shared/utils/status-page.ts'
 
 export interface AlertTransitions {
   down: boolean
@@ -143,6 +144,8 @@ export interface HomeportConfig {
   oidcButtonLabel: string
   oidcAutoRedirect: boolean
   oidcHidePassword: boolean
+  /** Public, read-only status page at /status. Off by default (on in demo mode). */
+  statusPageEnabled: boolean
 }
 
 /**
@@ -357,7 +360,22 @@ export function getConfig(): HomeportConfig {
     oidcButtonLabel: (s.oidcButtonLabel ?? '').trim() || 'Sign in with SSO',
     oidcAutoRedirect: !!s.oidcAutoRedirect,
     oidcHidePassword: !!s.oidcHidePassword,
+    statusPageEnabled:
+      envStr('HOMEPORT_STATUS_PAGE') !== undefined
+        ? process.env.HOMEPORT_STATUS_PAGE === 'true'
+        : s.statusPageEnabled ?? process.env.HOMEPORT_DEMO === 'true',
   }
+}
+
+/**
+ * What the status page shows. Sanitised on read as well as on save: a hand-edited
+ * settings.json must not be able to put more on a public page than the form can.
+ * The demo shows a ready-made page until someone saves their own.
+ */
+export function getStatusPageConfig(): StatusPageConfig {
+  const s = readSettings()
+  if (s.statusPage === undefined && process.env.HOMEPORT_DEMO === 'true') return DEMO_STATUS_PAGE
+  return sanitizeStatusPageConfig(s.statusPage)
 }
 
 /** Which UI-editable fields are locked by an env var (the settings page disables these). */
@@ -402,6 +420,7 @@ export function getEnvLocks() {
     oidcIssuer: envStr('HOMEPORT_OIDC_ISSUER') !== undefined,
     oidcClientId: envStr('HOMEPORT_OIDC_CLIENT_ID') !== undefined,
     oidcClientSecret: envStr('HOMEPORT_OIDC_CLIENT_SECRET') !== undefined,
+    statusPage: envStr('HOMEPORT_STATUS_PAGE') !== undefined,
   }
 }
 
@@ -494,5 +513,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds' | 'ho
     oidcButtonLabel: s.oidcButtonLabel ?? '',
     oidcAutoRedirect: !!s.oidcAutoRedirect,
     oidcHidePassword: !!s.oidcHidePassword,
+    statusPageEnabled: s.statusPageEnabled ?? process.env.HOMEPORT_DEMO === 'true',
+    statusPage: getStatusPageConfig(),
   }, getConfig(), getEnvLocks())
 }

@@ -6,6 +6,7 @@ import { getUser } from '../utils/users'
 import { scopeAllows } from '../utils/api-tokens-core'
 import { isCrossOrigin, isUnsafeMethod } from '../utils/csrf-core'
 import { routedPath } from '../utils/request-path-core'
+import { getConfig } from '../utils/config'
 
 // Gate the API (pages redirect client-side). Fail-closed: a valid session is
 // required unless auth is intentionally off (open mode). /api/auth/* and the
@@ -34,6 +35,14 @@ export default defineEventHandler((event) => {
   // exists. Both are GET and guard themselves (signed state cookie, PKCE, nonce, and
   // the token exchange); the admin-only test endpoint next to them stays protected.
   if (event.method === 'GET' && (path === '/api/auth/oidc/start' || path === '/api/auth/oidc/callback')) return
+  // The public status page's data is for people without an account (family,
+  // friends, band members), so it takes no session and no token, and has no
+  // secret to check: it is public on purpose. It is let through only while the
+  // page is switched on (off by default, HOMEPORT_STATUS_PAGE locks it) and only
+  // for reading. While off it is gated like every other path, so it answers what
+  // a path that never existed answers. Its content is limited by buildPublicStatus
+  // (shared/utils/status-page.ts) to what the admin picked by hand.
+  if (path === '/api/public/status' && (event.method === 'GET' || event.method === 'HEAD') && getConfig().statusPageEnabled) return
 
   // open mode (no password, user skipped it or the volume is read-only) → no auth
   if (authMode() === 'open') return

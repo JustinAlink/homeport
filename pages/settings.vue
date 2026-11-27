@@ -457,6 +457,17 @@
         </label>
       </section>
 
+      <!-- Public status page (its own component; part of this form and its save bar) -->
+      <section v-show="inCategory('status-page')" :id="'status-page'" class="card card-pad scroll-mt-8">
+        <StatusPageSettings
+          v-model:enabled="form.statusPageEnabled"
+          v-model:config="form.statusPage"
+          :locked="!!locked.statusPage"
+          :services="svcData?.services ?? null"
+          :dirty="dirty"
+        />
+      </section>
+
       <!-- Alerts & notifications -->
       <section v-show="inCategory('alerts')" :id="'alerts'"  class="card card-pad scroll-mt-8 space-y-3.5">
         <h2 class="text-[15px] font-semibold text-slate-100">Alerts &amp; notifications</h2>
@@ -847,6 +858,7 @@
 </template>
 
 <script setup lang="ts">
+import { emptyStatusPage } from '~/shared/utils/status-page'
 
 const loaded = ref(false)
 const loadError = ref('')
@@ -889,6 +901,7 @@ const CATEGORY_OF: Record<string, string> = {
   systemd: 'capabilities',
   uptime: 'monitoring',
   monitoring: 'monitoring',
+  'status-page': 'monitoring',
   alerts: 'monitoring',
   silences: 'monitoring',
   autoupdate: 'updates',
@@ -939,6 +952,7 @@ const sections = computed(() =>
     { id: 'uptime', label: 'Uptime' },
     { id: 'systemd', label: 'Host services' },
     { id: 'monitoring', label: 'Monitoring' },
+    { id: 'status-page', label: 'Status page' },
     { id: 'alerts', label: 'Alerts' },
     { id: 'silences', label: 'Silences' },
     { id: 'autoupdate', label: 'Auto-update' },
@@ -1083,6 +1097,8 @@ const form = reactive({
   alertCooldownSec: 3600,
   alertChannels: [] as ChannelRow[],
   hosts: [] as HostRow[],
+  statusPageEnabled: false,
+  statusPage: emptyStatusPage(),
 })
 
 // Known-good community template lists, offered as one-click additions.

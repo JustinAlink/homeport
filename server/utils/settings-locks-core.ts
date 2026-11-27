@@ -29,6 +29,7 @@ export const LOCKED_FIELDS = {
   oidc: 'oidcEnabled',
   oidcIssuer: 'oidcIssuer',
   oidcClientId: 'oidcClientId',
+  statusPage: 'statusPageEnabled',
 } as const
 
 type Locks = Record<string, boolean>
