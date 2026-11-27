@@ -1,5 +1,5 @@
 // A promise-based confirmation dialog rendered in the DOM (see
-// components/ConfirmDialog.vue, mounted once in app.vue). Replaces window.confirm,
+// components/ConfirmDialog.vue, mounted once in layouts/default.vue). Replaces window.confirm,
 // which is silently blocked in sandboxed/embedded views — there a native confirm
 // returns false and the action just never runs, so the button looks dead.
 

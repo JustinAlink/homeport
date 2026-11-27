@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.39.0 (2026-11-27)
+
+- **Sign out one person.** Everyone who comes in through single sign-on now has
+  an account, admins too, listed under Settings, Security & users with their
+  role. The role follows their groups at every sign-in (someone moved to a
+  viewer group comes back read-only). **Sign out** on an account ends its
+  sessions on every device at once; an account logging out does the same for
+  itself only; turning single sign-on off ends every SSO account's sessions.
+  Before, an SSO admin could only be cut off by changing the admin password,
+  which signed everyone out.
+- **Uptime days by keyboard.** The day bars on a container's uptime card work
+  like the status page's: Tab to them, step through the days with the arrow
+  keys (Home, End, Page Up and Down), and each day is read out to screen
+  readers. They were hover-only.
+- **A lighter status page.** The signed-in app (sidebar, search, dialogs) is a
+  layout of its own now, so visitors of `/status` no longer download it: 222 KB
+  of JavaScript instead of 270 KB, none of it the admin app.
+
 ## v2.38.0 (2026-11-27)
 
 ### New: single sign-on (OpenID Connect)

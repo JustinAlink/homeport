@@ -77,6 +77,7 @@ interface Loaded {
 
 definePageMeta({
   public: true,
+  layout: 'public',
   middleware: [
     async (to) => {
       const nuxtApp = useNuxtApp()
