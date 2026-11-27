@@ -125,6 +125,10 @@ Every container has its own page — overview, logs, terminal, domains, and upda
 
 ![service page](docs/service-page.png)
 
+And, if you switch it on, a public status page for the people who use your apps:
+
+![status page](docs/status-page.png)
+
 ## Quick start
 
 **Try it in 30 seconds** (synthetic fleet, no Docker access needed):

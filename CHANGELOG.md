@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.38.0 (2026-11-25)
+## v2.38.0 (2026-11-27)
 
 ### New: single sign-on (OpenID Connect)
 
