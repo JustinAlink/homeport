@@ -15,6 +15,32 @@ export interface UserRecord {
   lastLoginAt?: number
   /** created by a single sign-on login: the provider's issuer and subject */
   sso?: { iss: string; sub: string }
+  /** 'admin' only for an SSO account in an admin group (set at each sign-in); absent = read-only */
+  role?: 'admin' | 'viewer'
+  /** sessions issued before this are void ("sign out everywhere" for this account) */
+  signedOutAt?: number
+}
+
+export type AccessRole = 'admin' | 'viewer'
+
+/**
+ * What a valid session token may do, given its account. No account id is the
+ * primary admin. An account id is checked fresh on every request, so deleting the
+ * account, signing it out, or turning single sign-on off (for an SSO account) ends
+ * its sessions at once, on every device; the role comes from the account, never
+ * from the token.
+ */
+export function sessionAccess(
+  session: { iat: number; uid?: string } | null,
+  user: Pick<UserRecord, 'role' | 'signedOutAt' | 'sso'> | null,
+  ssoUsable: boolean,
+): AccessRole | null {
+  if (!session) return null
+  if (!session.uid) return 'admin'
+  if (!user) return null
+  if (user.signedOutAt && session.iat < user.signedOutAt) return null
+  if (user.sso && !ssoUsable) return null
+  return user.role === 'admin' ? 'admin' : 'viewer'
 }
 
 export const MIN_USERNAME_LENGTH = 3

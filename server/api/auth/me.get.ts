@@ -2,6 +2,7 @@ import { trustedAuthHeader } from '../../utils/auth'
 import { forwardAuthUser } from '../../utils/auth-core'
 import { SESSION_COOKIE, decodeSessionToken } from '../../utils/session'
 import { getUser } from '../../utils/users'
+import { accessOfSession } from '../../utils/session-access'
 
 // Reached only if the auth middleware let the request through (valid session,
 // open mode, or a trusted forward-auth header). Surface the proxy user, or the
@@ -16,8 +17,9 @@ export default defineEventHandler((event) => {
 
   const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
   if (session?.uid) {
-    const viewer = getUser(session.uid)
-    return { ok: true, user: viewer?.username || null, forwardAuth: false, role: 'viewer' }
+    // an SSO account can be an admin: the role is the account's, decided per request
+    const user = getUser(session.uid)
+    return { ok: true, user: user?.username || null, forwardAuth: false, role: accessOfSession(session) ?? 'viewer' }
   }
 
   return { ok: true, user: null, forwardAuth: false, role: 'admin' }

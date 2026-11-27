@@ -111,10 +111,30 @@ const me = async (p) => (await p.request.get(`${BASE}/api/auth/me`)).json().catc
   const { c, p } = await signIn('alice', { path: '/login?returnTo=%2Fupdates' })
   check('alice (homeport-admins) lands where she was going', new URL(p.url()).pathname === '/updates', p.url())
   const m = await me(p)
-  check('alice is an admin', m?.role === 'admin' && !m.user, JSON.stringify(m))
+  check('alice is an admin, with her own account', m?.role === 'admin' && m.user === 'alice', JSON.stringify(m))
   const w = await p.request.post(`${BASE}/api/settings`, { data: { oidcButtonLabel: '' }, headers: { origin: BASE } })
   check('an SSO admin can change settings', w.ok(), String(w.status()))
+  // one person can be signed out without signing out everyone
+  const alice = (await (await page.request.get(`${BASE}/api/users`)).json()).users.find((u) => u.username === 'alice')
+  check('alice is listed as an SSO admin account', alice?.role === 'admin' && !!alice?.sso, JSON.stringify(alice))
+  const out = await page.request.post(`${BASE}/api/users/signout`, { data: { id: alice?.id }, headers: { origin: BASE } })
+  check('the admin signs alice out', out.ok(), String(out.status()))
+  check('...her session ends at once', (await p.request.get(`${BASE}/api/services`)).status() === 401)
+  check('...and the primary admin stays signed in', (await page.request.get(`${BASE}/api/services`)).status() === 200)
+  await page.goto(`${BASE}/settings?tab=security`)
+  await page.locator('#user-accounts').waitFor()
+  check('user accounts offer a per-person sign-out', await page.locator('#user-accounts').getByRole('button', { name: 'Sign alice out on every device' }).isVisible())
   await c.close()
+}
+
+// Groups decide at every sign-in: alice moved to a viewer group is read-only next time
+{
+  await save({ oidcAdminGroups: 'nobody-here', oidcViewerGroups: 'family, friends, homeport-admins' })
+  const { c, p } = await signIn('alice')
+  check('demoted at the provider, alice comes back read-only', (await me(p))?.role === 'viewer')
+  check('...and cannot change settings any more', (await p.request.post(`${BASE}/api/settings`, { data: { oidcButtonLabel: '' }, headers: { origin: BASE } })).status() === 403)
+  await c.close()
+  await save({ oidcAdminGroups: 'homeport-admins', oidcViewerGroups: 'family, friends' })
 }
 
 // Viewer by group, created on first sign-in, matched again on the second
@@ -134,7 +154,7 @@ const me = async (p) => (await p.request.get(`${BASE}/api/auth/me`)).json().catc
   check('an SSO account has no password to try', !(await page.request.post(`${BASE}/api/auth/login`, { data: { username: 'bob', password: '' }, headers: { origin: BASE } })).ok())
   await page.goto(`${BASE}/settings?tab=security`)
   await page.locator('#user-accounts').waitFor()
-  check('user accounts marks bob as SSO', await page.locator('#user-accounts').getByText('SSO', { exact: true }).isVisible())
+  check('user accounts marks both SSO accounts (alice, bob)', (await page.locator('#user-accounts').getByText('SSO', { exact: true }).count()) === 2)
 }
 
 // In no allowed group: the provider let eve in, homeport does not
@@ -200,8 +220,23 @@ check('saving with a blank secret is accepted', r.ok())
   await again.c.close()
 }
 
+// A viewer logging out ends their own sessions on every device, nobody else's
+{
+  // auto-redirect is on by now: start from after a logout, which never redirects
+  const a = await signIn('bob', { path: '/login?loggedout=1' })
+  const b = await signIn('bob', { path: '/login?loggedout=1' })
+  await a.p.request.post(`${BASE}/api/auth/logout`, { headers: { origin: BASE } })
+  check('bob logging out on one device signs out his other one too', (await b.p.request.get(`${BASE}/api/services`)).status() === 401)
+  check('...and not the admin', (await page.request.get(`${BASE}/api/services`)).status() === 200)
+  await a.c.close(); await b.c.close()
+}
+
 // Turned off: the endpoints refuse and the login page shows no button
+const stillIn = await signIn('bob', { path: '/login?loggedout=1' })
+check('bob is signed in before SSO is turned off', (await stillIn.p.request.get(`${BASE}/api/services`)).status() === 200)
 await save({ oidcEnabled: false })
+check('turning SSO off ends the SSO accounts\' sessions', (await stillIn.p.request.get(`${BASE}/api/services`)).status() === 401)
+await stillIn.c.close()
 {
   const c = await browser.newContext()
   const p = await c.newPage()

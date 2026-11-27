@@ -570,7 +570,9 @@ fleet (status, logs, graphs, domains, updates, stacks and their mounts) but ever
 enforced server-side regardless of what the UI shows: no start/stop/restart, no compose editing, no
 terminal, no proxy admin. Anything that can hold a secret stays admin-only: settings, container
 environments and files, compose files and the files in a stack's folder (its `.env`), backups, API
-tokens and 2FA. Deleting a viewer account revokes its session instantly.
+tokens and 2FA. **Sign out** on an account ends its sessions on every device at once, and deleting
+it does the same. People who sign in through [single sign-on](docs/oidc.md) are listed here too,
+as read-only or admin as their groups say, and can be signed out one by one.
 
 ### Scoped API tokens
 

@@ -11,16 +11,22 @@ of two roles:
 
 | In a group listed under | Gets |
 | --- | --- |
-| Admin groups | Full control, the same as the admin password |
-| Viewer groups (and no admin group) | A read-only account, created on first sign-in |
+| Admin groups | Full control, the same as the admin password, as an account of their own |
+| Viewer groups (and no admin group) | A read-only account |
 | Neither | Turned away, with "not in a group allowed into homeport" |
 
-With no groups configured, nobody gets in through SSO. Viewer accounts appear under
-Settings > Security & users > User accounts with an SSO badge, have no password, and are matched by the
-provider's issuer and account id (`sub`), never by email or username, so renaming someone at the
-provider does not create a second account and a reused email cannot take over an existing one.
-Deleting a viewer account signs it out at once; it is recreated on the next SSO sign-in as long
-as the person is still in a viewer group.
+With no groups configured, nobody gets in through SSO. Everyone who signs in gets an account,
+created on their first sign-in and listed under Settings > Security & users > User accounts with
+an SSO badge and their role. The role follows their groups at every sign-in, so someone moved
+from an admin group to a viewer group comes back read-only. Accounts have no password and are
+matched by the provider's issuer and account id (`sub`), never by email or username, so renaming
+someone at the provider does not create a second account and a reused email cannot take over an
+existing one.
+
+**Sign out** on an account ends its sessions on every device at once (it can sign in again);
+**Delete** removes it (it comes back on the next sign-in if its groups still allow it). Logging
+out ends that person's own sessions everywhere, nobody else's. Turning single sign-on off ends
+every SSO account's sessions.
 
 Group names are compared without case, and a leading `/` (Keycloak's full group paths) is ignored.
 
@@ -85,8 +91,7 @@ HOMEPORT_OIDC_CLIENT_SECRET=...
 ## Limits
 
 - Sessions last 30 days like password sessions. Removing someone from a group at the provider
-  stops their next sign-in, not a session they already have: delete their viewer account under
-  User accounts (or, for an admin, change the admin password, which ends every session) to cut
-  access at once.
+  stops their next sign-in, not a session they already have: press **Sign out** on their account
+  to cut access at once.
 - No single logout: signing out of homeport does not sign you out of the provider.
 - Groups are read at sign-in; a change at the provider takes effect on the next sign-in.

@@ -10,8 +10,9 @@ import { usernameFromClaims, uniqueUsername } from './oidc-core'
 // before verifyHash runs, a timing side-channel that leaks which usernames exist.
 const DECOY_HASH = hashPassword(randomBytes(32).toString('hex'))
 
-// Persistence for viewer accounts (<data>/users.json, 0600). Only hashes are
-// stored — plaintext passwords are never persisted or logged.
+// Persistence for secondary accounts (<data>/users.json, 0600): read-only viewers,
+// and SSO accounts (viewer or admin, as their groups say). Only hashes are stored,
+// plaintext passwords are never persisted or logged.
 
 const file = () => join(process.env.HOMEPORT_DATA_DIR || '/data', 'users.json')
 
@@ -69,6 +70,16 @@ export function createUser(username: string, password: string): Omit<UserRecord,
   return meta
 }
 
+/** End every session of an account, on all devices. Returns false if no such account. */
+export function signOutUser(id: string, now = Date.now()): boolean {
+  const all = read()
+  const rec = all.find((u) => u.id === id)
+  if (!rec) return false
+  rec.signedOutAt = now
+  persist(all)
+  return true
+}
+
 /** Delete by id. Returns false if no such account. */
 export function deleteUser(id: string): boolean {
   const before = read()
@@ -84,17 +95,19 @@ export function deleteUser(id: string): boolean {
  * at the provider, and linking on them would let one person take over another's
  * account. The account has no password, so it can only come in through SSO.
  */
-export function findOrCreateSsoUser(iss: string, sub: string, claims: Record<string, unknown>): Omit<UserRecord, 'hash'> {
+export function findOrCreateSsoUser(iss: string, sub: string, claims: Record<string, unknown>, role: 'admin' | 'viewer'): Omit<UserRecord, 'hash'> {
   const all = read()
   const found = all.find((u) => u.sso?.iss === iss && u.sso?.sub === sub)
   if (found) {
     found.lastLoginAt = Date.now()
+    // the provider's groups decide, at every sign-in: promoted or demoted here
+    found.role = role
     persist(all)
     const { hash, ...meta } = found
     return meta
   }
   const username = uniqueUsername(usernameFromClaims(claims), (u) => all.some((x) => x.username === u))
-  const record: UserRecord = { ...mintUser(username, '', Date.now()), sso: { iss, sub }, lastLoginAt: Date.now() }
+  const record: UserRecord = { ...mintUser(username, '', Date.now()), sso: { iss, sub }, role, lastLoginAt: Date.now() }
   persist([...all, record])
   const { hash, ...meta } = record
   return meta

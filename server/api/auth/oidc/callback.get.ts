@@ -51,13 +51,13 @@ export default defineEventHandler(async (event) => {
   const who = String(info.preferred_username ?? claims.preferred_username ?? info.email ?? claims.email ?? claims.sub)
   if (!role) return fail('denied', `${who}: groups [${groups.join(', ') || 'none'}] in claim "${cfg.oidcGroupsClaim}" match no admin or viewer group`)
 
-  let uid: string | undefined
-  if (role === 'viewer') {
-    try {
-      uid = findOrCreateSsoUser(String(claims.iss), claims.sub, { ...info, ...claims }).id
-    } catch (e) {
-      return fail('config', e)
-    }
+  // Admins get an account too (not the primary admin's session), so one person can
+  // be signed out on their own, and their role follows their groups at every sign-in.
+  let uid: string
+  try {
+    uid = findOrCreateSsoUser(String(claims.iss), claims.sub, { ...info, ...claims }, role).id
+  } catch (e) {
+    return fail('config', e)
   }
   // The provider handled the login and its MFA, so homeport's own TOTP step is
   // not asked again; API tokens and forward-auth are unaffected.

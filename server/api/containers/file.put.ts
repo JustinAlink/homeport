@@ -1,6 +1,5 @@
 import { getConfig } from '../../utils/config'
-import { SESSION_COOKIE, decodeSessionToken } from '../../utils/session'
-import { getUser } from '../../utils/users'
+import { accessOf } from '../../utils/session-access'
 import { writeContainerFile } from '../../utils/container-files'
 import { resolveInRoot } from '../../utils/container-files-core'
 import { MAX_EDIT_BYTES } from '../../utils/files-core'
@@ -23,8 +22,7 @@ export default defineEventHandler(async (event) => {
   if (!cfg.allowContainerFiles) {
     throw createError({ statusCode: 403, statusMessage: 'Container file editing is disabled (HOMEPORT_ALLOW_CONTAINER_FILES=true to enable).' })
   }
-  const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
-  if (session?.uid && getUser(session.uid)) throw createError({ statusCode: 403, statusMessage: 'read-only account' })
+  if (accessOf(event) === 'viewer') throw createError({ statusCode: 403, statusMessage: 'read-only account' })
   if (!id || !root) throw createError({ statusCode: 400, statusMessage: 'Expected id and root' })
 
   const buf = Buffer.from(content, 'utf8')

@@ -1,4 +1,5 @@
 import { getConfig } from '../utils/config'
+import { accessOfSession } from '../utils/session-access'
 import { getHosts } from '../utils/hosts'
 import { getDockerFor } from '../utils/docker'
 import { decodeCookieHeader } from '../utils/session'
@@ -34,8 +35,7 @@ function authOf(get: (name: string) => string | null): TermAuth | null {
   if (th && forwardAuthUser(th, get)) return { kind: 'forward' }
   if (authMode() === 'open') return { kind: 'open' }
   const cookie = get('cookie')
-  const session = decodeCookieHeader(cookie)
-  if (!session || session.uid) return null
+  if (accessOfSession(decodeCookieHeader(cookie)) !== 'admin') return null
   return { kind: 'cookie', cookie: cookie! }
 }
 
@@ -49,8 +49,8 @@ function stillAllowed(a: TermAuth): boolean {
   if (!getConfig().allowTerminal) return false
   if (a.kind === 'open') return authMode() === 'open'
   if (a.kind === 'forward') return !!trustedAuthHeader()
-  const session = decodeCookieHeader(a.cookie)
-  return !!session && !session.uid
+  // a signed-out, deleted or demoted account loses its shell too
+  return accessOfSession(decodeCookieHeader(a.cookie)) === 'admin'
 }
 
 function endSession(sess: TermSession) {
@@ -81,9 +81,9 @@ export default defineWebSocketHandler({
     const th = trustedAuthHeader()
     const forwardAuthed = !!th && !!forwardAuthUser(th, (n) => req.headers.get(n))
     if (!forwardAuthed && authMode() !== 'open') {
-      const session = decodeCookieHeader(req.headers.get('cookie'))
-      if (!session) return new Response('Unauthorized', { status: 401 })
-      if (session.uid) return new Response('Viewers cannot open a terminal', { status: 403 })
+      const access = accessOfSession(decodeCookieHeader(req.headers.get('cookie')))
+      if (!access) return new Response('Unauthorized', { status: 401 })
+      if (access !== 'admin') return new Response('Viewers cannot open a terminal', { status: 403 })
     }
     const cfg = getConfig()
     if (!cfg.allowTerminal && !cfg.demo) {

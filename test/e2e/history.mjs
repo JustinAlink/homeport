@@ -38,11 +38,20 @@ try {
   const text = await uptime.innerText()
   check('…with 24 h, 7 d and 30 d figures', ['24 hours', '7 days', '30 days'].every((w) => text.includes(w)) && /\d+(\.\d+)?%/.test(text), text.slice(0, 120).replace(/\n/g, ' | '))
   check('…jellyfin\'s update outage shows as 99.9% over 30 days', text.includes('99.9%'))
-  check('…one bar per day for 30 days', (await uptime.locator('[role="img"] > span').count()) === 30)
-  const label = await uptime.locator('[role="img"]').getAttribute('aria-label')
-  check('…the day strip has a text summary', /Last 30 days: \d+ fully up, \d+ with downtime/.test(label ?? ''), label)
+  const slider = uptime.locator('[role="slider"]')
+  check('…one bar per day for 30 days', (await slider.locator('> span').count()) === 30)
+  check('…the day strip has a text summary', /Last 30 days: \d+ fully up, \d+ with downtime/.test(await uptime.innerText()))
+  // keyboard and screen readers get every day too, not only a hover
+  await slider.focus()
+  await page.keyboard.press('End')
+  check('…End is today, read out as text', /^Today, .+: (\d+(\.\d+)?% up|no data)/.test(await slider.getAttribute('aria-valuetext') ?? ''), await slider.getAttribute('aria-valuetext'))
+  await page.keyboard.press('Home')
+  check('…Home is 30 days ago', (await slider.getAttribute('aria-valuenow')) === '1')
+  await page.keyboard.press('ArrowRight')
+  check('…the arrow keys step a day, and the day is written under the bars', (await slider.getAttribute('aria-valuenow')) === '2' && (await uptime.innerText()).includes(await slider.getAttribute('aria-valuetext')))
+  await slider.blur()
   // the day it went down is told apart from the clean days
-  const bars = uptime.locator('[role="img"] > span')
+  const bars = slider.locator('> span')
   let warnDay = -1
   for (let i = 0; i < 30; i++) if ((await bars.nth(i).getAttribute('class')).includes('amber')) { warnDay = i; break }
   check('…a day with downtime is marked', warnDay >= 0)

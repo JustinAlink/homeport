@@ -1,14 +1,12 @@
 import { getConfig } from '../utils/config'
 import { authMode, trustedAuthHeader } from '../utils/auth'
-import { SESSION_COOKIE, decodeSessionToken } from '../utils/session'
-import { getUser } from '../utils/users'
+import { accessOf } from '../utils/session-access'
 
 // Which optional capabilities are enabled — the single source the UI uses to
 // show/hide affordances (buttons, pages, panels). Auth-gated like all /api/*.
 export default defineEventHandler((event) => {
   const cfg = getConfig()
-  const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
-  const viewer = !!session?.uid && !!getUser(session.uid)
+  const viewer = accessOf(event) === 'viewer'
   return {
     control: cfg.allowControl && !viewer,
     logs: cfg.logsEnabled,

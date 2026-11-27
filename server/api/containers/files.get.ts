@@ -1,6 +1,5 @@
 import { getConfig } from '../../utils/config'
-import { SESSION_COOKIE, decodeSessionToken } from '../../utils/session'
-import { getUser } from '../../utils/users'
+import { accessOf } from '../../utils/session-access'
 import { listContainerDir } from '../../utils/container-files'
 import { resolveInRoot } from '../../utils/container-files-core'
 import { demoContainerList } from '../../utils/demo'
@@ -20,8 +19,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Container file editing is disabled (HOMEPORT_ALLOW_CONTAINER_FILES=true to enable).' })
   }
   // container files can hold secrets — viewers are blocked even from reading
-  const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
-  if (session?.uid && getUser(session.uid)) throw createError({ statusCode: 403, statusMessage: 'read-only account' })
+  if (accessOf(event) === 'viewer') throw createError({ statusCode: 403, statusMessage: 'read-only account' })
   if (!id || !root) throw createError({ statusCode: 400, statusMessage: 'Expected ?id= and ?root=' })
 
   const abs = resolveInRoot(root, rel)

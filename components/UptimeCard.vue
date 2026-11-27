@@ -17,23 +17,16 @@
           </div>
         </dl>
 
-        <!-- one bar per calendar day, like a status page; hover or tap a day for its figure -->
-        <div class="mt-4" @pointerleave="picked = null">
-          <div class="flex h-7 items-stretch gap-[3px]" role="img" :aria-label="stripLabel">
-            <span
-              v-for="(d, i) in days"
-              :key="d.from"
-              class="min-w-0 flex-1 rounded-[3px] transition-opacity"
-              :class="[TONE[uptimeTone(d.ratio)], picked != null && picked !== i ? 'opacity-50' : '']"
-              @pointerenter="picked = i"
-              @click="picked = i"
-            />
-          </div>
-          <div class="mt-1.5 flex justify-between text-[11px] text-slate-500" aria-hidden="true">
-            <span>{{ days.length }} days ago</span><span>Today</span>
-          </div>
-          <p class="mt-2 min-h-[1.25rem] text-xs text-slate-400">{{ pickedText }}</p>
-        </div>
+        <!-- one bar per calendar day, like a status page: hover, tap, or Tab and the arrow keys -->
+        <DayBars
+          v-if="days.length"
+          class="mt-4"
+          :days="days"
+          label="Daily uptime, last 30 days"
+          :tone-of="(i) => uptimeTone(days[i]?.ratio ?? null)"
+          :day-text="dayText"
+          :summary="stripLabel"
+        />
       </template>
       <p class="mt-2 text-[11.5px] leading-relaxed text-slate-500">
         Up means running and not failing its health check. Time homeport was not running counts neither way.
@@ -43,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatUptime, formatDuration, uptimeTone, type UptimeTone } from '~/utils/uptime'
+import { formatUptime, formatDuration, uptimeTone } from '~/utils/uptime'
 
 interface Uptime {
   ratio: number | null
@@ -59,15 +52,7 @@ interface Day extends Uptime {
 
 const props = defineProps<{ id: string }>()
 
-const TONE: Record<UptimeTone, string> = {
-  ok: 'bg-ok/80',
-  warn: 'bg-amber-400',
-  bad: 'bg-red-400',
-  none: 'bg-white/[0.08]',
-}
-
 const data = ref<{ enabled: boolean; windows?: Record<'24h' | '7d' | '30d', Uptime>; days?: Day[] } | null>(null)
-const picked = ref<number | null>(null)
 
 async function load() {
   try {
@@ -112,12 +97,12 @@ const stripLabel = computed(() => {
   return `Last ${ds.length} days: ${full} fully up, ${some} with downtime${none ? `, ${none} without data` : ''}`
 })
 
-const pickedText = computed(() => {
-  if (picked.value == null) return stripLabel.value
-  const d = days.value[picked.value]
+function dayText(i: number): string {
+  const d = days.value[i]
   if (!d) return ''
   const day = new Date(d.from).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
-  if (d.ratio == null) return `${day}: no data`
-  return `${day}: ${formatUptime(d.ratio)} up${d.downMs > 0 ? `, about ${formatDuration(d.downMs)} down` : ''}`
-})
+  const label = `${i === days.value.length - 1 ? 'Today, ' : ''}${day}`
+  if (d.ratio == null) return `${label}: no data`
+  return `${label}: ${formatUptime(d.ratio)} up${d.downMs > 0 ? `, about ${formatDuration(d.downMs)} down` : ''}`
+}
 </script>

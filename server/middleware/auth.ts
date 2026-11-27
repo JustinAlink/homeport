@@ -2,7 +2,7 @@ import { SESSION_COOKIE, decodeSessionToken } from '../utils/session'
 import { authMode, trustedAuthHeader } from '../utils/auth'
 import { forwardAuthUser } from '../utils/auth-core'
 import { verifyApiToken } from '../utils/api-tokens'
-import { getUser } from '../utils/users'
+import { accessOfSession } from '../utils/session-access'
 import { scopeAllows } from '../utils/api-tokens-core'
 import { isCrossOrigin, isUnsafeMethod } from '../utils/csrf-core'
 import { routedPath } from '../utils/request-path-core'
@@ -80,16 +80,9 @@ export default defineEventHandler((event) => {
   // Session cookie. A viewer's role is resolved fresh on every request — the
   // token only ever carries `uid` (the account id), never a baked-in role —
   // so deleting the account revokes it instantly, with no separate bookkeeping.
-  const session = decodeSessionToken(getCookie(event, SESSION_COOKIE))
-  if (!session) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  }
-  if (session.uid) {
-    const viewer = getUser(session.uid)
-    if (!viewer) throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-    if (!scopeAllows('read', event.method, path))
-      throw createError({ statusCode: 403, statusMessage: 'this account is read-only' })
-    return
-  }
-  // No uid → the admin. Full access, exactly today's behavior.
+  const access = accessOfSession(decodeSessionToken(getCookie(event, SESSION_COOKIE)))
+  if (!access) throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
+  if (access === 'viewer' && !scopeAllows('read', event.method, path))
+    throw createError({ statusCode: 403, statusMessage: 'this account is read-only' })
+  // admin: the primary account, or an SSO account in an admin group. Full access.
 })
