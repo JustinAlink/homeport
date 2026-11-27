@@ -4,6 +4,7 @@ import { withoutLocked } from '../utils/settings-locks-core'
 import { resetDocker } from '../utils/docker'
 import type { WebhookChannel, WebhookPreset } from '../utils/notifiers/types'
 import { normalizeRegistry, mergeRegistryCredSecrets, type RegistryCred } from '../utils/registry-core'
+import { sanitizeStatusPageConfig } from '../../shared/utils/status-page.ts'
 
 const PROVIDERS = ['', 'npm', 'traefik', 'caddy', 'nginx', 'traefik-file']
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']
@@ -206,6 +207,9 @@ export default defineEventHandler(async (event) => {
     patch.alertCooldownSec = Math.round(n)
   }
   if (body.alertChannels !== undefined) patch.alertChannels = sanitizeChannels(body.alertChannels)
+  if (body.statusPageEnabled !== undefined) patch.statusPageEnabled = !!body.statusPageEnabled
+  // what a public page shows: malformed items are dropped and text is capped, never stored as sent
+  if (body.statusPage !== undefined) patch.statusPage = sanitizeStatusPageConfig(body.statusPage)
 
   try {
     // the environment owns locked fields: never persist the value the page mirrored

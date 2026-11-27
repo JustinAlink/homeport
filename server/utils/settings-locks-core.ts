@@ -24,6 +24,7 @@ export const LOCKED_FIELDS = {
   remoteIcons: 'remoteIcons',
   historyEnabled: 'historyEnabled',
   collectorInterval: 'collectorInterval',
+  statusPage: 'statusPageEnabled',
 } as const
 
 type Locks = Record<string, boolean>

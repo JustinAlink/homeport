@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, accessSync, renameS
 import { join, dirname } from 'node:path'
 import type { WebhookChannel } from './notifiers/types'
 import type { RegistryCred } from './registry-core'
+import type { StatusPageConfig } from '../../shared/utils/status-page.ts'
 
 // UI-configurable settings, persisted to a JSON file in HOMEPORT_DATA_DIR.
 // Env vars (read in config.ts) take precedence over these — they "lock" a field.
@@ -64,6 +65,10 @@ export interface PersistedSettings {
   npmApiIdentity?: string
   npmApiSecret?: string
   caddyAdminUrl?: string
+  /** Public status page at /status (off by default; HOMEPORT_STATUS_PAGE locks it). */
+  statusPageEnabled?: boolean
+  /** What the status page shows: only what is picked here (sanitised on save and on read). */
+  statusPage?: StatusPageConfig
 }
 
 export interface SettingsHost {

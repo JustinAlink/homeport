@@ -313,6 +313,17 @@ export function demoUptimeDays(key: string, days: number, tzOffsetMin: number) {
   return uptimeDays(demoStore(key), dayEdges(Date.now(), days, tzOffsetMin), DEMO_SAMPLE_SEC * 1000)
 }
 
+/**
+ * The series behind a demo domain on the status page. One that answers borrows its
+ * app's history; one whose demo check fails right now (no answer, a 502) gets an
+ * outage that runs until now, so the page never shows it Down beside a clean day.
+ */
+export function demoDomainSeries(domain: string, ownerKey: string, down: boolean): string {
+  if (!down) return ownerKey
+  DEMO_INCIDENTS[domain] ??= [{ agoH: 3, min: 3 * 60 + 5, kind: 'down' }]
+  return `domain|${domain}`
+}
+
 // Demo update statuses — jellyfin + vaultwarden start with updates available;
 // "applying" flips them to current so the whole flow is clickable without Docker.
 const demoUpdateState: Record<string, 'update' | 'current'> = {}
