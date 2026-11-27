@@ -47,9 +47,8 @@ Opt-in (`HOMEPORT_ALLOW_GIT_WEBHOOKS`). A git stack's page gives it a webhook
 URL and secret for GitHub, Gitea, Forgejo, GitLab or Bitbucket. The signature is
 checked in constant time, pushes to other branches are ignored, and a burst of
 pushes becomes one update. Or turn on auto-sync: homeport asks the remote on an
-interval you choose (2 minutes to a day) and updates only when the branch
-moved, and holds a commit whose
-update failed instead of retrying it every time. homeport's own stack is never
+interval you choose (2 minutes to a day), updates only when the branch moved,
+and holds a commit whose update failed instead of retrying it every time. homeport's own stack is never
 deployed this way. [docs/git-webhooks.md](docs/git-webhooks.md)
 
 ### New: ask an AI assistant (MCP)
@@ -57,8 +56,8 @@ deployed this way. [docs/git-webhooks.md](docs/git-webhooks.md)
 A read-only Model Context Protocol server at `/api/mcp` lets Claude and other
 assistants answer questions from live data: what serves a domain, what is
 unhealthy, what needs updating, what is reachable around the proxy, recent
-alerts and logs. Settings, Security & users has a panel that makes a read-only token and
-the config to paste. It never sees environments, settings, files or backups.
+alerts and logs. Settings, Security & users has a panel that makes a read-only
+token and the config to paste. It never sees environments, settings, files or backups.
 [docs/mcp.md](docs/mcp.md)
 
 ### New: more domain sources
