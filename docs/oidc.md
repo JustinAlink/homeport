@@ -71,14 +71,22 @@ HOMEPORT_OIDC_CLIENT_SECRET=...
 - **Keycloak:** the issuer is `https://<keycloak>/realms/<realm>`. Add a "Group Membership" mapper
   with claim name `groups`, added to the ID token or userinfo (homeport reads both, never the
   access token). Keycloak has no `groups` scope and refuses a sign-in that asks for one; homeport
-  only asks for scopes the provider lists, so the default works, and **Test the provider** names
-  any scope it leaves out. For client roles instead, set the groups claim to
+  asks for its default scopes (`profile`, `email`, `groups`) only where the provider lists them, so
+  the default works, and **Test the provider** names any it leaves out. A scope you type in yourself
+  is always sent. For client roles instead, set the groups claim to
   `resource_access.<client>.roles` and switch on "Add to ID token" (or "Add to userinfo") on
   Keycloak's client roles mapper: by default those roles are only in the access token.
   Tested with Keycloak 26.8.
-- **Pocket ID:** request the `groups` scope.
-- **Zitadel:** set the groups claim to `urn:zitadel:iam:org:project:roles` and turn on "Assert
-  Roles on Authentication" for the project.
+- **Pocket ID:** the issuer is Pocket ID's `APP_URL`, which must be a hostname (passkeys can't be
+  tied to an IP address). homeport's default scopes include `groups`, which Pocket ID needs to send
+  the groups (in the ID token and userinfo). Each person sees a one-time consent screen. Tested with
+  Pocket ID 2.19.
+- **Zitadel:** the issuer is the instance URL, with no path. Set the groups claim to
+  `urn:zitadel:iam:org:project:roles` and turn on "Assert Roles on Authentication" for the project:
+  the roles then arrive in userinfo (and in the ID token too if "User roles inside ID Token" is on;
+  homeport reads both). Zitadel has no `groups` scope, so **Test the provider** says it is left out;
+  that is expected. Its own `urn:zitadel:iam:*` scopes can be added under Scopes and are sent as
+  typed. An `http://` redirect URI needs the app's dev mode. Tested with Zitadel 4.20.
 
 ## Security
 

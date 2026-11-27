@@ -113,16 +113,12 @@ const me = async (p) => (await p.request.get(`${BASE}/api/auth/me`)).json().catc
   await c.close()
 }
 
-// A scope the provider doesn't offer is left out, not sent (Keycloak rejects the
-// whole sign-in over one unknown scope); the provider test says so
+// homeport's default scopes are only asked for where offered (Keycloak rejects the
+// whole sign-in over one unknown scope); a scope typed in on purpose is sent as is
+// (Zitadel keeps its role scopes out of discovery). The provider test says which.
 {
-  await save({ oidcScopes: 'profile email groups made-up-scope' })
-  const t = await (await page.request.post(`${BASE}/api/auth/oidc/test`, { data: { issuer: ISSUER, clientId: 'homeport', scopes: 'profile email groups made-up-scope' }, headers: { origin: BASE } })).json()
-  check('the provider test names a scope it does not offer', t.ok && JSON.stringify(t.droppedScopes) === '["made-up-scope"]' && t.message.includes('made-up-scope'), t.message)
-  const { c, p } = await signIn('bob')
-  check('...and signing in still works without it', (await me(p))?.user === 'bob')
-  await c.close()
-  await save({ oidcScopes: 'profile email groups' })
+  const t = await (await page.request.post(`${BASE}/api/auth/oidc/test`, { data: { issuer: ISSUER, clientId: 'homeport', scopes: 'profile email groups urn:example:roles' }, headers: { origin: BASE } })).json()
+  check('the provider test names a typed scope the provider does not list', t.ok && JSON.stringify(t.unlistedScopes) === '["urn:example:roles"]' && JSON.stringify(t.droppedScopes) === '[]', t.message)
 }
 
 // Admin by group
@@ -256,7 +252,7 @@ check('saving with a blank secret is accepted', r.ok())
 {
   await save({ oidcClientId: 'homeport-hs256', oidcAutoRedirect: false })
   const { c, p } = await signIn('alice', { path: '/login?loggedout=1' })
-  check('an HS256-signed ID token is refused, and the page says why', new URL(p.url()).searchParams.get('sso_error') === 'signature', p.url())
+  check('an HS256-signed ID token is refused, and the page says why', new URL(p.url()).searchParams.get('sso_error') === 'algorithm', p.url())
   check('...and grants nothing', (await p.request.get(`${BASE}/api/services`)).status() === 401)
   await c.close()
   await save({ oidcClientId: 'homeport' })

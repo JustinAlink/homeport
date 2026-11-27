@@ -156,7 +156,8 @@ const SSO_ERRORS: Record<string, string> = {
   provider: 'The identity provider refused or cancelled the sign-in.',
   scope: 'The identity provider refused the scopes homeport asked for. The admin can check Scopes under Single sign-on.',
   client: "The identity provider did not accept homeport's client ID or secret. The admin can check them at both ends.",
-  signature: 'The identity provider signed the sign-in in a way homeport does not accept (with the client secret, HS256). The admin can give it a signing key.',
+  algorithm: 'The identity provider signed the sign-in in a way homeport does not accept (with the client secret, HS256). The admin can give it a signing key.',
+  signature: "The sign-in could not be verified: its signature doesn't match the identity provider's published keys. The admin can check the provider's signing keys.",
   exchange: 'homeport could not complete the sign-in with the identity provider. The admin can check the client secret and redirect URI.',
   config: 'Single sign-on is not set up completely. Use a password, or ask the admin.',
 }

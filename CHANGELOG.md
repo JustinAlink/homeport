@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.40.2 (2026-11-27)
+
+Single sign-on, after testing against real Pocket ID 2.19 and Zitadel 4.20
+(both pass: roles, refusals, per-person sign-out, Basic client auth, RS256
+signatures checked):
+
+- **Your own scopes are sent.** v2.40.1 left out every scope the provider
+  doesn't list. That is right for homeport's defaults (Keycloak refuses an
+  unknown `groups`), but it also dropped scopes typed in on purpose, such as
+  Zitadel's `urn:zitadel:iam:*` role scopes, which never appear in its
+  discovery. Only `profile`, `email` and `groups` are filtered now; "Test the
+  provider" names typed scopes the provider doesn't list.
+- **The right reason on the login page.** A token whose signature doesn't
+  match the provider's keys was explained as "signed with the client secret
+  (HS256)". The two cases now have their own messages.
+- Provider notes for Pocket ID and Zitadel in docs/oidc.md.
+
 ## v2.40.1 (2026-11-27)
 
 Fixes from testing against real software (Keycloak 26.8, Authentik 2026.8,

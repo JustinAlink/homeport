@@ -92,15 +92,22 @@ test('oidc: the state cookie is signed, expires, and resists tampering', () => {
   assert.equal(unpackState(sneaky, 'key-1', now)?.r, '/')
 })
 
-test('oidc: only scopes the provider offers are asked for (Keycloak rejects the rest)', () => {
+test('oidc: homeport\'s default scopes are asked for only where offered; typed scopes are sent as is', () => {
   // Keycloak 26: no "groups" scope; asking for it fails every sign-in with invalid_scope
   const keycloak = ['openid', 'profile', 'email', 'roles', 'web-origins', 'acr', 'offline_access']
-  assert.deepEqual(effectiveScopes('openid profile email groups', keycloak), { scope: 'openid profile email', dropped: ['groups'] })
+  assert.deepEqual(effectiveScopes('openid profile email groups', keycloak), { scope: 'openid profile email', dropped: ['groups'], unlisted: [] })
   // Authelia and Pocket ID offer it: kept
   assert.equal(effectiveScopes('openid profile email groups', ['openid', 'profile', 'email', 'groups']).scope, 'openid profile email groups')
+  // Zitadel keeps its role scopes out of discovery: a typed one is still sent, and named as unlisted
+  const zitadel = ['openid', 'profile', 'email', 'phone', 'address', 'offline_access']
+  assert.deepEqual(effectiveScopes('profile email groups urn:zitadel:iam:org:projects:roles', zitadel), {
+    scope: 'openid profile email urn:zitadel:iam:org:projects:roles',
+    dropped: ['groups'],
+    unlisted: ['urn:zitadel:iam:org:projects:roles'],
+  })
   // no list published: send as configured, openid always first and once
-  assert.deepEqual(effectiveScopes('profile groups openid', undefined), { scope: 'openid profile groups', dropped: [] })
-  assert.equal(effectiveScopes('', ['profile']).scope, 'openid') // openid even when the list leaves it out
+  assert.deepEqual(effectiveScopes('profile groups openid', undefined), { scope: 'openid profile groups', dropped: [], unlisted: [] })
+  assert.equal(effectiveScopes('', ['profile']).scope, 'openid')
 })
 
 test('oidc: the client secret goes by HTTP Basic unless the provider only takes it in the body', () => {
@@ -121,7 +128,10 @@ test('oidc: a refused HS256 token is named as such, from the wrapped cause', () 
   const inner = Object.assign(new Error('unsupported JWS algorithm'), { cause: { alg: 'HS256' } })
   const e = Object.assign(new Error('unsupported operation'), { code: 'OAUTH_UNSUPPORTED_OPERATION', cause: inner })
   assert.equal(describeOidcError(e), 'unsupported operation · OAUTH_UNSUPPORTED_OPERATION · unsupported JWS algorithm · alg HS256')
-  assert.equal(oidcFailureKind(e), 'signature')
+  assert.equal(oidcFailureKind(e), 'algorithm')
+  // an RS256 token whose signature doesn't match the published keys is not the HS256 case
+  const bad = Object.assign(new Error('invalid response encountered'), { code: 'OAUTH_INVALID_RESPONSE', cause: new Error('JWT signature verification failed') })
+  assert.equal(oidcFailureKind(bad), 'signature')
   assert.equal(oidcFailureKind(Object.assign(new Error('x'), { error: 'invalid_client' })), 'client')
   assert.equal(oidcFailureKind(new Error('fetch failed')), null)
 })

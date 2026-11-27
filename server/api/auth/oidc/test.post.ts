@@ -14,15 +14,17 @@ export default defineEventHandler(async (event) => {
   try {
     const conf = await oidcConfiguration({ oidcIssuer: issuer, oidcClientId: clientId, oidcClientSecret: clientSecret || 'unset' }, true)
     const m = conf.serverMetadata()
-    const { dropped } = effectiveScopes(body?.scopes ?? cfg.oidcScopes, m.scopes_supported)
+    const { dropped, unlisted } = effectiveScopes(body?.scopes ?? cfg.oidcScopes, m.scopes_supported)
     const notes = [
       m.userinfo_endpoint ? '' : 'no userinfo endpoint: groups must be in the ID token',
       dropped.length ? `it doesn't offer the scope${dropped.length > 1 ? 's' : ''} ${dropped.join(', ')}, so homeport leaves ${dropped.length > 1 ? 'them' : 'it'} out; the groups have to come with another scope or a claim mapper` : '',
+      unlisted.length ? `it doesn't list ${unlisted.join(', ')}, which homeport sends as typed (fine for scopes a provider keeps out of its list, like Zitadel's)` : '',
     ].filter(Boolean)
     return {
       ok: true,
       message: `Found ${m.issuer}${notes.length ? `: ${notes.join('; ')}` : ''}.`,
       droppedScopes: dropped,
+      unlistedScopes: unlisted,
       issuer: m.issuer,
       pkce: m.supportsPKCE(),
       redirectUri: cfg.publicUrl ? redirectUri(cfg) : null,

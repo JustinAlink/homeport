@@ -138,18 +138,24 @@ export function unpackState(value: string | undefined, key: string, now: number)
 }
 
 /**
- * The scopes to ask for: the configured ones the provider says it supports, and
- * always openid. Keycloak rejects the whole sign-in over one scope it doesn't know
- * (invalid_scope), and "groups" is a scope at Authelia and Pocket ID but only a
- * claim mapper at Keycloak, so homeport's default would break it. A provider that
- * publishes no scopes_supported list gets the configured scopes as they are.
+ * The scopes to ask for. homeport's own defaults (profile, email, groups) are
+ * sent only when the provider lists them: Keycloak rejects the whole sign-in over
+ * one scope it doesn't know (invalid_scope), and "groups" is a scope at Authelia
+ * and Pocket ID but not at Keycloak, Authentik or Zitadel. Any other scope was
+ * typed in on purpose and is sent as is: Zitadel's own urn:zitadel:iam:* scopes,
+ * for one, never appear in its discovery. openid is always first. A provider that
+ * publishes no scopes_supported list gets everything as configured.
  */
-export function effectiveScopes(configured: string, supported: unknown): { scope: string; dropped: string[] } {
+const DEFAULT_SCOPES = ['profile', 'email', 'groups']
+
+export function effectiveScopes(configured: string, supported: unknown): { scope: string; dropped: string[]; unlisted: string[] } {
   const want = [...new Set(['openid', ...String(configured || '').split(/\s+/).filter(Boolean)])]
-  if (!Array.isArray(supported) || !supported.length) return { scope: want.join(' '), dropped: [] }
+  if (!Array.isArray(supported) || !supported.length) return { scope: want.join(' '), dropped: [], unlisted: [] }
   const offered = new Set(supported.filter((x): x is string => typeof x === 'string'))
-  const keep = want.filter((s) => s === 'openid' || offered.has(s))
-  return { scope: keep.join(' '), dropped: want.filter((s) => !keep.includes(s)) }
+  const dropped = want.filter((s) => DEFAULT_SCOPES.includes(s) && !offered.has(s))
+  const keep = want.filter((s) => !dropped.includes(s))
+  const unlisted = keep.filter((s) => s !== 'openid' && !offered.has(s))
+  return { scope: keep.join(' '), dropped, unlisted }
 }
 
 /**
@@ -190,23 +196,29 @@ export function describeOidcError(e: unknown): string {
   return [...new Set(parts)].join(' · ')
 }
 
-/** Which failure this is, for the login page: a refused client, an ID token signed in a way homeport won't accept, or something else. */
-export function oidcFailureKind(e: unknown): 'client' | 'signature' | null {
+/**
+ * Which failure this is, for the login page: a refused client, an ID token signed
+ * with an algorithm homeport refuses (HS256: the client secret), an ID token whose
+ * signature doesn't match the provider's published keys, or something else.
+ */
+export function oidcFailureKind(e: unknown): 'client' | 'algorithm' | 'signature' | null {
   const chain = chainOf(e)
   if (chain.some((x) => x.error === 'invalid_client')) return 'client'
-  if (chain.some((x) => typeof x.alg === 'string' || (typeof x.message === 'string' && /JWS algorithm|signature/i.test(x.message)))) return 'signature'
+  if (chain.some((x) => typeof x.alg === 'string' || (typeof x.message === 'string' && /JWS algorithm/i.test(x.message)))) return 'algorithm'
+  if (chain.some((x) => typeof x.message === 'string' && /signature/i.test(x.message))) return 'signature'
   return null
 }
 
 /** Why a sign-in failed, as a code the login page turns into a sentence. */
-export type SsoError = 'state' | 'denied' | 'provider' | 'scope' | 'client' | 'signature' | 'exchange' | 'config' | 'off'
+export type SsoError = 'state' | 'denied' | 'provider' | 'scope' | 'client' | 'algorithm' | 'signature' | 'exchange' | 'config' | 'off'
 export const SSO_ERROR_TEXT: Record<SsoError, string> = {
   state: 'The sign-in took too long or was started in another browser. Please try again.',
   denied: 'Your account signed in, but it is not in a group allowed into homeport. Ask the admin to add you to one.',
   provider: 'The identity provider refused or cancelled the sign-in.',
   scope: 'The identity provider refused the scopes homeport asked for. The admin can check Scopes under Single sign-on.',
   client: "The identity provider did not accept homeport's client ID or secret. The admin can check them at both ends.",
-  signature: 'The identity provider signed the sign-in in a way homeport does not accept (with the client secret, HS256). The admin can give it a signing key.',
+  algorithm: 'The identity provider signed the sign-in in a way homeport does not accept (with the client secret, HS256). The admin can give it a signing key.',
+  signature: "The sign-in could not be verified: its signature doesn't match the identity provider's published keys. The admin can check the provider's signing keys.",
   exchange: 'homeport could not complete the sign-in with the identity provider. Check the client secret and the redirect URI there.',
   config: 'Single sign-on is not set up completely. Use your password, or ask the admin.',
   off: 'Single sign-on is turned off.',

@@ -31,7 +31,7 @@
       <Field v-slot="{ id }" label="Client secret" :hint="locked.oidcClientSecret ? 'Set by HOMEPORT_OIDC_CLIENT_SECRET.' : secretSet ? 'Stored. Leave blank to keep it.' : undefined">
         <input :id="id" v-model="form.oidcClientSecret" type="password" autocomplete="new-password" class="input" :disabled="locked.oidcClientSecret" :placeholder="secretSet ? '••••••••' : ''" />
       </Field>
-      <Field v-slot="{ id }" label="Scopes" hint="openid is always included. Scopes the provider doesn't offer are left out.">
+      <Field v-slot="{ id }" label="Scopes" hint="openid is always included. profile, email and groups are left out where the provider doesn't offer them; anything else you add is sent.">
         <input :id="id" v-model="form.oidcScopes" class="input" spellcheck="false" />
       </Field>
     </div>
@@ -78,7 +78,7 @@
         <li><span class="text-slate-200">Authentik:</span> <code>groups</code>, sent with the <code>profile</code> scope. Select a signing key on the provider: tokens signed with the client secret are not accepted.</li>
         <li><span class="text-slate-200">Authelia:</span> add the <code>groups</code> scope to the client; the groups come from userinfo, which homeport reads.</li>
         <li><span class="text-slate-200">Keycloak:</span> add a Group Membership mapper with claim <code>groups</code> (to the ID token or userinfo). Keycloak has no <code>groups</code> scope; homeport leaves it out of the request by itself. A leading <code>/</code> from "Full group path" is ignored.</li>
-        <li><span class="text-slate-200">Pocket ID:</span> the <code>groups</code> scope.</li>
+        <li><span class="text-slate-200">Pocket ID:</span> the <code>groups</code> scope (in the defaults). Its <code>APP_URL</code> must be a hostname.</li>
         <li><span class="text-slate-200">Zitadel:</span> claim <code>urn:zitadel:iam:org:project:roles</code>, with "Assert Roles on Authentication" on.</li>
       </ul>
     </details>
