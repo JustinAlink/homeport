@@ -60,6 +60,7 @@ const PAGES = [
   ['/settings', 'capabilities'],
   ['/services/demo-0', 'jellyfin'],
   ['/services/demo-13', 'legacy-app'],
+  ['/status', 'all systems operational'],
 ]
 
 const problems = []
