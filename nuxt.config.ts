@@ -36,7 +36,7 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-title', content: 'homeport' },
       ],
       link: [
-        { rel: 'manifest', href: '/manifest.webmanifest' },
+        // the manifest link is set in app.vue: the public status page goes without it
         { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
         { rel: 'icon', type: 'image/svg+xml', href: '/icon.svg' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
