@@ -1,8 +1,6 @@
 <template>
-  <!-- login renders bare: no chrome before auth -->
-  <slot v-if="bare" />
-
-  <div v-else class="flex min-h-screen">
+  <!-- the login page has its own layout (layouts/bare.vue): this is only ever the signed-in app -->
+  <div class="flex min-h-screen">
     <!-- mobile top bar -->
     <div class="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-2 border-b border-white/[0.08] bg-ink-950/85 px-3 backdrop-blur-md md:hidden">
       <button class="btn btn-ghost btn-icon" aria-label="Open menu" @click="drawer = true">
@@ -191,7 +189,6 @@ const services = useServices()
 const toast = useToast()
 const confirmState = useConfirmState()
 
-const bare = computed(() => route.path === '/login')
 watch(() => route.fullPath, () => (drawer.value = false))
 
 const exposureRisk = useExposureBadge()
@@ -278,10 +275,8 @@ const sections = computed(() => {
 })
 
 onMounted(() => {
-  if (!bare.value) {
-    updates.refresh()
-    selfUpdate.refresh()
-  }
+  updates.refresh()
+  selfUpdate.refresh()
 })
 
 function isActive(to: string) {
@@ -305,7 +300,7 @@ async function logout() {
 // "?" opens the shortcut sheet; "g" then a letter jumps to a page (see utils/shortcuts.ts)
 let gPending = 0
 function onKey(e: KeyboardEvent) {
-  if (bare.value || e.metaKey || e.ctrlKey || e.altKey || isTyping(e)) return
+  if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e)) return
   if (palette.isOpen.value || confirmState.value.open) return
   if (e.key === '?') {
     e.preventDefault()
@@ -341,7 +336,10 @@ onMounted(() => {
     toast.success('Reconnected to homeport')
   })
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  stopConnectionWatch()
+})
 </script>
 
 <style scoped>

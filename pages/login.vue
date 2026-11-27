@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({ layout: 'bare' })
 const username = ref('admin')
 const password = ref('')
 const confirm = ref('')

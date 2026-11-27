@@ -67,6 +67,16 @@ mkdirSync(S, { recursive: true })
   // rules: /%61pi/backup is /api/backup, /api/%73ettings is /api/settings.
   const enc = await Promise.all(['/%61pi/backup', '/api/%73ettings', '/%61pi/settings'].map((u) => page.request.get(`${BASE}${u}`)))
   check('viewer: percent-encoded paths are held to the same rules', enc.every((r) => r.status() === 403), enc.map((r) => r.status()).join(' '))
+  // the login page carries none of the signed-in shell: nothing polls the API there
+  {
+    const lc = await ctx.browser().newContext()
+    const lp = await lc.newPage()
+    const unauth = []
+    lp.on('response', (r) => { if (r.status() === 401) unauth.push(new URL(r.url()).pathname) })
+    await lp.goto(`${BASE}/login`); await lp.waitForTimeout(12_000)
+    check('the login page asks the API nothing that needs a login', unauth.length === 0, JSON.stringify(unauth))
+    await lc.close()
+  }
   const anon = await fetch(`${BASE}/%61pi/backup`)
   check('anonymous: a percent-encoded API path still needs a login', anon.status === 401, String(anon.status))
   const odd = await fetch(`${BASE}/api/stacks/media%2Fx`)

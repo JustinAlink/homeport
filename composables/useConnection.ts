@@ -9,6 +9,9 @@ export function useConnection() {
 
 let timer: ReturnType<typeof setInterval> | null = null
 
+let listening = false
+let probeNow: (() => void) | null = null
+
 export function startConnectionWatch(onRecover: () => void) {
   if (!import.meta.client || timer) return
   const { online, misses } = useConnection()
@@ -31,9 +34,21 @@ export function startConnectionWatch(onRecover: () => void) {
     }
   }
   timer = setInterval(probe, 10_000)
-  window.addEventListener('offline', () => (online.value = false))
-  window.addEventListener('online', probe)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') probe()
-  })
+  probeNow = probe
+  // the listeners call through probeNow, so stopping leaves them idle; added once
+  if (!listening) {
+    listening = true
+    window.addEventListener('offline', () => probeNow && (online.value = false))
+    window.addEventListener('online', () => probeNow?.())
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') probeNow?.()
+    })
+  }
+}
+
+/** Stop probing (the signed-in shell is gone: on the login page it would only collect 401s). */
+export function stopConnectionWatch() {
+  if (timer) clearInterval(timer)
+  timer = null
+  probeNow = null
 }
