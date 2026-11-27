@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { NuxtLink as NuxtLinkC } from '#components'
 
-interface AlertRow { id: string; name: string; host?: string; kind: string; from: string; to: string; at: number }
+interface AlertRow { id: string; name: string; host?: string; kind: string; from: string; to: string; at: number; held?: boolean }
 interface OpRow { id: string; title: string; done: boolean; ok: boolean | null; startedAt: number; finishedAt: number }
 
 const FILTERS = [
@@ -80,7 +80,9 @@ async function load() {
 interface Row { at: number; icon: string; cls: string; text: string; host?: string; group: Filter; name?: string; stack?: string }
 
 function eventRow(e: AlertRow): Row {
-  return { ...eventRowBase(e), name: e.name }
+  const row = { ...eventRowBase(e), name: e.name }
+  // happened during a pause or maintenance window: the channels hear it afterwards
+  return e.held ? { ...row, text: `${row.text} (held by a pause, sent when it ended)` } : row
 }
 function eventRowBase(e: AlertRow): Row {
   switch (e.kind) {

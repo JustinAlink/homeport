@@ -23,15 +23,18 @@ export function claimAt(obj: unknown, path: string): unknown {
 
 /**
  * Group names from a claim value, normalised: an array (most providers), a
- * delimited string, or an object whose keys are the roles (Zitadel). Keycloak's
- * full group paths ("/admins") lose their leading slash; matching is case-blind.
+ * comma or newline separated string, or an object whose keys are the roles
+ * (Zitadel). Never split on spaces: group names have them ("authentik Admins"),
+ * and "Homelab Admins" read as "homelab" + "admins" would let every member of
+ * "Homelab" match an admin group. Keycloak's full group paths ("/admins") lose
+ * their leading slash; matching is case-blind.
  */
 export function groupsFrom(value: unknown): string[] {
   let raw: string[] = []
   if (Array.isArray(value)) raw = value.filter((v) => typeof v === 'string') as string[]
-  else if (typeof value === 'string') raw = value.split(/[,\s]+/)
+  else if (typeof value === 'string') raw = value.split(/[,\n]+/)
   else if (value && typeof value === 'object') raw = Object.keys(value as object)
-  return [...new Set(raw.map((g) => g.trim().replace(/^\/+/, '').toLowerCase()).filter(Boolean))]
+  return [...new Set(raw.map((g) => g.trim().replace(/^\/+/, '').replace(/\s+/g, ' ').toLowerCase()).filter(Boolean))]
 }
 
 /** A settings list ("admins, homelab\nops") as normalised group names. */

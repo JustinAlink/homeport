@@ -64,6 +64,11 @@ let lastFlush = 0
 let lastPrune = 0
 const FLUSH_EVERY = 5 * 60 * 1000
 const PRUNE_EVERY = 60 * 60 * 1000
+// A series not seen for this long (a removed container, a CI job's one-off
+// container) is written out and leaves memory. Its file keeps answering reads for
+// 30 days; in memory it would hold one of historyMaxSeries' slots for those 30
+// days, and a busy runner could use them all up so new apps got no history.
+const IDLE_EVICT_MS = 2 * PRUNE_EVERY
 
 /** Whether the stats dir can be written (mirrors settingsWritable's nearest-ancestor walk). */
 export function historyWritable(): boolean {
@@ -226,6 +231,23 @@ function prune(now: number): void {
   }
   for (const [key, seen] of lastSeen) {
     if (isHostKey(key)) continue
+    // idle: write it out and drop it from memory; the file sweep above deletes the
+    // file once it is older than what it can hold
+    if (now - seen > IDLE_EVICT_MS && now - seen <= graceMs && historyWritable()) {
+      const st = cache.get(key)
+      try {
+        if (st) {
+          mkdirSync(statsDir(), { recursive: true })
+          writeFileSync(fileFor(key) + '.tmp', serializeStore(st))
+          renameSync(fileFor(key) + '.tmp', fileFor(key))
+        }
+        cache.delete(key)
+        lastSeen.delete(key)
+      } catch {
+        // could not write it: keep it in memory rather than lose it
+      }
+      continue
+    }
     if (now - seen > graceMs) {
       cache.delete(key)
       lastSeen.delete(key)

@@ -69,15 +69,28 @@ interface GitResult {
 }
 
 /** Spawn git with per-call auth injection; stream + collect redacted output. */
+// A git call that hangs (a remote that accepts the connection and never answers)
+// would hold the stack's lock, and for auto-sync every later check, until
+// homeport restarts. Transfers slower than 1 KB/s for a minute are aborted by git
+// itself; anything still running after the deadline is killed.
+const GIT_TIMEOUT_MS = 10 * 60_000
+
 function runGit(
   args: string[],
-  opts: { cwd?: string; repoUrl: string; token: string | null; emit?: (line: string) => void },
+  opts: { cwd?: string; repoUrl: string; token: string | null; emit?: (line: string) => void; timeoutMs?: number },
 ): Promise<GitResult> {
   return new Promise((resolve, reject) => {
     const child = spawn('git', [...authArgs(opts.repoUrl, opts.token), ...args], {
       cwd: opts.cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, // fail fast, never prompt
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_HTTP_LOW_SPEED_LIMIT: '1000', GIT_HTTP_LOW_SPEED_TIME: '60' }, // fail fast, never prompt
     })
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      setTimeout(() => child.kill('SIGKILL'), 5000).unref()
+    }, opts.timeoutMs ?? GIT_TIMEOUT_MS)
+    timer.unref()
     const collected: string[] = []
     let buf = ''
     const onChunk = (chunk: Buffer) => {
@@ -94,16 +107,23 @@ function runGit(
     }
     child.stdout.on('data', onChunk)
     child.stderr.on('data', onChunk)
-    child.on('error', (e) =>
-      reject(new Error(e.message.includes('ENOENT') ? 'git is not available in the homeport image/host' : e.message)),
-    )
+    child.on('error', (e) => {
+      clearTimeout(timer)
+      reject(new Error(e.message.includes('ENOENT') ? 'git is not available in the homeport image/host' : e.message))
+    })
     child.on('close', (code) => {
+      clearTimeout(timer)
       if (buf.trim()) {
         const clean = redactSecrets(buf.trimEnd(), opts.token)
         collected.push(clean)
         opts.emit?.(clean)
       }
-      resolve({ code: code ?? 1, out: collected.join('\n') })
+      if (timedOut) {
+        const line = `git ${args[0]} gave up after ${Math.round((opts.timeoutMs ?? GIT_TIMEOUT_MS) / 1000)} s without finishing`
+        collected.push(line)
+        opts.emit?.(line)
+      }
+      resolve({ code: timedOut ? 124 : (code ?? 1), out: collected.join('\n') })
     })
   })
 }
@@ -270,7 +290,7 @@ export async function checkBehind(
   const local = await runGit(['rev-parse', 'HEAD'], { cwd, repoUrl: '', token: null })
   // the `^{}` pattern is what lists an annotated tag's commit: ls-remote's
   // pattern match leaves the peeled line out for a bare tag name
-  const remote = await runGit(['ls-remote', 'origin', meta.branch, `${meta.branch}^{}`], { cwd, repoUrl: meta.repo, token })
+  const remote = await runGit(['ls-remote', 'origin', meta.branch, `${meta.branch}^{}`], { cwd, repoUrl: meta.repo, token, timeoutMs: 60_000 })
   const remoteSha = parseLsRemote(remote.out, meta.branch)
   const result = {
     at: Date.now(),

@@ -15,6 +15,10 @@ const PROVIDERS: readonly string[] = DOMAIN_PROVIDER_IDS
 function traefikApiUrlOf(v: unknown): string {
   const url = typeof v === 'string' ? v.trim() : ''
   if (url && !/^https?:\/\//.test(url)) throw createError({ statusCode: 400, statusMessage: 'traefikApiUrl must be http(s)://' })
+  // a password in the URL would be shown back on the settings page: it has its own
+  // masked field (the environment variable may still carry one, it is never shown)
+  if (url && /^https?:\/\/[^/?#]*@/.test(url))
+    throw createError({ statusCode: 400, statusMessage: 'Put the Traefik API user and password in their own fields, not in the URL' })
   return url
 }
 const PRESETS: WebhookPreset[] = ['discord', 'slack', 'ntfy', 'apprise', 'custom']

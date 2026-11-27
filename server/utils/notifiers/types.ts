@@ -8,6 +8,8 @@ export interface AlertEvent {
   from: string
   to: string
   at: number // unix ms
+  /** happened during a pause or maintenance window: logged at once, sent when it ended */
+  held?: boolean
 }
 
 export interface Notifier {

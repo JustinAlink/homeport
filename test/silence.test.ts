@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { inWindow, silencedBy, pruneSilences, validWindow, serviceKey, emptySilences, type MaintenanceWindow } from '../shared/utils/silence.ts'
+import { inWindow, silencedBy, pruneSilences, validWindow, serviceKey, emptySilences, recoverySnoozeStep, type MaintenanceWindow } from '../shared/utils/silence.ts'
 
 const at = (day: number, hhmm: string) => ({ day, minute: Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)) })
 const nightly: MaintenanceWindow = { id: 'w1', days: [1, 2, 3, 4, 5], start: '02:00', end: '04:00', note: 'backups' }
@@ -51,4 +51,17 @@ test('validWindow: rejects empty days, bad times and zero-length windows', () =>
 test('serviceKey: stable across recreates, default host for bare ids', () => {
   assert.equal(serviceKey('vps::abc123', 'web'), 'vps|web')
   assert.equal(serviceKey('demo-3', 'ghost'), 'default|ghost')
+})
+
+test('silence: "until it recovers" ends only after trouble, counting domains', () => {
+  const sn = { untilRecovered: true }
+  // snoozed before planned work while everything is fine: stays
+  assert.equal(recoverySnoozeStep(sn, false, false), 'keep')
+  // the container is fine but its domain answers 502: that is trouble too
+  assert.equal(recoverySnoozeStep(sn, false, true), 'mark')
+  assert.equal(recoverySnoozeStep({ ...sn, sawBad: true }, false, true), 'keep') // still failing
+  assert.equal(recoverySnoozeStep({ ...sn, sawBad: true }, true, false), 'keep')
+  assert.equal(recoverySnoozeStep({ ...sn, sawBad: true }, false, false), 'end') // in trouble, now fine
+  assert.equal(recoverySnoozeStep({ untilRecovered: false }, false, false), 'keep') // a timed snooze is never ended here
+  assert.equal(recoverySnoozeStep(undefined, true, true), 'keep')
 })

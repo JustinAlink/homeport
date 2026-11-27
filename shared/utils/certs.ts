@@ -86,3 +86,16 @@ export function certAlertStep(
   }
   return { next: { notified: level === 'ok' ? null : notified, trusted: c.trusted }, emit: null }
 }
+
+/**
+ * The state a certificate starts from when it replaced others on the same domains.
+ * A proxy falling back to its default certificate serves one with a new
+ * fingerprint, so the new certificate has no history of its own: it inherits the
+ * old ones' trust (so "was trusted, now isn't" can still be told), and starts with
+ * no tier announced (it is a different certificate, with its own expiry).
+ */
+export function inheritedState(replaced: (CertAlertState | undefined)[]): CertAlertState | undefined {
+  const known = replaced.filter((s): s is CertAlertState => !!s)
+  if (!known.length) return undefined
+  return { notified: null, trusted: known.some((s) => s.trusted) }
+}

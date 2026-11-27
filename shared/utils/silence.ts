@@ -13,6 +13,21 @@ export interface Snooze {
   at: number
   /** ends early, the first time the app is fine again (until is then the latest it can last) */
   untilRecovered?: boolean
+  /** an "until it recovers" snooze has seen the app in trouble since it began */
+  sawBad?: boolean
+}
+
+/**
+ * What an "until it recovers" snooze does on a check. It ends only once the app has
+ * been seen in trouble since the snooze began and is now fine, container and
+ * domains both. Ending on the first healthy check would end a snooze set before
+ * planned work at once, and one set while only the domain was failing (container
+ * running, proxy answering 502) on the very next tick.
+ */
+export function recoverySnoozeStep(sn: Pick<Snooze, 'untilRecovered' | 'sawBad'> | undefined, appBad: boolean, domainBad: boolean): 'end' | 'mark' | 'keep' {
+  if (!sn?.untilRecovered) return 'keep'
+  if (appBad || domainBad) return sn.sawBad ? 'keep' : 'mark'
+  return sn.sawBad ? 'end' : 'keep'
 }
 
 /**

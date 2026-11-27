@@ -1,4 +1,4 @@
-import type { H3Event } from 'h3'
+import { readCapped } from '../../../../utils/read-capped'
 import { getConfig } from '../../../../utils/config'
 import { safeStackName } from '../../../../utils/stacks-core'
 import { isGitStack, stackFollowedRef } from '../../../../utils/git-stacks'
@@ -35,19 +35,6 @@ const rates = new Map<string, { start: number; count: number }>()
 
 const notFound = () => createError({ statusCode: 404, statusMessage: 'Not Found' })
 
-/** The raw body, byte for byte (signatures are over these exact bytes), refusing anything past the cap. */
-async function readCapped(event: H3Event, max: number): Promise<Buffer> {
-  if (Number(getHeader(event, 'content-length') || 0) > max) throw createError({ statusCode: 413, statusMessage: 'Payload Too Large' })
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of event.node.req) {
-    size += chunk.length
-    if (size > max) throw createError({ statusCode: 413, statusMessage: 'Payload Too Large' })
-    chunks.push(chunk as Buffer)
-  }
-  return Buffer.concat(chunks)
-}
-
 export default defineEventHandler(async (event) => {
   const cfg = getConfig()
   if (!cfg.allowStacks || !cfg.allowGitWebhooks) {
@@ -68,6 +55,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 429, statusMessage: 'Too Many Requests' })
   }
 
+  // byte for byte: signatures are over these exact bytes
   const body = await readCapped(event, MAX_BODY_BYTES)
   const get = (n: string) => getHeader(event, n)
   const provider = detectProvider(get)

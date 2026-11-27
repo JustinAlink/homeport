@@ -41,7 +41,7 @@
         type="button"
         role="menuitem"
         class="flex w-full items-center px-3 py-1.5 text-left text-[13px] text-slate-200 hover:bg-white/[0.05] focus:bg-white/[0.06] focus:outline-none"
-        title="Ends by itself the first time the app is fine again (at the latest in a week)"
+        title="Ends by itself once the app has been in trouble and is fine again, its domains included (at the latest in a week)"
         @click="pick(Date.now() + 7 * 86_400_000, true)"
       >Until it recovers</button>
     </div>

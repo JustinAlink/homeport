@@ -449,7 +449,7 @@ export function getSettingsView(): Omit<PersistedSettings, 'registryCreds' | 'ho
     traefikApiUrl: s.traefikApiUrl || '',
     traefikApiUser: s.traefikApiUser || '',
     traefikApiPassword: '',
-    traefikApiPasswordSet: !!s.traefikApiPassword,
+    traefikApiPasswordSet: !!(s.traefikApiPassword || process.env.HOMEPORT_TRAEFIK_API_PASSWORD),
     npmApiUrl: s.npmApiUrl || '',
     npmApiIdentity: s.npmApiIdentity || '',
     // Secrets are masked out of the view (never sent to the browser). A companion

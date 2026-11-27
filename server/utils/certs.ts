@@ -2,7 +2,7 @@ import tls from 'node:tls'
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Service } from '~/types/service'
-import { certAlertStep, certLeftText, nextCheckIn, certLevel, type CertAlertState, type CertInfo } from '../../shared/utils/certs.ts'
+import { certAlertStep, inheritedState, certLeftText, nextCheckIn, certLevel, type CertAlertState, type CertInfo } from '../../shared/utils/certs.ts'
 import { serviceKey } from '../../shared/utils/silence.ts'
 import { getConfig } from './config'
 import { getHosts } from './hosts'
@@ -162,7 +162,8 @@ export const runCertChecks = guard(async (services: Service[]) => {
   if (cfg.alertsEnabled && cfg.alertCerts) await alertOnCerts(store, renewed, now)
   else {
     // keep the alert state current, so turning alerts on later doesn't announce old news
-    for (const g of groups(store)) store.alerts[g.fp] = certAlertStep(store.alerts[g.fp], g.cert, now).next
+    const replaced = replacedStates(store, renewed)
+    for (const g of groups(store)) store.alerts[g.fp] = certAlertStep(store.alerts[g.fp] ?? inheritedState(replaced.get(g.fp) ?? []), g.cert, now).next
   }
   persist()
 })
@@ -178,19 +179,34 @@ function groups(store: Store) {
   return [...byFp.values()]
 }
 
+/** For each newly served certificate, the alert states of the ones it replaced. */
+function replacedStates(store: Store, renewed: Map<string, Entry[]>): Map<string, (CertAlertState | undefined)[]> {
+  const out = new Map<string, (CertAlertState | undefined)[]>()
+  for (const [oldFp, entries] of renewed) {
+    for (const e of entries) {
+      if (!e.cert) continue
+      out.set(e.cert.fingerprint, [...(out.get(e.cert.fingerprint) ?? []), store.alerts[oldFp]])
+    }
+  }
+  return out
+}
+
 async function alertOnCerts(store: Store, renewed: Map<string, Entry[]>, now: number) {
   const current = groups(store)
   const live = new Set(current.map((g) => g.fp))
-  // "renewed" only closes a warning that went out: a quiet renewal says nothing
+  // read before the stale states below are dropped: a replacement inherits them
+  const replaced = replacedStates(store, renewed)
+  // "renewed" only closes a warning that went out, and only when the new one is
+  // trusted: a fallback to the proxy's default certificate is not a renewal
   for (const [oldFp, entries] of renewed) {
-    if (store.alerts[oldFp]?.notified && entries[0]?.cert) {
+    if (store.alerts[oldFp]?.notified && entries[0]?.cert?.trusted) {
       await dispatch({ id: `cert:${oldFp}`, name: entries.map((e) => e.domain).join(', '), host: entries[0].host, kind: 'cert-renewed', from: '', to: certLeftText(entries[0].cert, now), at: now })
     }
   }
   // state of certificates no longer served anywhere
   for (const fp of Object.keys(store.alerts)) if (!live.has(fp)) delete store.alerts[fp]
   for (const g of current) {
-    const { next, emit } = certAlertStep(store.alerts[g.fp], g.cert, now)
+    const { next, emit } = certAlertStep(store.alerts[g.fp] ?? inheritedState(replaced.get(g.fp) ?? []), g.cert, now)
     store.alerts[g.fp] = next
     if (!emit) continue
     // silent while every app it covers is snoozed (a pause or window is handled by dispatch)

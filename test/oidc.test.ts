@@ -18,7 +18,8 @@ import {
 test('oidc: group claims in the shapes providers use', () => {
   assert.deepEqual(groupsFrom(['Admins', 'homelab']), ['admins', 'homelab']) // Authentik, Pocket ID, Authelia
   assert.deepEqual(groupsFrom(['/admins', '/team/ops']), ['admins', 'team/ops']) // Keycloak full paths
-  assert.deepEqual(groupsFrom('admins, ops viewers'), ['admins', 'ops', 'viewers']) // a delimited string
+  assert.deepEqual(groupsFrom('admins, ops\nviewers'), ['admins', 'ops', 'viewers']) // a delimited string
+  assert.deepEqual(groupsFrom('authentik Admins,  Homelab   Admins'), ['authentik admins', 'homelab admins']) // spaces are part of a name
   assert.deepEqual(groupsFrom({ admin: { '123': 'org' }, viewer: {} }), ['admin', 'viewer']) // Zitadel roles object
   assert.deepEqual(groupsFrom(undefined), [])
   assert.deepEqual(groupsFrom([1, null, 'x']), ['x'])
@@ -36,6 +37,12 @@ test('oidc: role mapping fails closed', () => {
   assert.equal(roleFor(['everyone'], admin, viewer), null) // signed in at the provider is not enough
   assert.equal(roleFor([], admin, viewer), null)
   assert.equal(roleFor(['anything'], [], []), null) // nothing configured: nobody gets in
+  // a group name with a space is one name: a member of "Homelab" is not an admin
+  const admins = parseGroupList('Homelab Admins')
+  const viewers = parseGroupList('Homelab')
+  assert.equal(roleFor(groupsFrom(['Homelab']), admins, viewers), 'viewer')
+  assert.equal(roleFor(groupsFrom(['Homelab Admins']), admins, viewers), 'admin')
+  assert.equal(roleFor(groupsFrom(['Admins']), admins, viewers), null)
 })
 
 test('oidc: usernames from claims are valid, never "admin", and unique', () => {
@@ -50,7 +57,8 @@ test('oidc: usernames from claims are valid, never "admin", and unique', () => {
 
 test('oidc: only same-site paths can be returned to after sign-in', () => {
   assert.equal(safeReturnTo('/services/abc?tab=logs'), '/services/abc?tab=logs')
-  for (const bad of ['https://evil.example.com', '//evil.example.com', '/\\evil.example.com', 'javascript:alert(1)', '/api/backup', '/login?local=1', undefined, 42])
+  assert.equal(safeReturnTo('/stacks/media#files'), '/stacks/media#files')
+  for (const bad of ['https://evil.example.com', '//evil.example.com', '/\\evil.example.com', '/\t/evil.example.com', '/\n/evil.example.com', '/\r\n/evil.example.com', 'javascript:alert(1)', '/api/backup', '/login?local=1', undefined, 42])
     assert.equal(safeReturnTo(bad), '/', String(bad))
 })
 

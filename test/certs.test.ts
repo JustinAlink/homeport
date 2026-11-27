@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DAY, certThresholds, certLevel, daysLeft, nextCheckIn, certLeftText, certAlertStep, type CertInfo } from '../shared/utils/certs.ts'
+import { DAY, certThresholds, certLevel, daysLeft, nextCheckIn, certLeftText, certAlertStep, inheritedState, type CertInfo } from '../shared/utils/certs.ts'
 import { silencedState } from '../shared/utils/silence.ts'
 
 const NOW = 1_800_000_000_000
@@ -59,9 +59,15 @@ test('certs: a trust problem is announced when a trusted cert turns untrusted, n
   const selfSigned = cert(365, 200 * DAY, { trusted: false, error: 'DEPTH_ZERO_SELF_SIGNED_CERT' })
   assert.equal(certAlertStep(undefined, selfSigned, NOW).emit, null)
   assert.equal(certAlertStep({ notified: null, trusted: false }, selfSigned, NOW).emit, null)
-  // the proxy fell back to its default certificate: wrong name
+  // the proxy fell back to its default certificate (wrong name). It has a new
+  // fingerprint, so it has no state of its own: it starts from the one it replaced.
   const fallback = cert(365, 200 * DAY, { trusted: false, error: 'ERR_TLS_CERT_ALTNAME_INVALID' })
-  assert.deepEqual(certAlertStep({ notified: null, trusted: true }, fallback, NOW).emit, { kind: 'cert-invalid' })
+  assert.equal(certAlertStep(undefined, fallback, NOW).emit, null) // no history: no way to tell
+  const seeded = inheritedState([{ notified: 'warn', trusted: true }])
+  assert.deepEqual(seeded, { notified: null, trusted: true }) // trust carries over, tiers start fresh
+  assert.deepEqual(certAlertStep(seeded, fallback, NOW).emit, { kind: 'cert-invalid' })
+  assert.equal(certAlertStep(inheritedState([{ notified: null, trusted: false }]), fallback, NOW).emit, null) // was never trusted
+  assert.equal(inheritedState([undefined]), undefined)
   // an expired cert is the expiry alert's job, not a second trust alert
   const expired = cert(90, -1, { trusted: false, error: 'CERT_HAS_EXPIRED' })
   assert.deepEqual(certAlertStep({ notified: 'critical', trusted: true }, expired, NOW).emit, { kind: 'cert-expiring', tier: 'expired' })
