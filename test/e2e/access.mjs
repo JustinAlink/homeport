@@ -63,6 +63,14 @@ mkdirSync(S, { recursive: true })
   const listApi = await page.request.get(`${BASE}/api/stacks/media/files`)
   check('viewer: compose file and stack files are refused', [composeApi, envApi, listApi].every((r) => r.status() === 403), [composeApi, envApi, listApi].map((r) => r.status()).join(' '))
   check('viewer: the stack list still loads', (await page.request.get(`${BASE}/api/stacks`)).status() === 200)
+  // A percent-encoded path routes to the same endpoint, so it must meet the same
+  // rules: /%61pi/backup is /api/backup, /api/%73ettings is /api/settings.
+  const enc = await Promise.all(['/%61pi/backup', '/api/%73ettings', '/%61pi/settings'].map((u) => page.request.get(`${BASE}${u}`)))
+  check('viewer: percent-encoded paths are held to the same rules', enc.every((r) => r.status() === 403), enc.map((r) => r.status()).join(' '))
+  const anon = await fetch(`${BASE}/%61pi/backup`)
+  check('anonymous: a percent-encoded API path still needs a login', anon.status === 401, String(anon.status))
+  const odd = await fetch(`${BASE}/api/stacks/media%2Fx`)
+  check('an encoded slash in an API path is refused', odd.status === 400, String(odd.status))
   await page.goto(BASE + '/stacks/media', { waitUntil: 'load' }); await wait(2000)
   const stackBody = await page.locator('main').innerText()
   check(

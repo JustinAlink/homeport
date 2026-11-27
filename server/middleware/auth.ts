@@ -5,12 +5,16 @@ import { verifyApiToken } from '../utils/api-tokens'
 import { getUser } from '../utils/users'
 import { scopeAllows } from '../utils/api-tokens-core'
 import { isCrossOrigin, isUnsafeMethod } from '../utils/csrf-core'
+import { routedPath } from '../utils/request-path-core'
 
 // Gate the API (pages redirect client-side). Fail-closed: a valid session is
 // required unless auth is intentionally off (open mode). /api/auth/* and the
 // first-run /api/setup are always reachable.
 export default defineEventHandler((event) => {
-  const path = getRequestURL(event).pathname
+  // The decoded path the router matches, never the raw URL: checking the raw
+  // pathname let `/%61pi/backup` skip every rule below (see request-path-core.ts).
+  const path = routedPath(event.path)
+  if (path === null) throw createError({ statusCode: 400, statusMessage: 'Bad request path' })
   if (!path.startsWith('/api/')) return
   // Before anything else, including the public auth endpoints: a cross-origin page
   // must not log the user out, log them in as someone else, or claim setup.

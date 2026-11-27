@@ -75,6 +75,22 @@ blueprint labels. Each domain says where it was read from.
 - Settings no longer sends an extra host's NPM API password to the browser, and
   saving the settings page no longer wipes the per-host NPM API and Caddy admin
   fields it has no inputs for.
+## v2.37.2 (2026-11-27)
+
+- **Security: an encoded API path skipped the login.** The auth check read the
+  raw URL while the router matches the percent-decoded path, so a request like
+  `/%61pi/backup` reached `/api/backup` with no session, and the same trick got
+  viewers and read-only tokens past their limits and around the cross-origin
+  check. Every check now uses the exact path the router matches, and paths with
+  encoded slashes, dot segments or backslashes are refused. Every version
+  before this one is affected: update. If your homeport was reachable by
+  untrusted people, look in your reverse proxy's access log for requests whose
+  path starts with `/%` and decodes to `/api/...`. If any of those got a 200,
+  assume the backup export was read: it holds the session-signing secret, the
+  admin password hash and the stored credentials. Set a new
+  `HOMEPORT_SESSION_SECRET` (or remove `sessionSecret` from `auth.json` in the
+  data dir), change the admin password, and rotate the proxy API, registry,
+  git and SMTP credentials homeport keeps.
 
 ## v2.37.1 (2026-11-25)
 
